@@ -6,13 +6,13 @@ Dieses Projekt steht deshalb ebenfalls unter GPL-3.0.
 
 ## Phase 1: Was schon da ist
 
-| Funktion | Stand |
-| --- | --- |
-| Brett, Notation, Varianten | aus En Croissant übernommen |
-| PGN-Import und -Export | aus En Croissant übernommen |
-| Mehrere Engines gleichzeitig, jede mit eigener Box (Linien + Bewertung) | aus En Croissant übernommen |
-| **Positionsspeicher** (lokale SQLite-Datenbank aller bewerteten Stellungen) | **neu** |
-| Einstellungsseite „Positionsspeicher“ (Statistik, Speicher leeren) | **neu** |
+| Funktion                                                                    | Stand                       |
+| --------------------------------------------------------------------------- | --------------------------- |
+| Brett, Notation, Varianten                                                  | aus En Croissant übernommen |
+| PGN-Import und -Export                                                      | aus En Croissant übernommen |
+| Mehrere Engines gleichzeitig, jede mit eigener Box (Linien + Bewertung)     | aus En Croissant übernommen |
+| **Positionsspeicher** (lokale SQLite-Datenbank aller bewerteten Stellungen) | **neu**                     |
+| Einstellungsseite „Positionsspeicher“ (Statistik, Speicher leeren)          | **neu**                     |
 
 ## Positionsspeicher
 

@@ -1035,7 +1035,11 @@ mod engine_cache_tests {
         };
         let cache = EvalCache::open_in_memory();
         let (mut proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
-        assert!(proc.engine_name.starts_with("Stockfish"), "{}", proc.engine_name);
+        assert!(
+            proc.engine_name.starts_with("Stockfish"),
+            "{}",
+            proc.engine_name
+        );
 
         let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let best = search(&mut proc, &mut reader, start, &["g1f3", "d7d5", "d2d4"], 12).await;

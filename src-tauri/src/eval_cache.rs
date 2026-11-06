@@ -317,7 +317,9 @@ impl EvalCache {
         let inner = guard.as_ref().ok_or(Error::EvalCacheUnavailable)?;
         let conn = &inner.conn;
         let positions: u32 =
-            conn.query_row("SELECT COUNT(DISTINCT position) FROM evals", [], |r| r.get(0))?;
+            conn.query_row("SELECT COUNT(DISTINCT position) FROM evals", [], |r| {
+                r.get(0)
+            })?;
         let entries: u32 = conn.query_row("SELECT COUNT(*) FROM evals", [], |r| r.get(0))?;
         let mut stmt = conn.prepare(
             "SELECT engine, COUNT(*), MAX(depth) FROM evals GROUP BY engine ORDER BY COUNT(*) DESC",
@@ -331,14 +333,11 @@ impl EvalCache {
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
-        let size_bytes = [
-            inner.path.clone(),
-            inner.path.with_extension("sqlite3-wal"),
-        ]
-        .iter()
-        .filter_map(|p| std::fs::metadata(p).ok())
-        .map(|m| m.len() as f64)
-        .sum();
+        let size_bytes = [inner.path.clone(), inner.path.with_extension("sqlite3-wal")]
+            .iter()
+            .filter_map(|p| std::fs::metadata(p).ok())
+            .map(|m| m.len() as f64)
+            .sum();
         Ok(EvalCacheStats {
             path: inner.path.display().to_string(),
             positions,
@@ -475,7 +474,10 @@ mod tests {
         assert_eq!(two.lines.len(), 2);
         assert!(cache.lookup(k, "SF", 3).is_none());
 
-        assert_eq!(cache.lookup(k, "Patricia", 1).unwrap().lines[0].cp, Some(80));
+        assert_eq!(
+            cache.lookup(k, "Patricia", 1).unwrap().lines[0].cp,
+            Some(80)
+        );
         assert_eq!(cache.lookup_all(k).len(), 2);
         let stats = cache.stats().unwrap();
         assert_eq!(stats.positions, 1);

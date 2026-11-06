@@ -6,8 +6,8 @@
 mod chess;
 mod db;
 mod engine;
-mod eval_cache;
 mod error;
+mod eval_cache;
 mod game;
 mod vision;
 
@@ -268,9 +268,7 @@ fn main() {
                     if let Err(err) = std::fs::create_dir_all(&dir) {
                         log::warn!("Failed to create app data dir: {err}");
                     }
-                    state
-                        .eval_cache
-                        .open(dir.join(eval_cache::CACHE_FILE_NAME));
+                    state.eval_cache.open(dir.join(eval_cache::CACHE_FILE_NAME));
                 }
                 Err(err) => log::warn!("No app data dir, evaluation cache disabled: {err}"),
             }
