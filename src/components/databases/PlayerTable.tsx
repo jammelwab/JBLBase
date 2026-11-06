@@ -1,0 +1,191 @@
+import {
+  ActionIcon,
+  Center,
+  Collapse,
+  Flex,
+  Group,
+  NumberInput,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
+import { IconDotsVertical, IconSearch } from "@tabler/icons-react";
+import { DataTable } from "mantine-datatable";
+import { useContext, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
+import { useTranslation } from "react-i18next";
+import useSWR from "swr";
+import { useStore } from "zustand";
+import type { Player, PlayerSort } from "@/bindings";
+import { query_players } from "@/utils/db";
+import { DatabaseViewStateContext } from "./DatabaseViewStateContext";
+import GridLayout from "./GridLayout";
+import PlayerCard from "./PlayerCard";
+import classes from "./styles.module.css";
+
+function PlayerTable() {
+  const { t } = useTranslation();
+  const store = useContext(DatabaseViewStateContext)!;
+
+  const file = useStore(store, (s) => s.database?.file)!;
+  const query = useStore(store, (s) => s.players.query);
+  const setQuery = useStore(store, (s) => s.setPlayersQuery);
+
+  const selectedPlayer = useStore(store, (s) => s.players.selectedPlayer);
+  const setSelectedPlayer = useStore(store, (s) => s.setPlayersSelectedPlayer);
+
+  const [debouncedQuery] = useDebouncedValue(query, 200);
+  const { data, error, isLoading } = useSWR(["players", file, debouncedQuery], () =>
+    query_players(file, debouncedQuery),
+  );
+  const players = data?.data ?? [];
+  const count = data?.count;
+  const player = players.find((p) => p.name === selectedPlayer);
+
+  const [open, setOpen] = useState(false);
+
+  useHotkeys("ArrowUp", () => {
+    if (selectedPlayer != null) {
+      const prevIndex = players.findIndex((p) => p.name === selectedPlayer) - 1;
+      if (prevIndex > -1) {
+        setSelectedPlayer(players[prevIndex].name ?? undefined);
+      }
+    }
+  });
+  useHotkeys("ArrowDown", () => {
+    const curIndex = players.findIndex((p) => p.name === selectedPlayer);
+    if (curIndex > -1) {
+      const nextIndex = curIndex + 1;
+
+      if (nextIndex < (count ?? 0)) {
+        setSelectedPlayer(players[nextIndex].name ?? undefined);
+      }
+    }
+  });
+
+  return (
+    <GridLayout
+      search={
+        <>
+          <Flex style={{ alignItems: "center", gap: 10 }}>
+            <TextInput
+              style={{ flexGrow: 1 }}
+              placeholder={t("Common.Search")}
+              leftSection={<IconSearch size="1rem" />}
+              value={query.name ?? undefined}
+              onChange={(e) =>
+                setQuery({
+                  ...query,
+                  name: e.currentTarget.value,
+                  options: {
+                    ...query.options,
+                    page: 1,
+                  },
+                })
+              }
+            />
+            <ActionIcon style={{ flexGrow: 0 }} onClick={() => setOpen((prev) => !prev)}>
+              <IconDotsVertical size="1rem" />
+            </ActionIcon>
+          </Flex>
+
+          <Collapse expanded={open}>
+            <Group mt="md">
+              <NumberInput
+                label={t("Databases.Player.MinELO")}
+                value={query.range?.[0]}
+                onChange={(v) =>
+                  setQuery({
+                    ...query,
+                    range: [(v || 0) as number, query.range?.[1] ?? 3000],
+                  })
+                }
+                min={0}
+                max={3000}
+                step={100}
+              />
+              <NumberInput
+                label={t("Databases.Player.MaxELO")}
+                value={query.range?.[1]}
+                min={0}
+                max={3000}
+                step={100}
+                onChange={(v) =>
+                  setQuery({
+                    ...query,
+                    range: [query.range?.[0] ?? 0, (v || 3000) as number],
+                  })
+                }
+              />
+            </Group>
+          </Collapse>
+        </>
+      }
+      table={
+        <DataTable<Player>
+          withTableBorder
+          highlightOnHover
+          records={players}
+          fetching={isLoading}
+          columns={[
+            { accessor: "name", sortable: true },
+            { accessor: "elo", sortable: true },
+          ]}
+          rowClassName={(r) => (r.name === selectedPlayer ? classes.selected : "")}
+          noRecordsText={
+            error
+              ? `${t("Common.Error")}: ${error instanceof Error ? error.message : String(error)}`
+              : t("Databases.Player.NoPlayersFound")
+          }
+          totalRecords={count!}
+          recordsPerPage={query.options.pageSize ?? 25}
+          page={query.options?.page ?? 1}
+          onPageChange={(page) =>
+            setQuery({
+              ...query,
+              options: {
+                ...query.options!,
+                page,
+              },
+            })
+          }
+          onRecordsPerPageChange={(value) =>
+            setQuery({
+              ...query,
+              options: { ...query.options!, pageSize: value },
+            })
+          }
+          sortStatus={{
+            columnAccessor: query.options?.sort || "name",
+            direction: query.options?.direction || "desc",
+          }}
+          onSortStatusChange={(value) =>
+            setQuery({
+              ...query,
+              options: {
+                ...query.options!,
+                sort: value.columnAccessor as PlayerSort,
+                direction: value.direction,
+              },
+            })
+          }
+          recordsPerPageOptions={[10, 25, 50]}
+          onRowClick={({ index }) => {
+            setSelectedPlayer(players[index].name ?? undefined);
+          }}
+        />
+      }
+      preview={
+        player != null ? (
+          <PlayerCard player={player} file={file} />
+        ) : (
+          <Center h="100%">
+            <Text>{t("Databases.Player.NoSelection")}</Text>
+          </Center>
+        )
+      }
+    />
+  );
+}
+
+export default PlayerTable;

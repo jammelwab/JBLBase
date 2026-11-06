@@ -1,0 +1,54 @@
+import { Center, Loader, Paper, Stack, Text } from "@mantine/core";
+import { useTranslation } from "react-i18next";
+import useSWRImmutable from "swr/immutable";
+import { commands, type Player } from "@/bindings";
+import { unwrap } from "@/utils/unwrap";
+import PersonalPlayerCard from "../home/PersonalCard";
+
+function PlayerCard({ player, file }: { player: Player; file: string }) {
+  const { t } = useTranslation();
+  const {
+    data: info,
+    isLoading,
+    error,
+  } = useSWRImmutable(["player-game-info", file, player.name], async ([_key, file, player]) => {
+    if (!player) return null;
+    const games = await commands.getPlayersGameInfo(file, player);
+    return unwrap(games);
+  });
+
+  return (
+    <>
+      {isLoading && (
+        <Paper withBorder h="100%">
+          <Center h="100%">
+            <Stack align="center">
+              <Text fw="bold">{t("Databases.Player.ProcessingData")}</Text>
+              <Loader />
+            </Stack>
+          </Center>
+        </Paper>
+      )}
+      {info && (
+        <PersonalPlayerCard
+          key={player.name}
+          name={player.name!}
+          info={info}
+          isDatabase
+          openingSources={[{ file, player: player.name! }]}
+        />
+      )}
+      {error && !info && (
+        <Paper withBorder h="100%">
+          <Center h="100%">
+            <Text c="dimmed">
+              {t("Common.Error")}: {error instanceof Error ? error.message : String(error)}
+            </Text>
+          </Center>
+        </Paper>
+      )}
+    </>
+  );
+}
+
+export default PlayerCard;

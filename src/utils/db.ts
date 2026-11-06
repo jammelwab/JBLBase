@@ -1,0 +1,218 @@
+import { resolve } from "@tauri-apps/api/path";
+import { readDir } from "@tauri-apps/plugin-fs";
+import { fetch } from "@tauri-apps/plugin-http";
+import useSWR from "swr";
+import {
+    commands,
+    type DatabaseInfo,
+    type GameQuery,
+    type NormalizedGame,
+    type Player,
+    type PlayerQuery,
+    type PuzzleDatabaseInfo,
+    type QueryResponse,
+    type TournamentQuery,
+    type Event,
+    type PositionStats,
+} from "@/bindings";
+import type { LocalOptions } from "@/components/panels/database/DatabasePanel";
+import { getDatabasesDir } from "@/utils/directories";
+import { unwrap } from "./unwrap";
+
+export type SuccessDatabaseInfo = Extract<DatabaseInfo, { type: "success" }>;
+
+export type Sides = "WhiteBlack" | "BlackWhite" | "Any";
+
+export interface CompleteGame {
+    game: NormalizedGame;
+    currentMove: number[];
+}
+
+export type Speed =
+    | "UltraBullet"
+    | "Bullet"
+    | "Blitz"
+    | "Rapid"
+    | "Classical"
+    | "Correspondence"
+    | "Unknown";
+
+function normalizeRange(range?: [number, number] | null): [number, number] | undefined {
+    if (!range || range[1] - range[0] === 3000) {
+        return undefined;
+    }
+    return range;
+}
+
+export async function query_games(
+    db: string,
+    query: GameQuery,
+): Promise<QueryResponse<NormalizedGame[]>> {
+    return unwrap(await commands.getGames(db, normalizeGameQuery(query)));
+}
+
+export function normalizeGameQuery(query: GameQuery): GameQuery {
+    const position =
+        query.position?.type_ === "exact" || query.position?.type_ === "scoutfish"
+            ? query.position
+            : null;
+    return {
+        player1: query.player1,
+        range1: normalizeRange(query.range1),
+        player2: query.player2,
+        range2: normalizeRange(query.range2),
+        tournament: query.tournament,
+        sides: query.sides,
+        outcome: query.outcome,
+        start_date: query.start_date,
+        end_date: query.end_date,
+        position,
+        options: {
+            skipCount: query.options?.skipCount ?? false,
+            page: query.options?.page,
+            pageSize: query.options?.pageSize,
+            sort: query.options?.sort || "id",
+            direction: query.options?.direction || "desc",
+        },
+    };
+}
+
+export async function query_players(
+    db: string,
+    query: PlayerQuery,
+): Promise<QueryResponse<Player[]>> {
+    return unwrap(
+        await commands.getPlayers(db, {
+            options: {
+                skipCount: query.options.skipCount || false,
+                page: query.options.page,
+                pageSize: query.options.pageSize,
+                sort: query.options.sort,
+                direction: query.options.direction,
+            },
+            name: query.name,
+            range: normalizeRange(query.range),
+        }),
+    );
+}
+
+export async function query_tournaments(
+    db: string,
+    query: TournamentQuery,
+): Promise<QueryResponse<Event[]>> {
+    return unwrap(
+        await commands.getTournaments(db, {
+            options: {
+                skipCount: query.options?.skipCount || false,
+                page: query.options?.page,
+                pageSize: query.options?.pageSize,
+                sort: query.options?.sort || "games_count",
+                direction: query.options?.direction || "desc",
+            },
+            name: query.name || null,
+        }),
+    );
+}
+
+export async function getDatabases(): Promise<DatabaseInfo[]> {
+    const dbDir = await getDatabasesDir();
+    const files = await readDir(dbDir);
+    const dbs = files.filter((file) => /\.(duckdb|db3)$/i.test(file.name ?? ""));
+    return (await Promise.allSettled(dbs.map((db) => getDatabase(db.name))))
+        .filter((r) => r.status === "fulfilled")
+        .map((r) => (r as PromiseFulfilledResult<DatabaseInfo>).value);
+}
+
+async function getDatabase(name: string): Promise<DatabaseInfo> {
+    const dbDir = await getDatabasesDir();
+    const path = await resolve(dbDir, name);
+    const res = await commands.getDbInfo(path);
+    if (res.status === "ok") {
+        return {
+            type: res.data.needs_conversion ? "legacy" : "success",
+            ...res.data,
+            file: path,
+        };
+    }
+    return {
+        type: "error",
+        filename: path,
+        file: path,
+        error: res.error,
+        indexed: false,
+    };
+}
+
+export function useDefaultDatabases(opened: boolean) {
+    const { data, error, isLoading } = useSWR(opened ? "default-dbs" : null, async () => {
+        const data = await fetch("https://www.encroissant.org/databases", {
+            method: "GET",
+        });
+        if (!data.ok) {
+            throw new Error("Failed to fetch engines");
+        }
+        return (await data.json()) as SuccessDatabaseInfo[];
+    });
+    return {
+        defaultDatabases: data,
+        error,
+        isLoading,
+    };
+}
+
+export function isDefaultDatabaseInstalled(databases: DatabaseInfo[], title: string) {
+    return databases.some(
+        (db) => db.type === "success" && (db.title === title || db.filename === `${title}.duckdb`),
+    );
+}
+
+export async function getDefaultPuzzleDatabases(): Promise<
+    (PuzzleDatabaseInfo & { downloadLink: string })[]
+> {
+    const data = await fetch("https://www.encroissant.org/puzzle_databases", {
+        method: "GET",
+    });
+    if (!data.ok) {
+        throw new Error("Failed to fetch puzzle databases");
+    }
+    return (await data.json()) as (PuzzleDatabaseInfo & {
+        downloadLink: string;
+    })[];
+}
+
+export type Opening = PositionStats;
+
+export async function getTournamentGames(file: string, name: string) {
+    return await query_games(file, {
+        options: {
+            direction: "asc",
+            sort: "id",
+            skipCount: true,
+        },
+        tournament: name,
+    });
+}
+
+export async function searchPosition(options: LocalOptions, tab: string) {
+    const { path, ...queryOptions } = options;
+    const res = await commands.searchPosition(
+        path!,
+        {
+            ...queryOptions,
+            range1: normalizeRange(queryOptions.range1),
+            range2: normalizeRange(queryOptions.range2),
+            position: {
+                fen: queryOptions.position?.fen || "",
+                type_: "exact",
+            },
+        },
+        tab,
+    );
+    if (res.status === "error") {
+        if (res.error !== "Search stopped") {
+            unwrap(res);
+        }
+        return Promise.reject();
+    }
+    return res.data;
+}

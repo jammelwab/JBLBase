@@ -1,0 +1,140 @@
+import { Group, Progress, Text } from "@mantine/core";
+import { useAtom } from "jotai";
+import { DataTable } from "mantine-datatable";
+import { memo, useContext } from "react";
+import { useStore } from "zustand";
+import { TreeStateContext } from "@/components/common/TreeStateContext";
+import { moveNotationTypeAtom } from "@/state/atoms";
+import { addPieceSymbol } from "@/utils/annotation";
+import type { Opening } from "@/utils/db";
+import { formatNumber } from "@/utils/format";
+import classes from "./OpeningsTable.module.css";
+import { parseSan } from "chessops/san";
+import { makeLan } from "@/utils/chess";
+import { positionFromFen } from "@/utils/chessops";
+
+function OpeningsTable({
+  openings,
+  loading,
+  fen,
+}: {
+  openings: Opening[];
+  loading: boolean;
+  fen: string;
+}) {
+  const store = useContext(TreeStateContext)!;
+  const makeMove = useStore(store, (s) => s.makeMove);
+  const [moveNotationType] = useAtom(moveNotationTypeAtom);
+  const [pos] = positionFromFen(fen);
+  function displayMove(move: string) {
+    if (move === "*" || move === "Total") return move;
+    if (moveNotationType !== "lan" || !pos) return move;
+    const parsed = parseSan(pos, move);
+    if (!parsed) return move;
+    return makeLan({ move: parsed, san: move });
+  }
+
+  const whiteTotal = openings?.reduce((acc, curr) => acc + curr.white, 0);
+  const blackTotal = openings?.reduce((acc, curr) => acc + curr.black, 0);
+  const drawTotal = openings?.reduce((acc, curr) => acc + curr.draw, 0);
+  const grandTotal = openings.reduce((acc, curr) => acc + curr.total, 0);
+
+  if (openings.length > 0) {
+    openings = [
+      ...openings,
+      {
+        move: "Total",
+        total: grandTotal,
+        white: whiteTotal,
+        black: blackTotal,
+        draw: drawTotal,
+      },
+    ];
+  }
+
+  return (
+    <DataTable
+      withTableBorder
+      highlightOnHover
+      records={openings}
+      fetching={loading || openings === null}
+      rowStyle={(game, i) => {
+        if (i === openings.length - 1)
+          return {
+            fontWeight: 700,
+            position: "sticky",
+            bottom: 0,
+            zIndex: 10,
+          };
+        return {};
+      }}
+      columns={[
+        {
+          accessor: "move",
+          width: 100,
+          render: ({ move }) => {
+            if (move === "*")
+              return (
+                <Text fz="sm" fs="italic">
+                  Game end
+                </Text>
+              );
+            const shown = moveNotationType === "lan" ? displayMove(move) : move;
+            return (
+              <Text fz="sm">{moveNotationType === "symbols" ? addPieceSymbol(shown) : shown}</Text>
+            );
+          },
+        },
+        {
+          accessor: "total",
+          width: 180,
+          render: ({ move, total }) => {
+            const percentage = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
+            return (
+              <Group>
+                {move !== "Total" && <Text fz="sm">{percentage.toFixed(0)}%</Text>}
+                <Text fz="sm" flex={1} ta="right">
+                  {formatNumber(total)}
+                </Text>
+              </Group>
+            );
+          },
+        },
+        {
+          accessor: "results",
+          render: ({ black, white, draw }) => {
+            const total = white + draw + black;
+            if (total === 0) return <Text c="dimmed">—</Text>;
+            const whitePercent = (white / total) * 100;
+            const drawPercent = (draw / total) * 100;
+            const blackPercent = (black / total) * 100;
+            return (
+              <Progress.Root size="xl" className={classes.result}>
+                <Progress.Section value={whitePercent} className={classes.whiteResultsSection}>
+                  <Progress.Label c="black">
+                    {whitePercent > 10 ? `${whitePercent.toFixed(1)}%` : ""}
+                  </Progress.Label>
+                </Progress.Section>
+                <Progress.Section value={drawPercent} color="gray">
+                  <Progress.Label>
+                    {drawPercent > 10 ? `${drawPercent.toFixed(1)}%` : ""}
+                  </Progress.Label>
+                </Progress.Section>
+                <Progress.Section value={blackPercent} color="black">
+                  <Progress.Label>
+                    {blackPercent > 10 ? `${blackPercent.toFixed(1)}%` : ""}
+                  </Progress.Label>
+                </Progress.Section>
+              </Progress.Root>
+            );
+          },
+        },
+      ]}
+      idAccessor="move"
+      emptyState={"No games found"}
+      onRowClick={({ record }) => makeMove({ payload: record.move })}
+    />
+  );
+}
+
+export default memo(OpeningsTable);
