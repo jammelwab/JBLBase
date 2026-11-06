@@ -121,7 +121,7 @@ declare module "@tanstack/react-router" {
 }
 
 const checkForUpdates = async () => {
-  // Chessbase fork: upstream updates would replace this build with En Croissant.
+  // JBLBase fork: upstream updates would replace this build with En Croissant.
   if (!UPDATES_ENABLED) return;
   try {
     const update = await check();

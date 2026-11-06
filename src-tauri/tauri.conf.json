@@ -47,9 +47,9 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
-  "productName": "Chessbase",
+  "productName": "JBLBase",
   "mainBinaryName": "en-croissant",
-  "identifier": "de.jschwab.chessbase",
+  "identifier": "de.jammelwab.jblbase",
   "plugins": {
     "deep-link": {
       "desktop": {

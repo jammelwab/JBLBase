@@ -126,7 +126,7 @@ function RootLayout() {
   const checkForUpdates = useCallback(async () => {
     if (updateInProgress.current) return;
     if (!UPDATES_ENABLED) {
-      await message("Automatic updates are disabled in Chessbase.");
+      await message("Automatic updates are disabled in JBLBase.");
       return;
     }
     updateInProgress.current = true;

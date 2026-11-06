@@ -982,7 +982,7 @@ pub async fn get_engine_config(path: PathBuf) -> Result<EngineConfig, Error> {
 }
 
 /// End-to-end check of the evaluation cache with a real UCI engine.
-/// Run with: `CHESSBASE_TEST_ENGINE=/path/to/stockfish cargo test -- --ignored engine_cache`
+/// Run with: `JBLBASE_TEST_ENGINE=/path/to/stockfish cargo test -- --ignored engine_cache`
 #[cfg(test)]
 mod engine_cache_tests {
     use super::*;
@@ -1030,7 +1030,7 @@ mod engine_cache_tests {
     #[tokio::test]
     #[ignore]
     async fn engine_cache_roundtrip_with_real_engine() {
-        let Ok(path) = std::env::var("CHESSBASE_TEST_ENGINE") else {
+        let Ok(path) = std::env::var("JBLBASE_TEST_ENGINE") else {
             return;
         };
         let cache = EvalCache::open_in_memory();

@@ -1,4 +1,4 @@
-# Chessbase (Fork von En Croissant)
+# JBLBase (Fork von En Croissant)
 
 Eigenes Schachprogramm von Jannick Schwab, aufgebaut auf
 [En Croissant](https://github.com/franciscoBSalgueiro/en-croissant) (GPL-3.0).
@@ -19,8 +19,8 @@ Dieses Projekt steht deshalb ebenfalls unter GPL-3.0.
 Jede Stellung, die eine lokale Engine bewertet, landet in
 `eval_cache.sqlite3` im App-Datenordner:
 
-- Windows: `%APPDATA%\de.jschwab.chessbase\eval_cache.sqlite3`
-- macOS: `~/Library/Application Support/de.jschwab.chessbase/eval_cache.sqlite3`
+- Windows: `%APPDATA%\de.jammelwab.jblbase\eval_cache.sqlite3`
+- macOS: `~/Library/Application Support/de.jammelwab.jblbase/eval_cache.sqlite3`
 
 Gespeichert werden je Stellung, Engine und Linienanzahl (MultiPV): Tiefe,
 Knoten, Bewertung (Centipawn, Matt, WDL) und die kompletten Hauptvarianten.
@@ -69,7 +69,7 @@ Engines sind eigenständige Programme und werden nicht mitgeliefert.
    - Windows mit Ryzen 3600: Version **„AVX2“** nehmen
      (der Ryzen 3600 kann BMI2, auf Zen 2 ist AVX2 aber meist schneller).
 2. Entpacken, z. B. nach `C:\Engines\Stockfish\`.
-3. In Chessbase: **Engines → Hinzufügen → Lokal** und die `.exe` auswählen.
+3. In JBLBase: **Engines → Hinzufügen → Lokal** und die `.exe` auswählen.
 4. Empfohlene Optionen (in der Engine-Box über das Zahnrad):
    - `Threads`: **10** (lässt 2 Threads für Oberfläche und zweite Engine frei)
    - `Hash`: **4096** MB (bei 32 GB RAM unbedenklich)
@@ -111,5 +111,5 @@ Tests des Positionsspeichers:
 cd src-tauri
 cargo test eval_cache
 # mit echter Engine:
-CHESSBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored engine_cache
+JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored engine_cache
 ```
