@@ -63,6 +63,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
+import { UPDATES_ENABLED } from "@/utils/fork";
 import ErrorComponent from "@/components/ErrorComponent";
 import { getDatabasesDir, getDocumentDir, getEnginesDir, getPuzzlesDir } from "@/utils/directories";
 import { initUserAgent } from "@/utils/http";
@@ -120,6 +121,8 @@ declare module "@tanstack/react-router" {
 }
 
 const checkForUpdates = async () => {
+  // Chessbase fork: upstream updates would replace this build with En Croissant.
+  if (!UPDATES_ENABLED) return;
   try {
     const update = await check();
     if (update) {

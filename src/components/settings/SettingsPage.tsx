@@ -17,6 +17,7 @@ import {
   IconBook,
   IconBrush,
   IconChess,
+  IconDatabase,
   IconFlag,
   IconFolder,
   IconKeyboard,
@@ -68,6 +69,7 @@ import FileInput from "../common/FileInput";
 import BoardSelect from "./BoardSelect";
 import ColorControl from "./ColorControl";
 import DimensionToggle from "./DimensionToggle";
+import EvalCacheSettings from "./EvalCacheSettings";
 import FontSizeSlider from "./FontSizeSlider";
 import KeybindInput from "./KeybindInput";
 import PiecesSelect from "./PiecesSelect";
@@ -901,6 +903,9 @@ export default function Page() {
             <Tabs.Tab value="repertoire" leftSection={<IconBook size="1rem" />}>
               {t("Settings.Repertoire")}
             </Tabs.Tab>
+            <Tabs.Tab value="evalcache" leftSection={<IconDatabase size="1rem" />}>
+              {t("Settings.EvalCache")}
+            </Tabs.Tab>
             <Tabs.Tab value="privacy" leftSection={<IconShield size="1rem" />}>
               {t("Settings.Privacy")}
             </Tabs.Tab>
@@ -1016,6 +1021,16 @@ export default function Page() {
                     {t("Settings.Repertoire.Desc")}
                   </Text>
                   {renderCategorySettings("repertoire")}
+                </Tabs.Panel>
+
+                <Tabs.Panel value="evalcache">
+                  <Text size="lg" fw={500} className={classes.title}>
+                    {t("Settings.EvalCache")}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={3} mb="lg">
+                    {t("Settings.EvalCache.Desc")}
+                  </Text>
+                  <EvalCacheSettings />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="privacy">

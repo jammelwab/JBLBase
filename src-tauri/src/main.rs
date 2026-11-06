@@ -6,6 +6,7 @@
 mod chess;
 mod db;
 mod engine;
+mod eval_cache;
 mod error;
 mod game;
 mod vision;
@@ -88,6 +89,7 @@ pub struct AppState {
     auth: AuthState,
     game_manager: GameManager,
     progress_state: ProgressStore,
+    eval_cache: eval_cache::EvalCache,
 }
 
 #[tauri::command]
@@ -187,7 +189,10 @@ fn main() {
             get_game_engine_logs,
             get_progress,
             clear_progress,
-            get_sound_server_port
+            get_sound_server_port,
+            eval_cache::get_eval_cache_stats,
+            eval_cache::clear_eval_cache,
+            eval_cache::get_cached_evals
         ))
         .events(tauri_specta::collect_events!(
             BestMovesPayload,
@@ -257,6 +262,19 @@ fn main() {
                 )
                 .expect("failed to resolve aixchess extension resource path");
             let state = app.state::<AppState>();
+
+            match app.path().app_data_dir() {
+                Ok(dir) => {
+                    if let Err(err) = std::fs::create_dir_all(&dir) {
+                        log::warn!("Failed to create app data dir: {err}");
+                    }
+                    state
+                        .eval_cache
+                        .open(dir.join(eval_cache::CACHE_FILE_NAME));
+                }
+                Err(err) => log::warn!("No app data dir, evaluation cache disabled: {err}"),
+            }
+
             *state
                 .aixchess_extension_path
                 .lock()

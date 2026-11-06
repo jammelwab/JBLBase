@@ -92,6 +92,18 @@ pub enum Error {
 
     #[error("Analysis cancelled")]
     AnalysisCancelled,
+
+    #[error("Evaluation cache: {0}")]
+    EvalCache(String),
+
+    #[error("Evaluation cache is not available")]
+    EvalCacheUnavailable,
+}
+
+impl From<rusqlite::Error> for Error {
+    fn from(value: rusqlite::Error) -> Self {
+        Self::EvalCache(value.to_string())
+    }
 }
 
 impl From<std::io::Error> for Error {

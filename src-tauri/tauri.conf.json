@@ -47,9 +47,9 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
-  "productName": "en-croissant",
+  "productName": "Chessbase",
   "mainBinaryName": "en-croissant",
-  "identifier": "org.encroissant.app",
+  "identifier": "de.jschwab.chessbase",
   "plugins": {
     "deep-link": {
       "desktop": {

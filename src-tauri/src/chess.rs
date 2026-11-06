@@ -32,6 +32,7 @@ use crate::{
         parse_fen_and_apply_moves, BaseEngine, EngineLog, EngineOption, EngineReader, GoMode,
     },
     error::Error,
+    eval_cache::{position_key, CachedEval, EvalCache, StoredLine},
     progress::update_progress,
     AppState,
 };
@@ -47,13 +48,22 @@ pub struct EngineProcess {
     running: bool,
     real_multipv: u16,
     start: Instant,
+    /// Engine name as reported by `id name`, used as cache key.
+    engine_name: String,
+    /// Normalised key of the position currently being analysed.
+    position_key: String,
 }
 
 impl EngineProcess {
     async fn new(path: PathBuf) -> Result<(Self, EngineReader), Error> {
-        let mut base = BaseEngine::spawn(path).await?;
+        let mut base = BaseEngine::spawn(path.clone()).await?;
         base.init_uci().await?;
         let reader = base.take_reader().ok_or(Error::EngineDisconnected)?;
+        let engine_name = engine_name_from_logs(&base.get_logs()).unwrap_or_else(|| {
+            path.file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.display().to_string())
+        });
 
         Ok((
             Self {
@@ -67,6 +77,8 @@ impl EngineProcess {
                 go_mode: GoMode::Infinite,
                 running: false,
                 start: Instant::now(),
+                engine_name,
+                position_key: String::new(),
             },
             reader,
         ))
@@ -102,6 +114,7 @@ impl EngineProcess {
             .unwrap_or(1);
 
         self.real_multipv = multipv.min(pos.legal_moves().len() as u16);
+        self.position_key = position_key(&pos);
 
         for option in &options.extra_options {
             if !self.options.extra_options.contains(option) && option.name != "UCI_Chess960" {
@@ -149,6 +162,129 @@ impl EngineProcess {
     pub fn kill_sync(&mut self) {
         self.base.kill_sync();
     }
+
+    fn cache_lookup(&self, cache: &EvalCache) -> Option<CachedEval> {
+        if self.real_multipv == 0 || self.position_key.is_empty() {
+            return None;
+        }
+        cache.lookup(&self.position_key, &self.engine_name, self.real_multipv)
+    }
+
+    fn cache_store(&self, cache: &EvalCache, lines: &[BestMoves]) {
+        if self.position_key.is_empty() || lines.len() != self.real_multipv as usize {
+            return;
+        }
+        cache.store(&self.position_key, &self.engine_name, &to_stored(lines));
+    }
+
+    /// Shows a stored evaluation for the current position right away.
+    ///
+    /// Returns `true` when the stored result already satisfies the requested
+    /// search (fixed depth reached), in which case the engine is not started.
+    /// Otherwise the engine still runs, but its output is only shown once it
+    /// is at least as deep as the stored result.
+    fn serve_from_cache(
+        &mut self,
+        go_mode: &GoMode,
+        cache: &EvalCache,
+        app: &tauri::AppHandle,
+        engine_id: &str,
+        tab: &str,
+    ) -> Result<bool, Error> {
+        let Some(cached) = self.cache_lookup(cache) else {
+            return Ok(false);
+        };
+        let Some(lines) = from_cached(&cached, &self.options.fen, &self.options.moves) else {
+            return Ok(false);
+        };
+        let satisfied = matches!(go_mode, GoMode::Depth(d) if cached.depth >= *d);
+        let progress = if satisfied {
+            100.0
+        } else {
+            match go_mode {
+                GoMode::Depth(d) => (cached.depth as f64 / *d as f64) * 100.0,
+                GoMode::Infinite | GoMode::PlayersTime(_) => 99.99,
+                GoMode::Time(_) | GoMode::Nodes(_) => 0.0,
+            }
+        };
+        info!(
+            "Evaluation cache hit: {} depth {} ({})",
+            self.engine_name, cached.depth, self.position_key
+        );
+        BestMovesPayload {
+            best_lines: lines.clone(),
+            engine: engine_id.to_string(),
+            tab: tab.to_string(),
+            fen: self.options.fen.clone(),
+            moves: self.options.moves.clone(),
+            progress,
+        }
+        .emit(app)?;
+        self.last_best_moves = lines;
+        self.last_depth = cached.depth;
+        self.last_progress = progress as f32;
+        if satisfied {
+            self.go_mode = go_mode.clone();
+            self.running = false;
+        }
+        Ok(satisfied)
+    }
+}
+
+fn engine_name_from_logs(logs: &[EngineLog]) -> Option<String> {
+    logs.iter().find_map(|l| match l {
+        EngineLog::Engine(line) => line
+            .strip_prefix("id name ")
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty()),
+        EngineLog::Gui(_) => None,
+    })
+}
+
+fn to_stored(lines: &[BestMoves]) -> Vec<StoredLine> {
+    lines
+        .iter()
+        .map(|l| {
+            StoredLine::from_score(
+                l.multipv,
+                l.depth,
+                l.nodes,
+                l.nps,
+                &l.score,
+                l.uci_moves.clone(),
+            )
+        })
+        .collect()
+}
+
+/// Rebuilds `BestMoves` (including SAN) from a stored evaluation.
+fn from_cached(cached: &CachedEval, fen: &str, moves: &[String]) -> Option<Vec<BestMoves>> {
+    let root = parse_fen_and_apply_moves(fen, moves).ok()?;
+    cached
+        .lines
+        .iter()
+        .map(|l| {
+            let mut pos = root.clone();
+            let mut san_moves = Vec::with_capacity(l.uci.len());
+            for m in &l.uci {
+                let uci: UciMove = m.parse().ok()?;
+                let mv = uci.to_move(&pos).ok()?;
+                san_moves.push(SanPlus::from_move_and_play_unchecked(&mut pos, mv).to_string());
+            }
+            if san_moves.is_empty() {
+                return None;
+            }
+            Some(BestMoves {
+                nodes: l.nodes,
+                depth: l.depth,
+                score: l.score(),
+                uci_moves: l.uci.clone(),
+                san_moves,
+                multipv: l.multipv,
+                nps: l.nps,
+            })
+        })
+        .collect()
 }
 
 #[derive(Clone, Serialize, Debug, Derivative, Type)]
@@ -358,14 +494,18 @@ pub async fn get_best_moves(
             let process = state.engine_processes.get_mut(&key).unwrap();
             let mut process = process.lock().await;
             process.set_options(options.clone()).await?;
-            process.go(&go_mode).await?;
+            if !process.serve_from_cache(&go_mode, &state.eval_cache, &app, &id, &tab)? {
+                process.go(&go_mode).await?;
+            }
         }
         return Ok(None);
     }
 
     let (mut process, mut reader) = EngineProcess::new(path).await?;
     process.set_options(options.clone()).await?;
-    process.go(&go_mode).await?;
+    if !process.serve_from_cache(&go_mode, &state.eval_cache, &app, &id, &tab)? {
+        process.go(&go_mode).await?;
+    }
 
     let process = Arc::new(Mutex::new(process));
 
@@ -390,10 +530,17 @@ pub async fn get_best_moves(
                         if multipv as usize == proc.best_moves.len() + 1 {
                             proc.best_moves.push(best_moves);
                             if multipv == proc.real_multipv {
-                                if proc.best_moves.iter().all(|x| x.depth == cur_depth)
-                                    && cur_depth >= proc.last_depth
-                                    && lim.check().is_ok()
-                                {
+                                let complete = proc.best_moves.iter().all(|x| x.depth == cur_depth)
+                                    && cur_depth >= proc.last_depth;
+                                if complete {
+                                    // Always persist and remember the deepest result, even
+                                    // when the UI update below is rate limited.
+                                    let lines = proc.best_moves.clone();
+                                    proc.cache_store(&state.eval_cache, &lines);
+                                    proc.last_depth = cur_depth;
+                                    proc.last_best_moves = lines;
+                                }
+                                if complete && lim.check().is_ok() {
                                     let progress = match proc.go_mode {
                                         GoMode::Depth(depth) => {
                                             (cur_depth as f64 / depth as f64) * 100.0
@@ -417,8 +564,6 @@ pub async fn get_best_moves(
                                         progress,
                                     }
                                     .emit(&app)?;
-                                    proc.last_depth = cur_depth;
-                                    proc.last_best_moves = proc.best_moves.clone();
                                     proc.last_progress = progress as f32;
                                 }
                                 proc.best_moves.clear();
@@ -572,9 +717,21 @@ pub async fn analyze_game(
         })
         .await?;
 
+        let mut current_analysis = MoveAnalysis::default();
+        let cached = proc.cache_lookup(&state.eval_cache);
+        let cached_lines = cached
+            .as_ref()
+            .and_then(|c| from_cached(c, &proc.options.fen, &proc.options.moves));
+        if let (Some(c), Some(lines)) = (&cached, &cached_lines) {
+            if matches!(go_mode, GoMode::Depth(d) if c.depth >= d) {
+                current_analysis.best = lines.clone();
+                analysis.push(current_analysis);
+                continue;
+            }
+        }
+
         proc.go(&go_mode).await?;
 
-        let mut current_analysis = MoveAnalysis::default();
         while let Ok(Some(line)) = reader.next_line().await {
             match parse_one(&line) {
                 UciMessage::Info(attrs) => {
@@ -602,6 +759,13 @@ pub async fn analyze_game(
                     break;
                 }
                 _ => {}
+            }
+        }
+        proc.cache_store(&state.eval_cache, &current_analysis.best);
+        let engine_depth = current_analysis.best.first().map(|b| b.depth).unwrap_or(0);
+        if let (Some(c), Some(lines)) = (cached, cached_lines) {
+            if c.depth > engine_depth {
+                current_analysis.best = lines;
             }
         }
         analysis.push(current_analysis);
@@ -790,7 +954,7 @@ pub struct EngineConfig {
 #[tauri::command]
 #[specta::specta]
 pub async fn get_engine_config(path: PathBuf) -> Result<EngineConfig, Error> {
-    let mut base = BaseEngine::spawn(path).await?;
+    let mut base = BaseEngine::spawn(path.clone()).await?;
 
     base.send("uci").await?;
 
@@ -815,4 +979,95 @@ pub async fn get_engine_config(path: PathBuf) -> Result<EngineConfig, Error> {
     println!("{:?}", config);
     base.quit().await?;
     Ok(config)
+}
+
+/// End-to-end check of the evaluation cache with a real UCI engine.
+/// Run with: `CHESSBASE_TEST_ENGINE=/path/to/stockfish cargo test -- --ignored engine_cache`
+#[cfg(test)]
+mod engine_cache_tests {
+    use super::*;
+
+    async fn search(
+        proc: &mut EngineProcess,
+        reader: &mut EngineReader,
+        fen: &str,
+        moves: &[&str],
+        depth: u32,
+    ) -> Vec<BestMoves> {
+        proc.set_options(EngineOptions {
+            fen: fen.to_string(),
+            moves: moves.iter().map(|m| m.to_string()).collect(),
+            extra_options: vec![EngineOption {
+                name: "MultiPV".into(),
+                value: "2".into(),
+            }],
+        })
+        .await
+        .unwrap();
+        proc.go(&GoMode::Depth(depth)).await.unwrap();
+        let mut best = Vec::new();
+        while let Ok(Some(line)) = reader.next_line().await {
+            match parse_one(&line) {
+                UciMessage::Info(attrs) => {
+                    let opts = proc.options.clone();
+                    if let Ok(bm) = parse_uci_attrs(attrs, &opts.fen.parse().unwrap(), &opts.moves)
+                    {
+                        if bm.multipv as usize == proc.best_moves.len() + 1 {
+                            proc.best_moves.push(bm);
+                            if proc.best_moves.len() == proc.real_multipv as usize {
+                                best = std::mem::take(&mut proc.best_moves);
+                            }
+                        }
+                    }
+                }
+                UciMessage::BestMove { .. } => break,
+                _ => {}
+            }
+        }
+        best
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn engine_cache_roundtrip_with_real_engine() {
+        let Ok(path) = std::env::var("CHESSBASE_TEST_ENGINE") else {
+            return;
+        };
+        let cache = EvalCache::open_in_memory();
+        let (mut proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
+        assert!(proc.engine_name.starts_with("Stockfish"), "{}", proc.engine_name);
+
+        let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let best = search(&mut proc, &mut reader, start, &["g1f3", "d7d5", "d2d4"], 12).await;
+        assert_eq!(best.len(), 2);
+        proc.cache_store(&cache, &best);
+
+        // Same position reached by a different move order -> cache hit.
+        proc.set_options(EngineOptions {
+            fen: start.to_string(),
+            moves: vec!["d2d4".into(), "d7d5".into(), "g1f3".into()],
+            extra_options: vec![EngineOption {
+                name: "MultiPV".into(),
+                value: "2".into(),
+            }],
+        })
+        .await
+        .unwrap();
+        let cached = proc.cache_lookup(&cache).expect("cache hit");
+        assert_eq!(cached.depth, 12);
+        let restored = from_cached(&cached, start, &proc.options.moves).unwrap();
+        assert_eq!(restored.len(), 2);
+        assert_eq!(restored[0].san_moves, best[0].san_moves);
+        assert_eq!(restored[0].score, best[0].score);
+
+        // A request for more lines than stored is a miss.
+        proc.real_multipv = 3;
+        assert!(proc.cache_lookup(&cache).is_none());
+
+        // A shallower search does not overwrite the deeper one.
+        let shallow = search(&mut proc, &mut reader, start, &["g1f3", "d7d5", "d2d4"], 6).await;
+        proc.cache_store(&cache, &shallow);
+        assert_eq!(proc.cache_lookup(&cache).unwrap().depth, 12);
+        proc.kill().await.unwrap();
+    }
 }

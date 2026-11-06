@@ -488,6 +488,33 @@ async getSoundServerPort() : Promise<Result<number, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getEvalCacheStats() : Promise<Result<EvalCacheStats, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_eval_cache_stats") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async clearEvalCache() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_eval_cache") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Every stored evaluation of the position given by `fen`, one per engine.
+ */
+async getCachedEvals(fen: string) : Promise<Result<CachedEvalJs[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cached_evals", { fen }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -519,14 +546,20 @@ progressEvent: "progress-event"
 export type AnalysisOptions = { fen: string; moves: string[]; annotateNovelties: boolean; referenceDb: string | null; reversed: boolean }
 export type BestMoves = { nodes: number; depth: number; score: Score; uciMoves: string[]; sanMoves: string[]; multipv: number; nps: number }
 export type BestMovesPayload = { bestLines: BestMoves[]; engine: string; tab: string; fen: string; moves: string[]; progress: number }
+/**
+ * Cached evaluation as shown to the frontend (e.g. for repertoire tools).
+ */
+export type CachedEvalJs = { engine: string; depth: number; multipv: number; score: Score; uciMoves: string[] }
 export type ClockUpdateEvent = { gameId: string; whiteTime: bigint | null; blackTime: bigint | null }
 export type DatabaseInfo = { needs_conversion: boolean; title: string; description: string; player_count: number; event_count: number; game_count: number; storage_size: bigint; filename: string }
 export type DatabaseProgress = { id: string; progress: number }
 export type DrawReason = "stalemate" | "insufficientMaterial" | "threefoldRepetition" | "fiftyMoveRule" | "agreement"
+export type EngineCacheStats = { engine: string; entries: number; maxDepth: number }
 export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
 export type EngineOption = { name: string; value: string }
 export type EngineOptions = { fen: string; moves: string[]; extraOptions: EngineOption[] }
+export type EvalCacheStats = { path: string; positions: number; entries: number; sizeBytes: number; engines: EngineCacheStats[] }
 export type Event = { name: string | null; games_count: number }
 export type FileMetadata = { last_modified: number }
 export type GameConfig = { white: PlayerConfig; black: PlayerConfig; whiteTimeControl: TimeControl | null; blackTimeControl: TimeControl | null; initialFen: string | null; initialMoves?: string[]; openingBook: OpeningBookConfig | null }
