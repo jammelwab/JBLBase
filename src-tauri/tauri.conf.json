@@ -39,7 +39,7 @@
       "resources/vision/": "vision/"
     },
     "targets": "all",
-    "createUpdaterArtifacts": "v1Compatible"
+    "createUpdaterArtifacts": false
   },
   "build": {
     "beforeDevCommand": "pnpm prepare:aix-extension && pnpm start-vite",

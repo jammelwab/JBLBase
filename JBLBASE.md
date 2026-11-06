@@ -113,3 +113,12 @@ cargo test eval_cache
 # mit echter Engine:
 JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored engine_cache
 ```
+
+## Fertige Installer
+
+Bei jedem Push auf `main` baut GitHub Actions einen Windows-Installer (`.exe`)
+und eine macOS-Version (`.dmg`, Apple Silicon). Zu finden unter
+**Actions → Build installers → letzter Lauf → Artifacts**.
+Die Installer sind nicht signiert: Windows zeigt beim ersten Start eine
+SmartScreen-Warnung („Weitere Informationen → Trotzdem ausführen“), macOS
+verlangt Rechtsklick → Öffnen.
