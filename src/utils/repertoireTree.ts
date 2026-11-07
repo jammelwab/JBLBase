@@ -55,32 +55,45 @@ export type MergeResult =
     | { ok: true; added: number; path: number[] }
     | { ok: false; reason: "different-start" };
 
-// Adds `line` (moves played from `lineStartFen`) to the repertoire tree, reusing moves that
-// are already there. With `continuation`, every move after the last one of the line (all
-// variations) is merged too. Mutates `repertoireRoot`.
+// Adds the line from the start of `source` down to `path` to the repertoire tree, reusing
+// moves that are already there. With `withVariations`, the side variations that branch off
+// along the line and everything after its last move are merged too. Mutates
+// `repertoireRoot`.
 export function mergeLine(
     repertoireRoot: TreeNode,
-    lineStartFen: string,
-    line: TreeNode[],
-    continuation?: TreeNode,
+    source: TreeNode,
+    path: number[],
+    { withVariations = false }: { withVariations?: boolean } = {},
 ): MergeResult {
-    if (positionKey(repertoireRoot.fen) !== positionKey(lineStartFen)) {
+    if (positionKey(repertoireRoot.fen) !== positionKey(source.fen)) {
         return { ok: false, reason: "different-start" };
     }
     let added = 0;
-    const path: number[] = [];
+    const targetPath: number[] = [];
     let cur = repertoireRoot;
-    for (const source of line) {
-        if (!source.move || !source.san) break;
-        const { child, added: isNew } = addChild(cur, source);
+    let sourceCur = source;
+    for (const index of path) {
+        const next = sourceCur.children[index];
+        if (!next?.move || !next.san) break;
+        // The line itself first, so it stays ahead of its side variations
+        const { child, added: isNew } = addChild(cur, next);
         if (isNew) added++;
-        path.push(cur.children.indexOf(child));
+        if (withVariations) {
+            for (const sibling of sourceCur.children) {
+                if (sibling === next) continue;
+                const { child: side, added: sideIsNew } = addChild(cur, sibling);
+                if (sideIsNew) added++;
+                added += mergeSubtree(side, sibling);
+            }
+        }
+        targetPath.push(cur.children.indexOf(child));
         cur = child;
+        sourceCur = next;
     }
-    if (continuation) {
-        added += mergeSubtree(cur, continuation);
+    if (withVariations) {
+        added += mergeSubtree(cur, sourceCur);
     }
-    return { ok: true, added, path };
+    return { ok: true, added, path: targetPath };
 }
 
 // Position key -> moves the repertoire plays (or expects) from there. Every position of the

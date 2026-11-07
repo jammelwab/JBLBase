@@ -3,13 +3,7 @@ import { parseSan } from "chessops/san";
 import { expect, test } from "vitest";
 import { positionFromFen } from "../chessops";
 import { classifyMove, countClassifications } from "../moveClassification";
-import {
-    indexRepertoire,
-    mergeLine,
-    nodesOnPath,
-    positionKey,
-    repertoireStats,
-} from "../repertoireTree";
+import { indexRepertoire, mergeLine, positionKey, repertoireStats } from "../repertoireTree";
 import { createNode, defaultTree, type TreeNode } from "../treeReducer";
 
 // Builds a tree from lines of SAN moves; the first line is the main line.
@@ -50,14 +44,14 @@ function lines(root: TreeNode): string[] {
 test("a new line branches off where it leaves the repertoire", () => {
     const rep = tree(["e4", "e5", "Nf3", "Nc6", "Bb5"]);
     const game = tree(["e4", "e5", "Nf3", "Nf6", "Nxe5", "d6"]);
-    const result = mergeLine(rep, game.fen, nodesOnPath(game, [0, 0, 0, 0, 0, 0]));
+    const result = mergeLine(rep, game, [0, 0, 0, 0, 0, 0]);
     expect(result).toEqual({ ok: true, added: 3, path: [0, 0, 0, 1, 0, 0] });
     expect(lines(rep)).toEqual(["e4 e5 Nf3 Nc6 Bb5", "e4 e5 Nf3 Nf6 Nxe5 d6"]);
 });
 
 test("adding a line twice adds nothing", () => {
     const rep = tree(["d4", "d5", "c4"]);
-    const result = mergeLine(rep, rep.fen, nodesOnPath(tree(["d4", "d5"]), [0, 0]));
+    const result = mergeLine(rep, tree(["d4", "d5"]), [0, 0]);
     expect(result).toMatchObject({ ok: true, added: 0 });
 });
 
@@ -86,16 +80,27 @@ test("the continuation brings all variations along, without depth limit", () => 
     ];
     const game = tree(deep, ["e4", "c5", "Nf3", "Nc6"]);
     const rep = defaultTree().root;
-    const nf3 = nodesOnPath(game, [0, 0, 0]);
-    const result = mergeLine(rep, game.fen, nf3, nf3[nf3.length - 1]);
+    const result = mergeLine(rep, game, [0, 0, 0], { withVariations: true });
     expect(result).toMatchObject({ ok: true, added: 3 + 17 + 1 });
     expect(repertoireStats(rep)).toEqual({ moves: 21, leaves: 2, depth: 20 });
+});
+
+test("side variations along the line come along only when asked", () => {
+    const game = tree(["e4", "e5", "Nf3", "Nc6"], ["e4", "c5", "Nf3"], ["d4", "d5"]);
+    const plain = defaultTree().root;
+    mergeLine(plain, game, [0, 0, 0]);
+    expect(lines(plain)).toEqual(["e4 e5 Nf3"]);
+
+    const full = defaultTree().root;
+    const result = mergeLine(full, game, [0, 0, 0], { withVariations: true });
+    expect(lines(full)).toEqual(["e4 e5 Nf3 Nc6", "e4 c5 Nf3", "d4 d5"]);
+    expect(result).toMatchObject({ ok: true, path: [0, 0, 0] });
 });
 
 test("a line from another start position is refused", () => {
     const rep = tree(["e4"]);
     const other = defaultTree("rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1").root;
-    expect(mergeLine(rep, other.fen, [])).toEqual({ ok: false, reason: "different-start" });
+    expect(mergeLine(rep, other, [])).toEqual({ ok: false, reason: "different-start" });
 });
 
 test("transpositions share one entry in the index", () => {

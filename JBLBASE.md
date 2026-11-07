@@ -61,13 +61,14 @@ Tiefenlimit.
 **Eine Stellung ins Repertoire aufnehmen:**
 
 1. In irgendeiner Partie oder Analyse zur gewünschten Stellung gehen.
-2. Neben dem Brett auf das Lesezeichen-Symbol **Ins Repertoire aufnehmen**
-   klicken (oder im Tab **Repertoire** auf den gleichnamigen Knopf).
-3. Repertoire auswählen und **Aufnehmen**. Aufgenommen wird die Linie vom
-   Start bis zum aktuellen Zug. Züge, die schon drin sind, werden
-   wiederverwendet, die neue Linie zweigt dort ab, wo sie abweicht. Mit
-   „Auch alle folgenden Züge und Varianten aufnehmen“ kommt alles ab der
-   Stellung mit, z. B. eine ganze vorbereitete Analyse.
+2. In der Leiste links neben dem Brett, direkt unter „Brett drehen“:
+   - **Zu Repertoire hinzufügen** (Lesezeichen): nimmt die Linie vom Start
+     bis zum aktuellen Zug auf.
+   - **Zu Repertoire mit Nebenvarianten hinzufügen** (Baum-Symbol): nimmt
+     zusätzlich alle Varianten mit, die von dieser Linie abzweigen oder ihr
+     folgen, z. B. eine ganze vorbereitete Analyse.
+3. Repertoire auswählen und **Aufnehmen**. Züge, die schon drin sind, werden
+   wiederverwendet, eine neue Linie zweigt dort ab, wo sie abweicht.
 
 Der Tab **Repertoire** neben dem Brett zeigt für jede Stellung, ob sie in
 deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du

@@ -27,9 +27,11 @@ function lineText(nodes: { san: string | null; halfMoves: number }[]) {
 export default function AddToRepertoireModal({
   opened,
   onClose,
+  withVariations: initialWithVariations = false,
 }: {
   opened: boolean;
   onClose: () => void;
+  withVariations?: boolean;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -48,11 +50,21 @@ export default function AddToRepertoireModal({
   );
 
   const line = useMemo(() => nodesOnPath(root, position), [root, position]);
-  const current = getNodeAtPath(root, position);
-  const hasContinuation = current.children.length > 0;
+  // Anything besides the line itself: moves after it or side variations along it
+  const hasVariations = useMemo(() => {
+    let node = root;
+    for (const index of position) {
+      if (node.children.length > 1) return true;
+      node = node.children[index] ?? node;
+    }
+    return getNodeAtPath(root, position).children.length > 0;
+  }, [root, position]);
 
   const [selected, setSelected] = useState<string | null>(null);
-  const [withContinuation, setWithContinuation] = useState(false);
+  const [withVariations, setWithVariations] = useState(initialWithVariations);
+  useEffect(() => {
+    if (opened) setWithVariations(initialWithVariations);
+  }, [opened, initialWithVariations]);
   const [saving, setSaving] = useState(false);
 
   // Suggest the repertoire for the side the board is turned to
@@ -68,12 +80,9 @@ export default function AddToRepertoireModal({
     if (!target) return;
     setSaving(true);
     try {
-      const result = await addLineToRepertoire(
-        target.file,
-        root.fen,
-        line,
-        withContinuation ? current : undefined,
-      );
+      const result = await addLineToRepertoire(target.file, root, position, {
+        withVariations,
+      });
       if (!result.ok) {
         notifications.show({
           color: "red",
@@ -103,9 +112,15 @@ export default function AddToRepertoireModal({
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title={t("Repertoire.Add.Title")}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={t(
+        initialWithVariations ? "Repertoire.Add.TitleWithVariations" : "Repertoire.Add.Title",
+      )}
+    >
       <Stack>
-        {line.length === 0 && !hasContinuation ? (
+        {line.length === 0 && !hasVariations ? (
           <Text c="dimmed">{t("Repertoire.Add.NoMoves")}</Text>
         ) : (
           <Text size="sm">
@@ -144,11 +159,11 @@ export default function AddToRepertoireModal({
           </Radio.Group>
         )}
 
-        {hasContinuation && (
+        {hasVariations && (
           <Checkbox
-            checked={withContinuation}
-            onChange={(e) => setWithContinuation(e.currentTarget.checked)}
-            label={t("Repertoire.Add.WithContinuation")}
+            checked={withVariations}
+            onChange={(e) => setWithVariations(e.currentTarget.checked)}
+            label={t("Repertoire.Add.WithVariations")}
           />
         )}
 
@@ -159,7 +174,7 @@ export default function AddToRepertoireModal({
           <Button
             onClick={add}
             loading={saving}
-            disabled={!selected || (line.length === 0 && !withContinuation)}
+            disabled={!selected || (line.length === 0 && !withVariations)}
           >
             {t("Repertoire.Add.Button")}
           </Button>

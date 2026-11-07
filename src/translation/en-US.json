@@ -541,7 +541,8 @@
     "Repertoire.Add.StartPosition": "",
     "Repertoire.Add.Target": "",
     "Repertoire.Add.Title": "",
-    "Repertoire.Add.WithContinuation": "",
+    "Repertoire.Add.TitleWithVariations": "",
+    "Repertoire.Add.WithVariations": "",
     "Repertoire.Black": "",
     "Repertoire.MoveCount_one": "",
     "Repertoire.MoveCount_other": "",
@@ -793,7 +794,6 @@
   "Repertoire.Add.StartPosition": {},
   "Repertoire.Add.NoRepertoires": {},
   "Repertoire.Add.Target": {},
-  "Repertoire.Add.WithContinuation": {},
   "Repertoire.Add.Button": {},
   "Repertoire.Page.Open": {},
   "Repertoire.Page.All": {},
@@ -813,5 +813,7 @@
   "Repertoire.Owner": {},
   "Repertoire.Stats.Moves": {},
   "Repertoire.Stats.Lines": {},
-  "Repertoire.Stats.Depth": {}
+  "Repertoire.Stats.Depth": {},
+  "Repertoire.Add.TitleWithVariations": {},
+  "Repertoire.Add.WithVariations": {}
 }

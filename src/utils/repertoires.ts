@@ -145,17 +145,17 @@ function serialize(root: TreeNode, headers: GameHeaders) {
     })}\n\n`;
 }
 
-// Adds a line (and optionally everything after it) to a repertoire file. The file is read
+// Adds a line (optionally with its side variations) to a repertoire file. The file is read
 // fresh from disk, and a tab that has the repertoire open in the background gets the same
 // moves, so neither overwrites the other later.
 export async function addLineToRepertoire(
     file: FileMetadata,
-    lineStartFen: string,
-    line: TreeNode[],
-    continuation?: TreeNode,
+    source: TreeNode,
+    path: number[],
+    options: { withVariations: boolean },
 ): Promise<MergeResult> {
     const repertoire = await loadRepertoire(file);
-    const result = mergeLine(repertoire.root, lineStartFen, line, continuation);
+    const result = mergeLine(repertoire.root, source, path, options);
     if (!result.ok) return result;
 
     if (result.added > 0) {
@@ -172,7 +172,7 @@ export async function addLineToRepertoire(
             origin.file.path === file.path
         ) {
             updatePersistedState<TreeState>(tab.value, (state) => {
-                mergeLine(state.root, lineStartFen, line, continuation);
+                mergeLine(state.root, source, path, options);
                 return state;
             });
         }
