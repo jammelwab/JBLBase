@@ -158,15 +158,16 @@ JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored engine_cache
 
 ## Releases und Updates
 
-Neue Versionen entstehen, indem ein Tag wie `v1.0.1` gepusht wird (vorher
-die Version in `package.json` und `src-tauri/Cargo.toml` erhöhen). Der Workflow
-„Release“ baut dann signierte Installer für Windows und macOS und
+Neue Versionen entstehen so: Version in `package.json` und
+`src-tauri/Cargo.toml` erhöhen, dann auf GitHub unter **Releases → Draft a new
+release** ein Release mit neuem Tag (z. B. `v1.0.1`) veröffentlichen. Der
+Workflow „Release“ baut dann signierte Installer für Windows und macOS und
 veröffentlicht sie unter Releases. Installierte Apps finden das Update über
 **Einstellungen → Nach Updates suchen** (und prüfen beim Start automatisch).
 
 Die Update-Pakete sind mit einem eigenen Schlüssel signiert. Der private
-Schlüssel liegt als Secret `TAURI_SIGNING_PRIVATE_KEY` im Repo. Geht er
-verloren, können installierte Apps keine Updates mehr annehmen.
+Schlüssel liegt als Secret `TAURI_SIGNING_PRIVATE_KEY` im Repo, sein Passwort
+als `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Geht eins davon verloren, können installierte Apps keine Updates mehr annehmen.
 Die Installer sind nicht von Apple bzw. Microsoft beglaubigt.
 
 **Windows:** Beim ersten Start erscheint eine SmartScreen-Warnung. Klicke auf
