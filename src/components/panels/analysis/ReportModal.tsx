@@ -1,5 +1,6 @@
 import { Button, Checkbox, Group, Modal, NumberInput, Select, Stack } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { makeFen } from "chessops/fen";
 import { useAtom, useAtomValue } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { memo, useContext, useEffect, useMemo } from "react";
@@ -8,6 +9,7 @@ import { useStore } from "zustand";
 import { commands, type GoMode } from "@/bindings";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { enginesAtom, referenceDbAtom } from "@/state/atoms";
+import { parseSanOrUci, positionFromFen } from "@/utils/chessops";
 import type { LocalEngine } from "@/utils/engines";
 
 const reportSettingsAtom = atomWithStorage("report-settings", {
@@ -17,6 +19,22 @@ const reportSettingsAtom = atomWithStorage("report-settings", {
   goMode: { t: "Time", c: 500 } as Exclude<GoMode, { t: "Infinite" }>,
   engine: "",
 });
+
+// How many plies from the start are named opening theory ("Buch" in the report).
+async function countBookPlies(initialFen: string, moves: string[]): Promise<number> {
+  const [pos] = positionFromFen(initialFen);
+  if (!pos) return 0;
+  let plies = 0;
+  for (const san of moves) {
+    const move = parseSanOrUci(pos, san);
+    if (!move) break;
+    pos.play(move);
+    const res = await commands.getOpeningFromFens([makeFen(pos.toSetup())]);
+    if (res.status !== "ok") break;
+    plies++;
+  }
+  return plies;
+}
 
 function ReportModal({
   tab,
@@ -93,10 +111,11 @@ function ReportModal({
         },
         engineSettings,
       )
-      .then((analysis) => {
+      .then(async (analysis) => {
         if (analysis.status === "ok") {
           addAnalysis(analysis.data, {
             showVariations: form.values.variations,
+            bookPlies: await countBookPlies(initialFen, moves),
           });
         }
       })

@@ -2,6 +2,7 @@
 import { AppShellSection, Stack, Tooltip } from "@mantine/core";
 import {
   type Icon,
+  IconBooks,
   IconChess,
   IconCpu,
   IconDatabase,
@@ -40,6 +41,7 @@ function NavbarLink({ url, icon: Icon, label }: NavbarLinkProps) {
 const linksdata = [
   { icon: IconChess, label: "Board", url: "/" },
   { icon: IconUser, label: "User", url: "/accounts" },
+  { icon: IconBooks, label: "Repertoires", url: "/repertoires" },
   { icon: IconFiles, label: "Files", url: "/files" },
   {
     icon: IconDatabase,

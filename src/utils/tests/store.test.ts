@@ -548,6 +548,8 @@ test("should handle addAnalysis", () => {
             children: [
                 {
                     ...treeE4D5().root.children[0],
+                    // e4 was the engine's choice
+                    classification: "best",
                     score: {
                         value: {
                             type: "cp",

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { activeTabAtom, addRecentFileAtom, tabFamily, tabsAtom } from "@/state/atoms";
 import { headersToPGN } from "@/utils/chess";
-import { createFile } from "@/utils/files";
+import { createRepertoire, MAIN_OWNER } from "@/utils/repertoires";
 import { createTab } from "@/utils/tabs";
 
 export default function CreateRepertoireModal({
@@ -19,6 +19,7 @@ export default function CreateRepertoireModal({
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [color, setColor] = useState<"white" | "black">("white");
+  const [owner, setOwner] = useState(MAIN_OWNER);
   const [error, setError] = useState("");
   const { documentDir } = useLoaderData({ from: "/" });
 
@@ -45,10 +46,10 @@ export default function CreateRepertoireModal({
       orientation: color,
     });
 
-    const result = await createFile({
-      filename: trimmedName,
-      filetype: "repertoire",
-      pgn,
+    const result = await createRepertoire({
+      name: trimmedName,
+      color,
+      owner: owner.trim() || MAIN_OWNER,
       dir: documentDir,
     });
 
@@ -110,6 +111,12 @@ export default function CreateRepertoireModal({
             }}
             error={error}
             data-autofocus
+          />
+
+          <TextInput
+            label={t("Repertoire.Owner")}
+            value={owner}
+            onChange={(e) => setOwner(e.currentTarget.value)}
           />
 
           <div>

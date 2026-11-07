@@ -3,6 +3,7 @@ import type { Move } from "chessops";
 import { INITIAL_FEN } from "chessops/fen";
 import type { Outcome, Score } from "@/bindings";
 import type { Annotation } from "./annotation";
+import type { MoveClassification } from "./moveClassification";
 import { positionFromFen } from "./chessops";
 
 export interface TreeState {
@@ -29,6 +30,10 @@ export interface TreeNode {
     unknownNags?: number[];
     // Raw PGN comments before the first move of this variation.
     startingComments?: string[];
+    // Set by the game report, not saved to the PGN.
+    classification?: MoveClassification;
+    // The engine's choice in the previous position, when it differs from the played move.
+    bestMove?: string;
 }
 
 export type ListNode = {
