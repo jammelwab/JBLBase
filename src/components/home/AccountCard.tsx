@@ -33,7 +33,17 @@ import { getDatabases, query_games } from "@/utils/db";
 import { capitalize } from "@/utils/format";
 import { downloadLichess } from "@/utils/lichess/api";
 import { unwrap } from "@/utils/unwrap";
+import { mutate } from "swr";
+
 import LichessLogo from "./LichessLogo";
+
+function refreshPersonalStats() {
+  return mutate(
+    (key) => Array.isArray(key) && (key[0] === "personalDatabases" || key[0] === "personalInfo"),
+    undefined,
+    { revalidate: true },
+  );
+}
 
 interface AccountCardProps {
   type: "lichess" | "chesscom";
@@ -242,6 +252,8 @@ export function AccountCard({
                     }));
                   }
                   setLoading(false);
+                  // Refresh the player overview, which caches its databases.
+                  await refreshPersonalStats();
                 }}
               >
                 <IconDownload size="1rem" />

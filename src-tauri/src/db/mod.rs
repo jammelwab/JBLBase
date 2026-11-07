@@ -1109,11 +1109,11 @@ fn read_player_game_info(
         WITH filtered_games AS (
             SELECT
                 *,
-                white = ? AS is_player_white
+                lower(white) = lower(?) AS is_player_white
             FROM games
             WHERE movedata IS NOT NULL
               AND result IN ('1-0', '0-1', '1/2-1/2')
-              AND (white = ? OR black = ?)
+              AND (lower(white) = lower(?) OR lower(black) = lower(?))
         )
         SELECT COUNT(*)
         FROM filtered_games;
@@ -1132,11 +1132,11 @@ fn read_player_game_info(
         WITH filtered_games AS (
             SELECT
                 *,
-                white = ? AS is_player_white
+                lower(white) = lower(?) AS is_player_white
             FROM games
             WHERE movedata IS NOT NULL
               AND result IN ('1-0', '0-1', '1/2-1/2')
-              AND (white = ? OR black = ?)
+              AND (lower(white) = lower(?) OR lower(black) = lower(?))
         )
         SELECT
             site,
@@ -1552,6 +1552,29 @@ mod tests {
             id >= 1_000_000,
             "Compaction must retain the sequence's high-water mark"
         );
+    }
+
+    #[test]
+    fn player_game_info_ignores_username_case() {
+        // Chess.com writes the username's real capitalisation into the PGN,
+        // which can differ from what was typed when adding the account.
+        let db = Connection::open_in_memory().unwrap();
+        db.execute_batch(include_str!("init-database.sql")).unwrap();
+        db.execute_batch(
+            "INSERT INTO games (white, black, result, site, movedata, utc_timestamp) VALUES
+                ('RagingForLife', 'someone', '1-0', 'Chess.com', '\\x00'::BLOB, '2026-01-01 10:00:00'),
+                ('other', 'ragingforlife', '0-1', 'Chess.com', '\\x00'::BLOB, '2026-01-02 10:00:00'),
+                ('other', 'third', '1-0', 'Chess.com', '\\x00'::BLOB, '2026-01-03 10:00:00');",
+        )
+        .unwrap();
+        let info = read_player_game_info(&db, "Ragingforlife", |_| {}).unwrap();
+        let games: usize = info.site_stats_data.iter().map(|s| s.data.len()).sum();
+        assert_eq!(games, 2);
+        assert!(info
+            .site_stats_data
+            .iter()
+            .flat_map(|s| &s.data)
+            .all(|d| matches!(d.result, GameOutcome::Won)));
     }
 
     #[test]
