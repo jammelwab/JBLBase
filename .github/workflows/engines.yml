@@ -1,0 +1,83 @@
+name: Build Patricia
+
+# Builds the unmodified upstream source of the Patricia chess engine
+# (https://github.com/Adam-Kulju/Patricia, MIT license) for macOS (Apple
+# Silicon) and Windows, and publishes the binaries on the pre-release
+# "patricia-<version>". JBLBase offers them as one-click downloads.
+# It is a pre-release so the app updater (releases/latest) ignores it.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/engines.yml
+
+env:
+  PATRICIA_REF: "5.1"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            flags: "-mcpu=apple-m1"
+            out: patricia-macos-arm64
+          - platform: windows-latest
+            flags: "-march=x86-64-v3"
+            out: patricia-windows-x64.exe
+    runs-on: ${{ matrix.platform }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Fetch Patricia source
+        run: |
+          git clone https://github.com/Adam-Kulju/Patricia.git patricia
+          git -C patricia checkout "$PATRICIA_REF"
+
+      - name: Compile
+        working-directory: patricia/engine
+        run: |
+          clang++ src/patricia.cpp src/fathom/src/tbprobe.c \
+            -O3 ${{ matrix.flags }} -std=c++20 -ffast-math -pthread \
+            -o "${{ matrix.out }}"
+
+      - name: Smoke test
+        working-directory: patricia/engine
+        run: |
+          out=$( (printf 'uci\nisready\nposition startpos\ngo depth 10\n'; sleep 15; printf 'quit\n') | "./${{ matrix.out }}" )
+          echo "$out" | tail -3
+          echo "$out" | grep -q '^id name'
+          echo "$out" | grep -q '^bestmove'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: patricia/engine/${{ matrix.out }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: patricia-5.1
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload to pre-release
+        run: |
+          ls -la dist
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "Patricia $PATRICIA_REF (Engine)" \
+              --notes "Patricia $PATRICIA_REF by Adam Kulju, built unmodified from https://github.com/Adam-Kulju/Patricia (MIT license). Used by JBLBase as a one-click engine download."
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber dist/*

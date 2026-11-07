@@ -1,5 +1,5 @@
 import { fetch } from "@tauri-apps/plugin-http";
-import type { Platform } from "@tauri-apps/plugin-os";
+import { arch, type Platform } from "@tauri-apps/plugin-os";
 import useSWR from "swr";
 import { z } from "zod";
 import { type BestMoves, commands, type EngineOptions, type GoMode } from "@/bindings";
@@ -92,18 +92,60 @@ export function getBestMoves(
         .then((r) => unwrap(r));
 }
 
+const JBLBASE_ENGINES_URL = "https://github.com/jammelwab/JBLBase/releases/download";
+
+/** Engines JBLBase offers in addition to the En Croissant download list. */
+function extraEngines(os: Platform, cpu: string): LocalEngine[] {
+    const patricia = {
+        type: "local" as const,
+        id: "patricia-5.1",
+        name: "Patricia",
+        version: "5.1",
+        image: "/engines/patricia.png",
+    };
+    if (os === "macos" && cpu === "aarch64") {
+        const file = "patricia-macos-arm64";
+        return [
+            {
+                ...patricia,
+                path: file,
+                downloadLink: `${JBLBASE_ENGINES_URL}/patricia-5.1/${file}`,
+            },
+        ];
+    }
+    if (os === "windows" && cpu === "x86_64") {
+        const file = "patricia-windows-x64.exe";
+        return [
+            {
+                ...patricia,
+                path: file,
+                downloadLink: `${JBLBASE_ENGINES_URL}/patricia-5.1/${file}`,
+            },
+        ];
+    }
+    return [];
+}
+
 export function useDefaultEngines(os: Platform | undefined, opened: boolean) {
     const { data, error, isLoading } = useSWR(opened ? os : null, async (os: Platform) => {
-        const bmi2: boolean = await commands.isBmi2Compatible();
-        const data = await fetch(`https://www.encroissant.org/engines?os=${os}&bmi2=${bmi2}`, {
-            method: "GET",
-        });
-        if (!data.ok) {
-            throw new Error("Failed to fetch engines");
+        const extra = extraEngines(os, arch());
+        try {
+            const bmi2: boolean = await commands.isBmi2Compatible();
+            const data = await fetch(`https://www.encroissant.org/engines?os=${os}&bmi2=${bmi2}`, {
+                method: "GET",
+            });
+            if (!data.ok) {
+                throw new Error("Failed to fetch engines");
+            }
+            const list = (await data.json()).filter(
+                (e: { os: Platform; bmi2: boolean }) => e.os === os && e.bmi2 === bmi2,
+            );
+            return [...list, ...extra] as LocalEngine[];
+        } catch (e) {
+            // Still offer our own engines when the En Croissant list is down.
+            if (extra.length > 0) return extra;
+            throw e;
         }
-        return (await data.json()).filter(
-            (e: { os: Platform; bmi2: boolean }) => e.os === os && e.bmi2 === bmi2,
-        );
     });
     return {
         defaultEngines: data as LocalEngine[],

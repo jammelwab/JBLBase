@@ -263,14 +263,19 @@ function EngineCard({
           <Text fw="bold" size="sm" mb="xs">
             {engine.name} {engine.version}
           </Text>
-          <Group wrap="nowrap" gap="xs" fz="xs">
-            <IconTrophy size="1rem" />
-            <Text size="xs">{`${engine.elo} ELO`}</Text>
-          </Group>
-          <Group wrap="nowrap" gap="xs" mb="xs" fz="xs">
-            <IconDatabase size="1rem" />
-            <Text size="xs">{formatBytes(engine.downloadSize ?? 0)}</Text>
-          </Group>
+          {engine.elo != null && (
+            <Group wrap="nowrap" gap="xs" fz="xs">
+              <IconTrophy size="1rem" />
+              <Text size="xs">{`${engine.elo} ELO`}</Text>
+            </Group>
+          )}
+          {engine.downloadSize != null && (
+            <Group wrap="nowrap" gap="xs" fz="xs">
+              <IconDatabase size="1rem" />
+              <Text size="xs">{formatBytes(engine.downloadSize)}</Text>
+            </Group>
+          )}
+          <Box mb="xs" />
           <ProgressButton
             id={`engine_${engineId}`}
             initInstalled={initInstalled}
