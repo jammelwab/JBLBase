@@ -53,6 +53,7 @@ jobs:
           AIX_EXTENSION_FORCE_DOWNLOAD: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: false
+        shell: bash
         run: pnpm tauri build ${{ matrix.args }} --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - uses: actions/upload-artifact@v4
