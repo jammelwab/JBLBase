@@ -119,6 +119,29 @@ JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored engine_cache
 Bei jedem Push auf `main` baut GitHub Actions einen Windows-Installer (`.exe`)
 und eine macOS-Version (`.dmg`, Apple Silicon). Zu finden unter
 **Actions → Build installers → letzter Lauf → Artifacts**.
-Die Installer sind nicht signiert: Windows zeigt beim ersten Start eine
-SmartScreen-Warnung („Weitere Informationen → Trotzdem ausführen“), macOS
-verlangt Rechtsklick → Öffnen.
+Die Installer sind nicht von Apple bzw. Microsoft beglaubigt.
+
+**Windows:** Beim ersten Start erscheint eine SmartScreen-Warnung. Klicke auf
+„Weitere Informationen“ und dann auf „Trotzdem ausführen“.
+
+**macOS:** Die App ist nur ad-hoc signiert, nicht von Apple notarisiert. Das
+würde ein kostenpflichtiges Apple-Developer-Konto (99 $/Jahr) voraussetzen.
+Beim ersten Start meldet macOS deshalb „JBLBase“ kann nicht geöffnet werden.
+Klicke auf **Fertig** und gehe dann so vor:
+
+1. JBLBase aus der `.dmg` in den Ordner **Programme** ziehen.
+2. Einmal starten und die Meldung mit **Fertig** schließen.
+3. **Systemeinstellungen → Datenschutz & Sicherheit** öffnen, ganz nach unten
+   scrollen und bei „JBLBase wurde blockiert“ auf **Trotzdem öffnen** klicken.
+   Danach mit dem Passwort bestätigen.
+
+Alternativ geht es im Terminal mit einem Befehl:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/JBLBase.app
+```
+
+Danach startet die App normal, auch bei allen weiteren Starts. Nach jedem
+neuen Download einer neuen Version ist der Schritt einmal zu wiederholen.
+(Der früher übliche Weg „Rechtsklick → Öffnen“ funktioniert seit macOS 15
+nicht mehr.)
