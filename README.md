@@ -24,6 +24,7 @@ nicht neu gerechnet werden.
 - Partien von Chess.com und Lichess herunterladen
 - Bis zu zwei Engines nebeneinander, jede mit eigener Bewertung
 - Positionsspeicher (lokale SQLite-Datenbank) mit eigener Einstellungsseite
+- Updates direkt in der App
 
 **Geplant**
 
@@ -34,9 +35,10 @@ nicht neu gerechnet werden.
 
 ## Installieren
 
-Fertige Installer für Windows (`.exe`) und macOS (`.dmg`) gibt es unter
-**Actions → Build installers → letzter Lauf → Artifacts**. Sie sind nicht
-beglaubigt, deshalb warnt das System beim ersten Start:
+Die neueste Version für Windows (`.exe`) und macOS (`.dmg`, Apple Silicon)
+gibt es unter [Releases](https://github.com/jammelwab/JBLBase/releases/latest).
+Die Installer sind nicht von Microsoft bzw. Apple beglaubigt, deshalb warnt
+das System beim ersten Start:
 
 - **Windows:** „Weitere Informationen“ → „Trotzdem ausführen“.
 - **macOS:** App in **Programme** ziehen und einmal starten. Dann
@@ -45,6 +47,9 @@ beglaubigt, deshalb warnt das System beim ersten Start:
   ```bash
   xattr -dr com.apple.quarantine /Applications/JBLBase.app
   ```
+
+Neue Versionen holt sich die App selbst: **Einstellungen → Nach Updates
+suchen** oder im Hilfe-Menü.
 
 Engines werden nicht mitgeliefert. [Stockfish](https://stockfishchess.org/download/)
 und [Patricia](https://github.com/Adam-Kulju/Patricia/releases) herunterladen
