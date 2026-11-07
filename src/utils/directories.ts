@@ -36,9 +36,9 @@ export async function getDocumentDir(): Promise<string> {
     }
 
     try {
-        return ensureDirectory(await resolve(await documentDir(), "EnCroissant"));
+        return ensureDirectory(await resolve(await documentDir(), "JBLBase"));
     } catch {
-        return ensureDirectory(await resolve(await homeDir(), "EnCroissant"));
+        return ensureDirectory(await resolve(await homeDir(), "JBLBase"));
     }
 }
 

@@ -32,7 +32,9 @@ pub async fn download_file(
 ) -> Result<(), Error> {
     let finalize = finalize.unwrap_or(true);
     info!("Downloading file from {}", url);
-    let client = Client::new();
+    let client = Client::builder()
+        .user_agent(concat!("JBLBase/", env!("CARGO_PKG_VERSION")))
+        .build()?;
 
     let mut req = client.get(&url);
     // add Bearer if token is present
@@ -41,7 +43,8 @@ pub async fn download_file(
         header_map.insert("Authorization", format!("Bearer {token}").parse().unwrap());
         req = req.headers(header_map);
     }
-    let res = req.send().await?;
+    // Fail on HTTP errors instead of saving an error page as the file.
+    let res = req.send().await?.error_for_status()?;
     let total_size = if let Some(total_size) = total_size {
         Some(total_size as u64)
     } else {

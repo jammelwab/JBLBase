@@ -57,10 +57,7 @@ export default function ErrorComponent({ error }: { error: unknown }) {
           i18nKey="Error.ReportIssue"
           components={{
             github: (
-              <Anchor
-                href="https://github.com/franciscoBSalgueiro/en-croissant/issues/new?assignees=&labels=bug&projects=&template=bug.yml"
-                target="_blank"
-              />
+              <Anchor href="https://github.com/jammelwab/JBLBase/issues/new" target="_blank" />
             ),
             discord: <Anchor href="https://discord.com/invite/tdYzfDbSSW" target="_blank" />,
           }}

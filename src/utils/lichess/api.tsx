@@ -385,13 +385,13 @@ export async function downloadLichess(
   setProgress: (progress: number) => void,
   token?: string,
 ) {
-  let url = `${baseURL}/games/user/${player}?perfType=ultraBullet,bullet,blitz,rapid,classical,correspondence&rated=true&sort=dateAsc`;
+  let url = `${baseURL}/games/user/${encodeURIComponent(player)}?perfType=ultraBullet,bullet,blitz,rapid,classical,correspondence&sort=dateAsc`;
   if (timestamp) {
     url += `&since=${timestamp}`;
   }
   const path = await resolve(await getDatabasesDir(), `${player}_lichess.pgn`);
 
-  await commands.downloadFile(
+  const res = await commands.downloadFile(
     `lichess_${player}`,
     url,
     path,
@@ -399,6 +399,14 @@ export async function downloadLichess(
     null,
     games > 0 ? games * 900 : null, // approx. size of a game
   );
+  if (res.status === "error") {
+    error(`Failed to download Lichess games for ${player}: ${res.error}`);
+    notifications.show({
+      title: "Failed to download Lichess games",
+      message: `Could not download the games of "${player}" from lichess.org: ${res.error}`,
+      color: "red",
+    });
+  }
 }
 
 export async function getLichessGame(gameId: string): Promise<string> {

@@ -298,7 +298,7 @@
     "Engines.Add.Title": "新增引擎",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",
-    "Engines.Remove.Message": "您確定要從 En Croissant 中移除此引擎嗎？",
+    "Engines.Remove.Message": "您確定要從 JBLBase 中移除此引擎嗎？",
     "Engines.Remove.Title": "移除引擎",
     "Engines.Selection.None": "",
     "Engines.Settings.AdvancedSettings": "進階設定",

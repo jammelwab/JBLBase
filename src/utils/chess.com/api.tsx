@@ -40,27 +40,10 @@ type Archive = {
   archives: string[];
 };
 
-const ChessComPlayer = z.object({
-  rating: z.number(),
-  result: z.string(),
-  username: z.string(),
-});
-
-const ChessComGames = z.object({
-  games: z.array(
-    z.object({
-      url: z.string(),
-      pgn: z.string().nullish(),
-      time_control: z.string(),
-      end_time: z.number(),
-      rated: z.boolean(),
-      initial_setup: z.string(),
-      fen: z.string(),
-      rules: z.string(),
-      white: ChessComPlayer,
-      black: ChessComPlayer,
-    }),
-  ),
+// Only the PGN is needed for the download. A lenient schema keeps one odd game
+// (missing rating, setup, ...) from dropping a whole month of games.
+const ChessComArchiveGames = z.object({
+  games: z.array(z.object({ pgn: z.string().nullish() }).passthrough()),
 });
 
 export async function getChessComAccount(player: string): Promise<ChessComStats | null> {
@@ -93,53 +76,79 @@ export async function getChessComAccount(player: string): Promise<ChessComStats 
   return stats.data;
 }
 
-async function getGameArchives(player: string) {
-  const url = `${baseURL}/pub/player/${player}/games/archives`;
+async function getGameArchives(player: string): Promise<Archive | null> {
+  const url = `${baseURL}/pub/player/${player.toLowerCase()}/games/archives`;
   const response = await fetch(url, { headers: apiHeaders(), method: "GET" });
-  return (await response.json()) as Archive;
+  if (!response.ok) {
+    error(`Failed to fetch Chess.com archives: ${response.status} ${response.url}`);
+    return null;
+  }
+  const data = (await response.json()) as Partial<Archive>;
+  return { archives: data.archives ?? [] };
 }
 
 export async function downloadChessCom(player: string, timestamp: number | null) {
   const timestampDate = new Date(timestamp ?? 0);
   const approximateDate = new Date(timestampDate.getFullYear(), timestampDate.getMonth(), 1);
-  const archives = await getGameArchives(player);
   const file = await resolve(await getDatabasesDir(), `${player}_chesscom.pgn`);
+  await writeTextFile(file, "", { append: false });
+
+  const archives = await getGameArchives(player);
+  if (!archives) {
+    notifications.show({
+      title: "Failed to fetch Chess.com games",
+      message: `Could not load the game archive of "${player}" from chess.com`,
+      color: "red",
+      icon: <IconX />,
+    });
+    return;
+  }
   info(`Found ${archives.archives.length} archives for ${player}`);
-  writeTextFile(file, "", {
-    append: false,
-  });
+
   const filteredArchives = archives.archives.filter((archive) => {
     const [year, month] = archive.split("/").slice(-2);
     const archiveDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1);
     return archiveDate >= approximateDate;
   });
 
-  for (const archive of filteredArchives) {
+  let failed = 0;
+  let total = 0;
+  for (const [i, archive] of filteredArchives.entries()) {
     info(`Fetching games for ${player} from ${archive}`);
-    const response = await fetch(archive, {
-      headers: apiHeaders(),
-      method: "GET",
-    });
-    const games = ChessComGames.safeParse(await response.json());
-
-    if (!games.success) {
-      error(`Failed to fetch Chess.com games: ${response.status} ${response.url}`);
-      notifications.show({
-        title: "Failed to fetch Chess.com games",
-        message: `Could not find games for "${player}" on chess.com for ${archive}`,
-        color: "red",
-        icon: <IconX />,
-      });
-      return;
+    try {
+      const response = await fetch(archive, { headers: apiHeaders(), method: "GET" });
+      const games = response.ok
+        ? ChessComArchiveGames.safeParse(await response.json())
+        : ({ success: false } as const);
+      if (!games.success) {
+        // Skip this month instead of aborting the whole download.
+        failed++;
+        error(`Failed to fetch Chess.com games: ${response.status} ${archive}`);
+      } else {
+        const pgns = games.data.games
+          .map((g) => g.pgn?.trim())
+          .filter((pgn): pgn is string => !!pgn);
+        total += pgns.length;
+        if (pgns.length > 0) {
+          await writeTextFile(file, `${pgns.join("\n\n")}\n\n`, { append: true });
+        }
+      }
+    } catch (e) {
+      failed++;
+      error(`Failed to fetch Chess.com games from ${archive}: ${e}`);
     }
-
-    writeTextFile(file, games.data.games.map((g) => g.pgn).join("\n"), {
-      append: true,
-    });
     events.progressEvent.emit({
       finished: false,
       id: `chesscom_${player}`,
-      progress: (filteredArchives.indexOf(archive) / filteredArchives.length) * 100,
+      progress: ((i + 1) / filteredArchives.length) * 100,
+    });
+  }
+  info(`Downloaded ${total} Chess.com games for ${player} (${failed} months failed)`);
+  if (failed > 0) {
+    notifications.show({
+      title: "Some Chess.com games are missing",
+      message: `${failed} of ${filteredArchives.length} months could not be downloaded for "${player}". Try again later.`,
+      color: "yellow",
     });
   }
   events.progressEvent.emit({

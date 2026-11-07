@@ -78,7 +78,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "En Croissant",
+        "title": "JBLBase",
         "visible": false,
         "decorations": true
       }
