@@ -85,6 +85,19 @@ möglichst aggressives, opferfreudiges Spiel.
 2. Wie oben als lokale Engine hinzufügen.
 3. Optionen: `Threads` 2, `Hash` 1024 MB.
 
+**macOS (Apple Silicon):** Patricia bietet selbst keinen Mac-Download an.
+Unser Workflow „Build Patricia (macOS)“ kompiliert den unveränderten
+Quellcode. Unter **Actions → Build Patricia (macOS) → letzter Lauf →
+Artifacts** die ZIP-Datei laden, entpacken und einmal im Terminal ausführen:
+
+```bash
+xattr -dr com.apple.quarantine ~/Downloads/patricia-5.1-macos-arm64
+chmod +x ~/Downloads/patricia-5.1-macos-arm64
+```
+
+Danach am besten in einen festen Ordner verschieben (z. B. `~/Engines/`) und
+in JBLBase über **Engines → Engine hinzufügen → Lokal** auswählen.
+
 Beide gleichzeitig: In der Analyse beide Engines aktivieren. Jede bekommt
 ihre eigene Box mit Linien und Bewertung. Der Ryzen 3600 hat 12 Threads,
 deshalb zusammen nicht mehr als etwa 12 Threads vergeben.
