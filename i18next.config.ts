@@ -36,6 +36,7 @@ export default defineConfig({
             "Settings.Keybinds.Actions.*",
             "TimeControl.*",
             "Annotate.*",
+            "Classification.*",
             "GoMode.*",
             "Errors.*",
         ],

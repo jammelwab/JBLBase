@@ -51,6 +51,7 @@ import { keyMapAtom } from "@/state/keybinds";
 import classes from "@/styles/Chessboard.module.css";
 import { ANNOTATION_INFO, isBasicAnnotation } from "@/utils/annotation";
 import { getMoveDestination, getVariationLine } from "@/utils/chess";
+import { classificationSvg } from "@/utils/moveClassification";
 import { chessopsError, forceEnPassant, positionFromFen } from "@/utils/chessops";
 import { getTabFile, getTabGameNumber } from "@/utils/tabs";
 import ShowMaterial from "../common/ShowMaterial";
@@ -352,6 +353,17 @@ function Board({
   const showComments = useAtomValue(currentShowCommentsAtom);
   const visualAnnotation = showComments ? currentNode.annotations[0] : "";
 
+  // Chess.com-style rating badge on the square the last move went to
+  if (showComments && currentNode.classification && currentNode.move) {
+    const to = makeSquare((currentNode.move as NormalMove).to);
+    if (to) {
+      shapes.push({
+        orig: to,
+        customSvg: { html: classificationSvg(currentNode.classification) },
+      });
+    }
+  }
+
   const setBoardFen = useCallback(
     (fen: string) => {
       if (!fen || !editingMode) {
@@ -434,6 +446,7 @@ function Board({
             gap="sm"
           >
             {showComments &&
+              !currentNode.classification &&
               currentNode.annotations.length > 0 &&
               currentNode.move &&
               square !== undefined && (

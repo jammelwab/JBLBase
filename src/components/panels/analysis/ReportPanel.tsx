@@ -14,6 +14,7 @@ import { activeTabAtom, currentReportModalOpenAtom } from "@/state/atoms";
 import { ANNOTATION_INFO, isBasicAnnotation } from "@/utils/annotation";
 import { getGameStats, getMainLine } from "@/utils/chess";
 import classes from "./AnalysisPanel.module.css";
+import { ClassificationTable, CurrentMoveRating, hasClassifications } from "./MoveClassifications";
 import ReportModal from "./ReportModal";
 
 function ReportPanel() {
@@ -29,6 +30,7 @@ function ReportPanel() {
   const setInProgress = useStore(store, (s) => s.setReportInProgress);
 
   const stats = useMemo(() => getGameStats(root), [root]);
+  const classified = useMemo(() => hasClassifications(root), [root]);
 
   const handleCancel = useCallback(() => {
     commands.cancelAnalysis(`report_${activeTab}`);
@@ -89,7 +91,14 @@ function ReportPanel() {
           <EvalChart isAnalysing={inProgress} startAnalysis={openReportingMode} />
         </Paper>
 
-        <GameStats {...stats} />
+        {classified ? (
+          <>
+            <CurrentMoveRating />
+            <ClassificationTable />
+          </>
+        ) : (
+          <GameStats {...stats} />
+        )}
       </Stack>
     </ScrollArea>
   );

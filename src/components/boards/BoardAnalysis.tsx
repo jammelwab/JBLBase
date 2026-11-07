@@ -1,6 +1,7 @@
 import { Paper, Portal, Stack, Tabs } from "@mantine/core";
 import { useHotkeys } from "@mantine/hooks";
 import {
+  IconBooks,
   IconDatabase,
   IconFileText,
   IconInfoCircle,
@@ -40,6 +41,7 @@ import AnnotationPanel from "../panels/annotation/AnnotationPanel";
 import DatabasePanel from "../panels/database/DatabasePanel";
 import InfoPanel from "../panels/info/InfoPanel";
 import PracticePanel from "../panels/practice/PracticePanel";
+import RepertoirePanel from "../repertoire/RepertoirePanel";
 import Board from "./Board";
 import BoardControls from "./BoardControls";
 import EditingCard from "./EditingCard";
@@ -257,6 +259,9 @@ function BoardAnalysis() {
                   {t("Board.Tabs.Practice")}
                 </Tabs.Tab>
               )}
+              <Tabs.Tab value="repertoire" leftSection={<IconBooks size="1rem" />}>
+                {t("Board.Tabs.Repertoire")}
+              </Tabs.Tab>
               <Tabs.Tab value="analysis" leftSection={<IconZoomCheck size="1rem" />}>
                 {t("Board.Tabs.Analysis")}
               </Tabs.Tab>
@@ -280,6 +285,9 @@ function BoardAnalysis() {
                 <PracticePanel />
               </Tabs.Panel>
             )}
+            <Tabs.Panel value="repertoire" flex={1} style={{ overflowY: "hidden" }}>
+              <RepertoirePanel />
+            </Tabs.Panel>
             <Tabs.Panel value="info" flex={1} style={{ overflowY: "hidden" }}>
               <InfoPanel addGame={addGame} />
             </Tabs.Panel>

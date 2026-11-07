@@ -2,6 +2,8 @@ import { ActionIcon, Stack, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   IconArrowBack,
+  IconBinaryTree,
+  IconBookmarkPlus,
   IconCamera,
   IconDeviceFloppy,
   IconEdit,
@@ -31,6 +33,7 @@ import {
 import { keyMapAtom } from "@/state/keybinds";
 import { getPGN } from "@/utils/chess";
 import { createTab } from "@/utils/tabs";
+import AddToRepertoireModal from "../repertoire/AddToRepertoireModal";
 
 interface BoardControlsProps {
   editingMode: boolean;
@@ -71,6 +74,7 @@ function BoardControls({
   const eraseDrawablesOnClick = useAtomValue(eraseDrawablesOnClickAtom);
   const creatingPlayTab = useRef(false);
   const [isCreatingPlayTab, setIsCreatingPlayTab] = useState(false);
+  const [addingToRepertoire, setAddingToRepertoire] = useState<null | "line" | "variations">(null);
   const modeActionLabel = t(
     currentTab?.type === "analysis" ? "Board.Action.PlayFromHere" : "Board.Action.AnalyzeGame",
   );
@@ -216,6 +220,27 @@ function BoardControls({
           <IconSwitchVertical size="1.2rem" />
         </ActionIcon>
       </Tooltip>
+      {currentTab?.type === "analysis" && (
+        <>
+          <Tooltip position="right" label={t("Repertoire.Add.Title")}>
+            <ActionIcon onClick={() => setAddingToRepertoire("line")}>
+              <IconBookmarkPlus size="1.2rem" />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip position="right" label={t("Repertoire.Add.TitleWithVariations")}>
+            <ActionIcon onClick={() => setAddingToRepertoire("variations")}>
+              <IconBinaryTree size="1.2rem" />
+            </ActionIcon>
+          </Tooltip>
+          {addingToRepertoire && (
+            <AddToRepertoireModal
+              opened
+              withVariations={addingToRepertoire === "variations"}
+              onClose={() => setAddingToRepertoire(null)}
+            />
+          )}
+        </>
+      )}
     </Stack>
   );
 }

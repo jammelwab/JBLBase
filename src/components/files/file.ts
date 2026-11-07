@@ -11,6 +11,9 @@ export type FileType = z.infer<typeof fileTypeSchema>;
 const fileInfoMetadataSchema = z.object({
     type: fileTypeSchema,
     tags: z.array(z.string()),
+    // Repertoires only: whose repertoire it is and which side it is for.
+    owner: z.string().optional(),
+    color: z.enum(["white", "black"]).optional(),
 });
 
 export type FileInfoMetadata = z.infer<typeof fileInfoMetadataSchema>;

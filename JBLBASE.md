@@ -49,6 +49,45 @@ Für spätere Phasen (Repertoire, Vergleich der Eröffnungsbäume) gibt es schon
 den Befehl `getCachedEvals(fen)`, der alle gespeicherten Bewertungen einer
 Stellung liefert.
 
+## Repertoires
+
+In der Seitenleiste gibt es **Repertoires** (Bücher-Symbol). Dort legst du mit
+einem Klick die vier Standard-Repertoires an: „Jannick Weiß“, „Jannick
+Schwarz“, „Aaron Weiß“ und „Aaron Schwarz“. Weitere Repertoires gehen über
+**Neues Repertoire** (Name, für wen, Farbe). Ein Repertoire ist eine normale
+PGN-Datei im Dokumente-Ordner, die Varianten bilden den Baum, ohne
+Tiefenlimit.
+
+**Eine Stellung ins Repertoire aufnehmen:**
+
+1. In irgendeiner Partie oder Analyse zur gewünschten Stellung gehen.
+2. In der Leiste links neben dem Brett, direkt unter „Brett drehen“:
+   - **Zu Repertoire hinzufügen** (Lesezeichen): nimmt die Linie vom Start
+     bis zum aktuellen Zug auf.
+   - **Zu Repertoire mit Nebenvarianten hinzufügen** (Baum-Symbol): nimmt
+     zusätzlich alle Varianten mit, die von dieser Linie abzweigen oder ihr
+     folgen, z. B. eine ganze vorbereitete Analyse.
+3. Repertoire auswählen und **Aufnehmen**. Züge, die schon drin sind, werden
+   wiederverwendet, eine neue Linie zweigt dort ab, wo sie abweicht.
+
+Der Tab **Repertoire** neben dem Brett zeigt für jede Stellung, ob sie in
+deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
+vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
+spielt ihn auf dem Brett.
+
+## Zugbewertungen
+
+Nach **Analyse → Bericht erstellen** bekommt jeder Zug eine Bewertung wie bei
+Chess.com: Brillant, Großartiger Zug, Bester Zug, Exzellent, Gut, Buchzug,
+Ungenauigkeit, Fehler, Patzer. Grundlage ist der Verlust an Gewinnchance
+gegenüber dem besten Engine-Zug (Ungenauigkeit ab 5 %, Fehler ab 10 %,
+Patzer ab 20 %). „Bester Zug“ heißt, die Engine hätte genau diesen Zug
+gespielt, „Buchzug“, dass die Stellung eine bekannte Eröffnung ist.
+Die Bewertung erscheint als Plakette auf dem Zielfeld, im Bericht als Tabelle
+pro Farbe (ein Klick springt zum nächsten solchen Zug) und mit dem Hinweis,
+welcher Zug besser gewesen wäre. Die Bewertungen werden nicht in die PGN
+geschrieben, die klassischen Zeichen (!!, ?, ?? …) schon.
+
 ## Engines einrichten
 
 Engines sind eigenständige Programme und werden nicht mitgeliefert.

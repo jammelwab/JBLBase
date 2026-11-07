@@ -72,3 +72,20 @@ export function createDebouncedSessionStorage<S>(delay = DEBOUNCE_MS): PersistSt
         },
     };
 }
+
+// Changes the persisted state of a store that is not mounted right now (e.g. a tab in the
+// background). Pending debounced writes are taken into account.
+export function updatePersistedState<S>(name: string, update: (state: S) => S): boolean {
+    const pending = pendingWrites.get(name);
+    const stored = pending ?? JSON.parse(sessionStorage.getItem(name) ?? "null");
+    if (!stored || typeof stored !== "object" || !("state" in stored)) {
+        return false;
+    }
+    const next = { ...stored, state: update(stored.state as S) };
+    if (pending) {
+        pendingWrites.set(name, next);
+    } else {
+        sessionStorage.setItem(name, JSON.stringify(next));
+    }
+    return true;
+}

@@ -11,6 +11,7 @@ import { ANNOTATION_INFO, type Annotation } from "@/utils/annotation";
 import { getPGN } from "@/utils/chess";
 import { parseSanOrUci, positionFromFen } from "@/utils/chessops";
 import { isPrefix } from "@/utils/misc";
+import { classifyMove, getWinChanceLoss } from "@/utils/moveClassification";
 import { getAnnotation } from "@/utils/score";
 import { playSound } from "@/utils/sound";
 import {
@@ -77,7 +78,7 @@ export interface TreeStoreState extends TreeState {
             novelty: boolean;
             is_sacrifice: boolean;
         }[],
-        options?: { showVariations: boolean },
+        options?: AnalysisOptions,
     ) => void;
 
     setReportInProgress: (value: boolean) => void;
@@ -696,6 +697,12 @@ function setShapes(state: TreeState, shapes: DrawShape[]) {
     return state;
 }
 
+export type AnalysisOptions = {
+    showVariations: boolean;
+    // Leading plies of the main line that are known opening theory.
+    bookPlies?: number;
+};
+
 function addAnalysis(
     state: TreeState,
     analysis: {
@@ -703,7 +710,7 @@ function addAnalysis(
         novelty: boolean;
         is_sacrifice: boolean;
     }[],
-    options?: { showVariations: boolean },
+    options?: AnalysisOptions,
 ) {
     let cur = state.root;
     let i = 0;
@@ -734,6 +741,20 @@ function addAnalysis(
                 analysis[i].is_sacrifice,
                 cur.san || "",
             );
+            if (i > 0 && prevScore) {
+                const engineMove = prevMoves[0]?.sanMoves[0];
+                cur.classification = classifyMove({
+                    winChanceLoss: getWinChanceLoss(prevScore.value, curScore.value, color),
+                    annotation,
+                    isBest: engineMove !== undefined && engineMove === cur.san,
+                    isBook: i <= (options?.bookPlies ?? 0),
+                });
+                if (engineMove && engineMove !== cur.san) {
+                    cur.bestMove = engineMove;
+                } else {
+                    delete cur.bestMove;
+                }
+            }
             if (annotation) {
                 cur.annotations = [...cur.annotations, annotation];
 
