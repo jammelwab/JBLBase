@@ -75,6 +75,25 @@ deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
 vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
 spielt ihn auf dem Brett.
 
+### Baumdiagramm
+
+Auf der Repertoire-Seite öffnet **Baum** das Repertoire als aufklappbaren
+Baum. Deine Züge sind fett, die Gegnerzüge grau. Ein Klick auf einen Zug
+öffnet die Stellung auf dem Brett. Jeder Zug hat zwei kleine Leisten:
+
+- **Blau, Lichess-Datenbank:** wie oft der Zug aus dieser Stellung auf
+  Lichess gespielt wird (mit den Filtern aus Datenbank → Lichess). Dafür
+  musst du unter **Benutzer** bei Lichess angemeldet sein.
+- **Grün, deine Partien:** wie oft der Zug in deinen eigenen Partien vorkam,
+  in denen du die Farbe des Repertoires hattest. Grundlage sind die unter
+  **Benutzer** heruntergeladenen Chess.com- und Lichess-Partien. Unter einem
+  Gegnerzug ergeben deine Varianten plus „sonstige Züge“ zusammen 100 %. Bei
+  Aarons Repertoires fehlt diese Leiste, weil es nicht seine Partien sind.
+
+Ist der meistgespielte Lichess-Zug (nur Platz 1) eines Gegners nicht in
+deinem Repertoire, steht er abgeblasst unter deinen Varianten. Das heißt
+nicht, dass er gut oder schlecht ist, nur dass er oft kommt.
+
 ## Zugbewertungen
 
 Nach **Analyse → Bericht erstellen** bekommt jeder Zug eine Bewertung wie bei

@@ -1,5 +1,6 @@
 import {
   Autocomplete,
+  Box,
   Button,
   Card,
   Group,
@@ -13,7 +14,7 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconBooks, IconPlus } from "@tabler/icons-react";
+import { IconBinaryTree, IconBooks, IconPlus } from "@tabler/icons-react";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
@@ -29,6 +30,7 @@ import {
   useRepertoires,
 } from "@/utils/repertoires";
 import { ColorDot } from "./RepertoireLabel";
+import RepertoireTreeView from "./RepertoireTreeView";
 
 function useColorName() {
   const { t } = useTranslation();
@@ -36,7 +38,13 @@ function useColorName() {
     color === "white" ? t("Repertoire.White") : t("Repertoire.Black");
 }
 
-function RepertoireCard({ repertoire }: { repertoire: Repertoire }) {
+function RepertoireCard({
+  repertoire,
+  onShowTree,
+}: {
+  repertoire: Repertoire;
+  onShowTree: () => void;
+}) {
   const { t } = useTranslation();
   const colorName = useColorName();
   const setTabs = useSetAtom(tabsAtom);
@@ -76,15 +84,20 @@ function RepertoireCard({ repertoire }: { repertoire: Repertoire }) {
             </Text>
           </Stack>
         </Group>
-        <Button
-          variant="light"
-          onClick={async () => {
-            await openFile(repertoire.file, setTabs, setActiveTab);
-            navigate({ to: "/" });
-          }}
-        >
-          {t("Common.Open")}
-        </Button>
+        <Group grow gap="xs">
+          <Button variant="light" leftSection={<IconBinaryTree size="1rem" />} onClick={onShowTree}>
+            {t("Repertoire.Tree.Button")}
+          </Button>
+          <Button
+            variant="default"
+            onClick={async () => {
+              await openFile(repertoire.file, setTabs, setActiveTab);
+              navigate({ to: "/" });
+            }}
+          >
+            {t("Common.Open")}
+          </Button>
+        </Group>
       </Stack>
     </Card>
   );
@@ -174,6 +187,8 @@ export default function RepertoiresPage() {
   const { data: repertoires, isLoading } = useRepertoires(documentDir);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [treePath, setTreePath] = useState<string | null>(null);
+  const treeRepertoire = (repertoires ?? []).find((r) => r.file.path === treePath);
 
   const byOwner = useMemo(() => {
     const groups = new Map<string, Repertoire[]>();
@@ -202,6 +217,14 @@ export default function RepertoiresPage() {
       }
     }
     setBusy(false);
+  }
+
+  if (treeRepertoire) {
+    return (
+      <Box p="md" h="100%">
+        <RepertoireTreeView repertoire={treeRepertoire} onBack={() => setTreePath(null)} />
+      </Box>
+    );
   }
 
   return (
@@ -234,7 +257,11 @@ export default function RepertoiresPage() {
             <Title order={4}>{owner}</Title>
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
               {list.map((r) => (
-                <RepertoireCard key={r.file.path} repertoire={r} />
+                <RepertoireCard
+                  key={r.file.path}
+                  repertoire={r}
+                  onShowTree={() => setTreePath(r.file.path)}
+                />
               ))}
             </SimpleGrid>
           </Stack>
