@@ -26,7 +26,7 @@ jobs:
             flags: "-mcpu=apple-m1"
             out: patricia-macos-arm64
           - platform: windows-latest
-            flags: "-march=x86-64-v3"
+            flags: "-march=x86-64-v3 -fms-runtime-lib=static"
             out: patricia-windows-x64.exe
     runs-on: ${{ matrix.platform }}
     defaults:
