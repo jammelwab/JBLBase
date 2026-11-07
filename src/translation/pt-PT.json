@@ -679,6 +679,14 @@
     "TimeControl.Classical": "Clássicas",
     "TimeControl.Correspondence": "Correspondência",
     "TimeControl.Rapid": "Semi-Rápidas",
-    "TimeControl.UltraBullet": "UltraBullet"
+    "TimeControl.UltraBullet": "UltraBullet",
+    "Updater.Available.Message": "",
+    "Updater.Available.Title": "",
+    "Updater.Downloading": "",
+    "Updater.Failed": "",
+    "Updater.Install": "",
+    "Updater.Later": "",
+    "Updater.Restarting": "",
+    "Updater.UpToDate": ""
   }
 }

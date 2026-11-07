@@ -676,6 +676,14 @@
     "TimeControl.Classical": "클래식",
     "TimeControl.Correspondence": "통신",
     "TimeControl.Rapid": "래피드",
-    "TimeControl.UltraBullet": "울트라불릿"
+    "TimeControl.UltraBullet": "울트라불릿",
+    "Updater.Available.Message": "",
+    "Updater.Available.Title": "",
+    "Updater.Downloading": "",
+    "Updater.Failed": "",
+    "Updater.Install": "",
+    "Updater.Later": "",
+    "Updater.Restarting": "",
+    "Updater.UpToDate": ""
   }
 }

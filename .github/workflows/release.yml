@@ -1,0 +1,63 @@
+name: Release
+
+# Push a tag like v1.0.1 to build signed installers and publish them as a
+# GitHub release. The app's built-in updater reads latest.json from the
+# newest release.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
+            aix_target: osx_arm64
+          - platform: windows-latest
+            args: "--bundles nsis"
+            aix_target: windows_amd64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AIX_EXTENSION_TARGET: ${{ matrix.aix_target }}
+          AIX_EXTENSION_FORCE_DOWNLOAD: "1"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          CI: false
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "JBLBase __VERSION__"
+          releaseBody: |
+            Download for Windows: the `.exe` file. For Mac (Apple Silicon): the `.dmg` file.
+            Already installed? Use "Check for updates" in the app.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}

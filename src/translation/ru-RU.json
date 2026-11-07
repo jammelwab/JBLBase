@@ -702,6 +702,14 @@
     "TimeControl.Classical": "Классика",
     "TimeControl.Correspondence": "Переписка",
     "TimeControl.Rapid": "Рапид",
-    "TimeControl.UltraBullet": "Ультра Буллет"
+    "TimeControl.UltraBullet": "Ультра Буллет",
+    "Updater.Available.Message": "",
+    "Updater.Available.Title": "",
+    "Updater.Downloading": "",
+    "Updater.Failed": "",
+    "Updater.Install": "",
+    "Updater.Later": "",
+    "Updater.Restarting": "",
+    "Updater.UpToDate": ""
   }
 }

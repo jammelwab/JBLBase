@@ -11,7 +11,7 @@ import { platform } from "@tauri-apps/plugin-os";
 import { exit, relaunch } from "@tauri-apps/plugin-process";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { check } from "@tauri-apps/plugin-updater";
-import { UPDATES_ENABLED } from "@/utils/fork";
+import { checkForAppUpdate } from "@/utils/updater";
 import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -122,35 +122,7 @@ function RootLayout() {
     });
   }, [navigate, setActiveTab, setTabs, t]);
 
-  const updateInProgress = useRef(false);
-  const checkForUpdates = useCallback(async () => {
-    if (updateInProgress.current) return;
-    if (!UPDATES_ENABLED) {
-      await message("Automatic updates are disabled in JBLBase.");
-      return;
-    }
-    updateInProgress.current = true;
-    try {
-      const update = await check();
-      if (update) {
-        const yes = await ask("Do you want to install the new version now?", {
-          title: "New version available",
-        });
-        if (yes) {
-          await update.downloadAndInstall();
-          await relaunch();
-        }
-      } else {
-        await message("No updates available");
-      }
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      void error(message).catch(console.error);
-      notifications.show({ title: t("Common.Error"), message, color: "red" });
-    } finally {
-      updateInProgress.current = false;
-    }
-  }, [t]);
+  const checkForUpdates = useCallback(() => checkForAppUpdate(t), [t]);
 
   const openSettings = useCallback(async () => {
     navigate({ to: "/settings" });
