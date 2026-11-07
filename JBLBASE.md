@@ -1,18 +1,8 @@
-# JBLBase (Fork von En Croissant)
+# JBLBase: Anleitung
 
 Eigenes Schachprogramm von Jannick Schwab, aufgebaut auf
 [En Croissant](https://github.com/franciscoBSalgueiro/en-croissant) (GPL-3.0).
 Dieses Projekt steht deshalb ebenfalls unter GPL-3.0.
-
-## Phase 1: Was schon da ist
-
-| Funktion                                                                    | Stand                       |
-| --------------------------------------------------------------------------- | --------------------------- |
-| Brett, Notation, Varianten                                                  | aus En Croissant übernommen |
-| PGN-Import und -Export                                                      | aus En Croissant übernommen |
-| Mehrere Engines gleichzeitig, jede mit eigener Box (Linien + Bewertung)     | aus En Croissant übernommen |
-| **Positionsspeicher** (lokale SQLite-Datenbank aller bewerteten Stellungen) | **neu**                     |
-| Einstellungsseite „Positionsspeicher“ (Statistik, Speicher leeren)          | **neu**                     |
 
 ## Positionsspeicher
 
@@ -127,11 +117,17 @@ cargo test eval_cache
 JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored engine_cache
 ```
 
-## Fertige Installer
+## Releases und Updates
 
-Bei jedem Push auf `main` baut GitHub Actions einen Windows-Installer (`.exe`)
-und eine macOS-Version (`.dmg`, Apple Silicon). Zu finden unter
-**Actions → Build installers → letzter Lauf → Artifacts**.
+Neue Versionen entstehen, indem ein Tag wie `v1.0.1` gepusht wird (vorher
+die Version in `package.json` und `src-tauri/Cargo.toml` erhöhen). Der Workflow
+„Release“ baut dann signierte Installer für Windows und macOS und
+veröffentlicht sie unter Releases. Installierte Apps finden das Update über
+**Einstellungen → Nach Updates suchen** (und prüfen beim Start automatisch).
+
+Die Update-Pakete sind mit einem eigenen Schlüssel signiert. Der private
+Schlüssel liegt als Secret `TAURI_SIGNING_PRIVATE_KEY` im Repo. Geht er
+verloren, können installierte Apps keine Updates mehr annehmen.
 Die Installer sind nicht von Apple bzw. Microsoft beglaubigt.
 
 **Windows:** Beim ersten Start erscheint eine SmartScreen-Warnung. Klicke auf

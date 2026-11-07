@@ -39,7 +39,7 @@
       "resources/vision/": "vision/"
     },
     "targets": "all",
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": true
   },
   "build": {
     "beforeDevCommand": "pnpm prepare:aix-extension && pnpm start-vite",
@@ -68,9 +68,9 @@
       ]
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdGOTBFNjg2MzFGM0RDODUKUldTRjNQTXhodWFRZjc2MTNVeXRONGJkRjdGUXlCeW1MSlZESUczT0U4eE5hKzBmY3M2S0U2L0oK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzRjhFMTlBRDQ0Qzk4MTMKUldRVG1FelVtdUg0dytnTVlrZ1c2REdEQ3FNWWF3aXJvWlRWbjBvbHY2ZkM3ODNTZzBWRVlGbjUK",
       "endpoints": [
-        "https://www.encroissant.org/updates"
+        "https://github.com/jammelwab/JBLBase/releases/latest/download/latest.json"
       ]
     }
   },

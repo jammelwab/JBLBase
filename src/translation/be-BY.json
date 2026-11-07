@@ -688,6 +688,14 @@
     "TimeControl.Classical": "Класіка",
     "TimeControl.Correspondence": "Ліставанне",
     "TimeControl.Rapid": "Рапід",
-    "TimeControl.UltraBullet": "Ультра Булет"
+    "TimeControl.UltraBullet": "Ультра Булет",
+    "Updater.Available.Message": "",
+    "Updater.Available.Title": "",
+    "Updater.Downloading": "",
+    "Updater.Failed": "",
+    "Updater.Install": "",
+    "Updater.Later": "",
+    "Updater.Restarting": "",
+    "Updater.UpToDate": ""
   }
 }

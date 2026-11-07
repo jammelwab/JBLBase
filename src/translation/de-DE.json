@@ -670,6 +670,14 @@
     "TimeControl.Classical": "Klassisch",
     "TimeControl.Correspondence": "Fernschach",
     "TimeControl.Rapid": "Rapid",
-    "TimeControl.UltraBullet": "Ultrabullet"
+    "TimeControl.UltraBullet": "Ultrabullet",
+    "Updater.Available.Message": "JBLBase {{version}} ist verfügbar (installiert: {{current}}). Jetzt installieren? Die App startet danach neu.",
+    "Updater.Available.Title": "Update verfügbar",
+    "Updater.Downloading": "Update wird geladen",
+    "Updater.Failed": "Update fehlgeschlagen",
+    "Updater.Install": "Installieren",
+    "Updater.Later": "Später",
+    "Updater.Restarting": "JBLBase startet neu",
+    "Updater.UpToDate": "JBLBase ist auf dem neuesten Stand."
   }
 }

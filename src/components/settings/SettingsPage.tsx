@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Button,
   Card,
   Group,
   ScrollArea,
@@ -18,6 +19,7 @@ import {
   IconBrush,
   IconChess,
   IconDatabase,
+  IconDownload,
   IconFlag,
   IconFolder,
   IconKeyboard,
@@ -65,6 +67,7 @@ import {
   telemetryEnabledAtom,
 } from "@/state/atoms";
 import { keyMapAtom } from "@/state/keybinds";
+import { checkForAppUpdate } from "@/utils/updater";
 import FileInput from "../common/FileInput";
 import BoardSelect from "./BoardSelect";
 import ColorControl from "./ColorControl";
@@ -1044,9 +1047,19 @@ export default function Page() {
                 </Tabs.Panel>
               </Card>
             </ScrollArea>
-            <Text size="xs" c="dimmed" ta="right">
-              JBLBase v{version}
-            </Text>
+            <Group justify="flex-end" gap="xs" pb="xs">
+              <Text size="xs" c="dimmed">
+                JBLBase v{version}
+              </Text>
+              <Button
+                size="compact-xs"
+                variant="light"
+                leftSection={<IconDownload size="0.9rem" />}
+                onClick={() => checkForAppUpdate(t)}
+              >
+                {t("Menu.Help.CheckUpdate")}
+              </Button>
+            </Group>
           </Stack>
         </Tabs>
       )}
