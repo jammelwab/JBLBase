@@ -31,16 +31,16 @@ für meine Vorbereitung brauche.
 
 ## Was schon funktioniert
 
-| Funktion | Stand |
-| --- | --- |
-| Brett, Notation, Varianten, Kommentare | aus En Croissant übernommen |
-| PGN-Import und -Export | aus En Croissant übernommen |
-| Partien von **Chess.com** und **Lichess** herunterladen | übernommen, in JBLBase repariert |
-| 0 bis 2 Engines gleichzeitig, jede mit eigener Box (Linien und Bewertung) | aus En Croissant übernommen |
-| **Positionsspeicher**: lokale SQLite-Datenbank aller bewerteten Stellungen | **neu** |
-| Einstellungsseite „Positionsspeicher“ (Statistik, Speicher leeren) | **neu** |
-| Fertige Installer für Windows und macOS über GitHub Actions | **neu** |
-| macOS-Build der Patricia-Engine | **neu** |
+| Funktion                                                                   | Stand                            |
+| -------------------------------------------------------------------------- | -------------------------------- |
+| Brett, Notation, Varianten, Kommentare                                     | aus En Croissant übernommen      |
+| PGN-Import und -Export                                                     | aus En Croissant übernommen      |
+| Partien von **Chess.com** und **Lichess** herunterladen                    | übernommen, in JBLBase repariert |
+| 0 bis 2 Engines gleichzeitig, jede mit eigener Box (Linien und Bewertung)  | aus En Croissant übernommen      |
+| **Positionsspeicher**: lokale SQLite-Datenbank aller bewerteten Stellungen | **neu**                          |
+| Einstellungsseite „Positionsspeicher“ (Statistik, Speicher leeren)         | **neu**                          |
+| Fertige Installer für Windows und macOS über GitHub Actions                | **neu**                          |
+| macOS-Build der Patricia-Engine                                            | **neu**                          |
 
 ### Der Positionsspeicher
 
@@ -150,49 +150,49 @@ alle, die daran arbeiten.
 
 ### Grundlage und Engines
 
-| Projekt | Wofür | Lizenz |
-| --- | --- | --- |
-| [En Croissant](https://github.com/franciscoBSalgueiro/en-croissant) | Grundlage des ganzen Programms (Fork) | GPL-3.0 |
-| [Stockfish](https://github.com/official-stockfish/Stockfish) | Hauptengine, wird separat installiert | GPL-3.0 |
-| [Patricia](https://github.com/Adam-Kulju/Patricia) | Aggressive Zweit-Engine, macOS-Build per Workflow | MIT |
+| Projekt                                                             | Wofür                                             | Lizenz  |
+| ------------------------------------------------------------------- | ------------------------------------------------- | ------- |
+| [En Croissant](https://github.com/franciscoBSalgueiro/en-croissant) | Grundlage des ganzen Programms (Fork)             | GPL-3.0 |
+| [Stockfish](https://github.com/official-stockfish/Stockfish)        | Hauptengine, wird separat installiert             | GPL-3.0 |
+| [Patricia](https://github.com/Adam-Kulju/Patricia)                  | Aggressive Zweit-Engine, macOS-Build per Workflow | MIT     |
 
 ### Schachlogik und Brett
 
-| Projekt | Wofür | Lizenz |
-| --- | --- | --- |
-| [chessground](https://github.com/lichess-org/chessground) | Das Schachbrett in der Oberfläche | GPL-3.0 |
-| [chessops](https://github.com/niklasf/chessops) | Schachregeln und PGN im Frontend | GPL-3.0 |
-| [shakmaty](https://github.com/niklasf/shakmaty) | Schachregeln im Rust-Backend | GPL-3.0 |
-| [pgn-reader](https://github.com/niklasf/rust-pgn-reader) | Schnelles Einlesen von PGN-Dateien | GPL-3.0 |
-| [vampirc-uci](https://github.com/franciscoBSalgueiro/vampirc-uci) | Kommunikation mit den Engines (UCI), Fork von En Croissant | Apache-2.0 |
-| [polyglot-book-rs](https://crates.io/crates/polyglot-book-rs) | Eröffnungsbücher im Polyglot-Format | siehe Projekt |
+| Projekt                                                           | Wofür                                                      | Lizenz        |
+| ----------------------------------------------------------------- | ---------------------------------------------------------- | ------------- |
+| [chessground](https://github.com/lichess-org/chessground)         | Das Schachbrett in der Oberfläche                          | GPL-3.0       |
+| [chessops](https://github.com/niklasf/chessops)                   | Schachregeln und PGN im Frontend                           | GPL-3.0       |
+| [shakmaty](https://github.com/niklasf/shakmaty)                   | Schachregeln im Rust-Backend                               | GPL-3.0       |
+| [pgn-reader](https://github.com/niklasf/rust-pgn-reader)          | Schnelles Einlesen von PGN-Dateien                         | GPL-3.0       |
+| [vampirc-uci](https://github.com/franciscoBSalgueiro/vampirc-uci) | Kommunikation mit den Engines (UCI), Fork von En Croissant | Apache-2.0    |
+| [polyglot-book-rs](https://crates.io/crates/polyglot-book-rs)     | Eröffnungsbücher im Polyglot-Format                        | siehe Projekt |
 
 ### Datenbanken
 
-| Projekt | Wofür | Lizenz |
-| --- | --- | --- |
-| [rusqlite](https://github.com/rusqlite/rusqlite) / [SQLite](https://sqlite.org) | Positionsspeicher | MIT / Public Domain |
-| [duckdb-rs](https://github.com/duckdb/duckdb-rs) / [DuckDB](https://github.com/duckdb/duckdb) | Partiedatenbank | MIT |
-| [aix](https://github.com/franciscoBSalgueiro/aix) | Komprimierte Speicherung von Partien (DuckDB-Erweiterung) | siehe Projekt |
+| Projekt                                                                                       | Wofür                                                     | Lizenz              |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------- |
+| [rusqlite](https://github.com/rusqlite/rusqlite) / [SQLite](https://sqlite.org)               | Positionsspeicher                                         | MIT / Public Domain |
+| [duckdb-rs](https://github.com/duckdb/duckdb-rs) / [DuckDB](https://github.com/duckdb/duckdb) | Partiedatenbank                                           | MIT                 |
+| [aix](https://github.com/franciscoBSalgueiro/aix)                                             | Komprimierte Speicherung von Partien (DuckDB-Erweiterung) | siehe Projekt       |
 
 ### App und Oberfläche
 
-| Projekt | Wofür | Lizenz |
-| --- | --- | --- |
-| [Tauri](https://github.com/tauri-apps/tauri) | Desktop-App aus Rust und Web-Oberfläche | MIT / Apache-2.0 |
-| [React](https://github.com/facebook/react) | Oberfläche | MIT |
-| [Mantine](https://github.com/mantinedev/mantine) | Bedienelemente und Layout | MIT |
-| [Tabler Icons](https://github.com/tabler/tabler-icons) | Symbole | MIT |
-| [Recharts](https://github.com/recharts/recharts) | Bewertungsdiagramme | MIT |
-| [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) | Wiederholungsplan für späteres Training | MIT |
-| [Candle](https://github.com/huggingface/candle) | Stellungserkennung aus Bildern | MIT / Apache-2.0 |
+| Projekt                                                      | Wofür                                   | Lizenz           |
+| ------------------------------------------------------------ | --------------------------------------- | ---------------- |
+| [Tauri](https://github.com/tauri-apps/tauri)                 | Desktop-App aus Rust und Web-Oberfläche | MIT / Apache-2.0 |
+| [React](https://github.com/facebook/react)                   | Oberfläche                              | MIT              |
+| [Mantine](https://github.com/mantinedev/mantine)             | Bedienelemente und Layout               | MIT              |
+| [Tabler Icons](https://github.com/tabler/tabler-icons)       | Symbole                                 | MIT              |
+| [Recharts](https://github.com/recharts/recharts)             | Bewertungsdiagramme                     | MIT              |
+| [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) | Wiederholungsplan für späteres Training | MIT              |
+| [Candle](https://github.com/huggingface/candle)              | Stellungserkennung aus Bildern          | MIT / Apache-2.0 |
 
 Die vollständige Liste aller Bibliotheken steht in
 [package.json](package.json) und [src-tauri/Cargo.toml](src-tauri/Cargo.toml).
 
 ### Online-Dienste
 
-| Dienst | Wofür |
-| --- | --- |
-| [Lichess API](https://lichess.org/api) | Partien herunterladen, Eröffnungsdatenbank, Endspiel-Tablebases |
-| [Chess.com Published-Data API](https://www.chess.com/news/view/published-data-api) | Partien herunterladen |
+| Dienst                                                                             | Wofür                                                           |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [Lichess API](https://lichess.org/api)                                             | Partien herunterladen, Eröffnungsdatenbank, Endspiel-Tablebases |
+| [Chess.com Published-Data API](https://www.chess.com/news/view/published-data-api) | Partien herunterladen                                           |
