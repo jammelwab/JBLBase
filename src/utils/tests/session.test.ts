@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
+    addSession,
     detachSession,
     moveSessionToPlayer,
     playerNames,
+    renamePlayer,
     type Session,
     sessionKey,
     sessionsOfPlayer,
@@ -43,5 +45,47 @@ describe("merging accounts", () => {
         const named = [lichess("JBLBASE", "Jannick"), chessCom("JBLBASE")];
         expect(sessionsOfPlayer(named, "Jannick")).toHaveLength(1);
         expect(sessionsOfPlayer(named, "JBLBASE")).toHaveLength(1);
+    });
+});
+
+describe("adding accounts", () => {
+    test("the same Chess.com account in other letter case replaces the old one", () => {
+        const sessions = [chessCom("ragingforlife", "Jannick")];
+        const added = addSession(sessions, chessCom("RagingForLife", "Jannick"));
+        expect(added).toHaveLength(1);
+        expect(added[0].chessCom?.username).toBe("RagingForLife");
+    });
+
+    test("the same Lichess account is recognised by its id", () => {
+        const added = addSession([lichess("JBLBASE")], lichess("jblbase"));
+        expect(added).toHaveLength(1);
+    });
+
+    test("a Chess.com and a Lichess account with the same name stay apart", () => {
+        const added = addSession([lichess("ragingforlife")], chessCom("ragingforlife"));
+        expect(added).toHaveLength(2);
+    });
+
+    test("a player name in other letter case joins the existing player", () => {
+        const sessions = [lichess("JBLBASE", "Jannick")];
+        const added = addSession(sessions, chessCom("ragingforlife", " jannick "));
+        expect(playerNames(added)).toEqual(["Jannick"]);
+    });
+});
+
+describe("renaming players", () => {
+    const sessions = [lichess("JBLBASE", "Jannick"), chessCom("ragingforlife", "Jannick")];
+
+    test("all accounts of the player get the new name, without spaces around it", () => {
+        expect(playerNames(renamePlayer(sessions, "Jannick", "  Jannick S. "))).toEqual([
+            "Jannick S.",
+        ]);
+    });
+
+    test("an empty name gives each account its own player again", () => {
+        expect(playerNames(renamePlayer(sessions, "Jannick", "  "))).toEqual([
+            "JBLBASE",
+            "ragingforlife",
+        ]);
     });
 });

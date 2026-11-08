@@ -89,13 +89,27 @@ export async function collectIssues(
 ): Promise<Issue[]> {
     const issues: Issue[] = [];
     const queue = [{ fen: rootFen, halfMoves: rootHalfMoves, line: [] as string[] }];
+    // A position reached by two move orders has the same games behind it, so it is walked
+    // (and its issues are listed) only once, under the first move order found.
+    const seen = new Set([positionKey(rootFen)]);
+    const reported = new Set<string>();
     let visited = 0;
     while (queue.length > 0 && visited < maxPositions) {
         const parent = queue.shift()!;
         visited++;
         for (const node of childNodes(parent, await stats(parent.fen), color, index, minGames)) {
-            if (node.status === "book") queue.push(node);
-            else if (node.status !== "outside") issues.push({ ...node, kind: node.status });
+            const key = positionKey(node.fen);
+            if (node.status === "book") {
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    queue.push(node);
+                }
+            } else if (node.status !== "outside") {
+                const issueKey = `${positionKey(parent.fen)} ${node.san}`;
+                if (reported.has(issueKey)) continue;
+                reported.add(issueKey);
+                issues.push({ ...node, kind: node.status });
+            }
         }
     }
     return issues.sort((a, b) => b.games - a.games);

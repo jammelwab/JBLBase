@@ -16,3 +16,13 @@ test("English and German texts are filled in", () => {
     expect(empty(en.translation)).toEqual([]);
     expect(empty(de.translation)).toEqual([]);
 });
+
+// German is the main language of JBLBase: without a German text the English one shows up
+// (e.g. the keyboard shortcuts in the settings and the FEN errors were English).
+test("every English text has a German translation", () => {
+    const missing = Object.keys(en.translation).filter(
+        // _zero plurals are an English extra, German uses _one/_other
+        (key) => !key.endsWith("_zero") && !(key in de.translation),
+    );
+    expect(missing).toEqual([]);
+});

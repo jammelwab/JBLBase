@@ -41,8 +41,10 @@ import type { TreeNode } from "@/utils/treeReducer";
 
 const OPPONENT_DELAY = 600;
 const OPPONENT_DELAY_WITH_ALTERNATIVES = 1600;
+const LINE_PAUSE = 700;
 
-type Phase = "opponent" | "user" | "wrong";
+// done: the line is finished, the next one starts after a short pause
+type Phase = "opponent" | "user" | "wrong" | "done";
 
 type Session = {
   items: SessionItem[];
@@ -107,7 +109,7 @@ export default function LineTrainer() {
   const line = item ? lines[item.line] : null;
   const nodes = useMemo(() => (line ? nodesOfLine(root, line) : []), [root, line]);
   const alts = useMemo(() => {
-    if (!session || !line) return [];
+    if (!session || !line || session.phase === "done") return [];
     // The other opponent moves at the position before the move just played (or about to be)
     const ply = session.phase === "opponent" ? session.ply : session.ply - 1;
     if (ply < 0 || ply >= line.length || isUserTurn(nodes[ply], color)) return [];
@@ -179,8 +181,9 @@ export default function LineTrainer() {
     (s: Session, ply: number) => {
       const l = lines[s.items[s.index].line];
       if (ply >= l.length) {
-        setTimeout(() => begin(s.items, s.index + 1, s), 700);
-        setSession({ ...s, ply, phase: "opponent", deadline: Infinity });
+        // The pause before the next line runs in an effect, so stopping the session
+        // during it really stops (a bare timeout used to start the next line anyway)
+        setSession({ ...s, ply, phase: "done", deadline: Infinity });
         return;
       }
       setSession({
@@ -190,7 +193,7 @@ export default function LineTrainer() {
         deadline: Date.now() + MOVE_SECONDS * 1000,
       });
     },
-    [lines, begin, phaseAt, root],
+    [lines, phaseAt, root],
   );
 
   const miss = useCallback(
@@ -259,6 +262,12 @@ export default function LineTrainer() {
     }, delay);
     return () => clearTimeout(timer);
   }, [session, line, alts.length, goToMove, advance]);
+
+  useEffect(() => {
+    if (!session || session.phase !== "done") return;
+    const timer = setTimeout(() => begin(session.items, session.index + 1, session), LINE_PAUSE);
+    return () => clearTimeout(timer);
+  }, [session, begin]);
 
   // The clock for your move
   useEffect(() => {

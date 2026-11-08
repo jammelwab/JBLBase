@@ -48,6 +48,14 @@ export const DEFAULT_REPERTOIRES: { owner: string; color: RepertoireColor }[] = 
     { owner: "Aaron", color: "black" },
 ];
 
+// "jannick" or " Jannick " typed as owner is still the main user, otherwise their
+// repertoires would lose the comparison with their own games.
+export function repertoireOwner(owner: unknown): string {
+    const name = typeof owner === "string" ? owner.trim() : "";
+    if (!name || name.toLowerCase() === MAIN_OWNER.toLowerCase()) return MAIN_OWNER;
+    return name;
+}
+
 // Bumped after every change, so lists and lookups reload.
 export const repertoireVersionAtom = atom(0);
 
@@ -82,7 +90,7 @@ async function loadRepertoire(file: FileMetadata): Promise<Repertoire> {
             : tree.headers.orientation === "black"
               ? "black"
               : "white";
-    const owner = typeof info.owner === "string" && info.owner ? info.owner : MAIN_OWNER;
+    const owner = repertoireOwner(info.owner);
     return {
         file,
         name: file.name,

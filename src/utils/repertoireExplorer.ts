@@ -1,5 +1,6 @@
 import { resolve } from "@tauri-apps/api/path";
 import { getDefaultStore } from "jotai";
+import { mutate } from "swr";
 import { commands } from "@/bindings";
 import { lichessOptionsAtom, sessionsAtom } from "@/state/atoms";
 import { findAccountDatabase, sameName } from "./accountDatabase";
@@ -30,18 +31,20 @@ export function hasLichessToken(): boolean {
 }
 
 export function lichessMoveCounts(fen: string): Promise<MoveCount[]> {
-    const cached = lichessCache.get(fen);
-    if (cached) return cached;
     const store = getDefaultStore();
     const token = store.get(sessionsAtom).find((s) => s.lichess?.accessToken)?.lichess?.accessToken;
     const options = { ...store.get(lichessOptionsAtom), player: undefined };
+    // Changing the Lichess filters (speeds, ratings) must not show the old numbers
+    const key = `${JSON.stringify(options)} ${fen}`;
+    const cached = lichessCache.get(key);
+    if (cached) return cached;
     const promise = enqueue(async () => {
         const data = await getLichessGames(fen, options, token);
         return data.moves.map((m) => ({ san: m.san, games: m.white + m.draws + m.black }));
     });
     // A failed request may succeed later (rate limit, network), so it is not kept
-    promise.catch(() => lichessCache.delete(fen));
-    lichessCache.set(fen, promise);
+    promise.catch(() => lichessCache.delete(key));
+    lichessCache.set(key, promise);
     return promise;
 }
 
@@ -124,6 +127,11 @@ export function ownMoveCounts(fen: string, color: RepertoireColor): Promise<Move
         }
         return [...totals.values()];
     })();
+    // A failed lookup is tried again next time instead of staying empty
+    promise.catch(() => {
+        ownCache.delete(key);
+        accountsPromise = null;
+    });
     ownCache.set(key, promise);
     return promise;
 }
@@ -133,3 +141,14 @@ export function clearExplorerCache() {
     ownCache.clear();
     accountsPromise = null;
 }
+
+// Your own games change when games are downloaded or an account is added, removed or
+// renamed. Without this, the repertoire pages kept showing the games (or "no games yet")
+// from the first time they were opened until the app was restarted.
+export function refreshOwnGames() {
+    ownCache.clear();
+    accountsPromise = null;
+    void mutate("own-games-available");
+}
+
+getDefaultStore().sub(sessionsAtom, refreshOwnGames);
