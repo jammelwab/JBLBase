@@ -20,7 +20,7 @@ import { sessionsAtom } from "@/state/atoms";
 import { getChessComAccount } from "@/utils/chess.com/api";
 import { getDatabases } from "@/utils/db";
 import { getLichessAccount } from "@/utils/lichess/api";
-import type { ChessComSession, LichessSession } from "@/utils/session";
+import { type ChessComSession, type LichessSession, playerNames } from "@/utils/session";
 import AccountCards from "../common/AccountCards";
 import GenericCard from "../common/GenericCard";
 import LichessLogo from "./LichessLogo";
@@ -160,9 +160,7 @@ function AccountModal({
   const [website, setWebsite] = useState<"lichess" | "chesscom">("lichess");
   const [withLogin, setWithLogin] = useState(false);
 
-  const players = new Set(
-    sessions.map((s) => s.player || s.lichess?.username || s.chessCom?.username || ""),
-  );
+  const players = new Set(playerNames(sessions));
 
   function addAccount() {
     if (website === "lichess") {

@@ -364,6 +364,8 @@
     "Home.Accounts.Add": "Hinzufügen",
     "Home.Accounts.Authenticated": "Angemeldet",
     "Home.Accounts.DownloadGames": "Partien laden",
+    "Home.Accounts.DragToMerge": "Ziehe ein Konto auf einen anderen Spieler, um ihre Partien zusammenzufassen.",
+    "Home.Accounts.DropToSeparate": "Hier ablegen, um das Konto wieder als eigenen Spieler zu führen",
     "Home.Accounts.Empty.Description": "Beschreibung",
     "Home.Accounts.Empty.Title": "Keine Konten verbunden",
     "Home.Accounts.EnterUsername": "Benutzernamen eingeben",

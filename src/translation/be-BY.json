@@ -360,6 +360,8 @@
     "Home.Accounts.Add": "",
     "Home.Accounts.Authenticated": "",
     "Home.Accounts.DownloadGames": "",
+    "Home.Accounts.DragToMerge": "",
+    "Home.Accounts.DropToSeparate": "",
     "Home.Accounts.Empty.Description": "",
     "Home.Accounts.Empty.Title": "",
     "Home.Accounts.EnterUsername": "",

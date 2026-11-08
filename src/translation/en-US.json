@@ -378,6 +378,8 @@
     "Home.Accounts.Add": "Add Account",
     "Home.Accounts.Authenticated": "Authenticated",
     "Home.Accounts.DownloadGames": "Download games",
+    "Home.Accounts.DragToMerge": "Drag an account onto another player to combine their games.",
+    "Home.Accounts.DropToSeparate": "Drop here to make this account a player of its own",
     "Home.Accounts.Empty.Description": "Connect your Lichess or Chess.com account to analyze your games and track your progress.",
     "Home.Accounts.Empty.Title": "No accounts connected",
     "Home.Accounts.EnterUsername": "Enter your username",

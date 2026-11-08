@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import type { PlayerGameInfo } from "@/bindings";
 import { sessionsAtom } from "@/state/atoms";
+import { playerNames } from "@/utils/session";
 import type { DatabaseViewStore } from "@/state/store/database";
 import { getFidePlayer } from "@/utils/lichess/api";
 import { isMatchingFidePlayer } from "@/utils/fideMatch";
@@ -66,9 +67,7 @@ function PersonalPlayerCard({
     : undefined;
   const Flag = Object.entries(Flags).find(([key]) => key === `${country?.a2}Flag`)?.[1];
   const sessions = useAtomValue(sessionsAtom);
-  const players = Array.from(
-    new Set(sessions.map((s) => s.player || s.lichess?.username || s.chessCom?.username || "")),
-  );
+  const players = playerNames(sessions);
 
   return (
     <Paper

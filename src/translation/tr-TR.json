@@ -368,6 +368,8 @@
     "Home.Accounts.Add": "Hesap Ekle",
     "Home.Accounts.Authenticated": "Doğrulandı",
     "Home.Accounts.DownloadGames": "Oyunları indir",
+    "Home.Accounts.DragToMerge": "",
+    "Home.Accounts.DropToSeparate": "",
     "Home.Accounts.Empty.Description": "Oyunlarınızı analiz etmek ve gelişiminizi takip etmek için Lichess veya Chess.com hesabınızı bağlayın.",
     "Home.Accounts.Empty.Title": "Bağlı hesap yok",
     "Home.Accounts.EnterUsername": "Kullanıcı adınızı girin",

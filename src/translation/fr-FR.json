@@ -371,6 +371,8 @@
     "Home.Accounts.Add": "Ajouter un compte",
     "Home.Accounts.Authenticated": "Authentifié",
     "Home.Accounts.DownloadGames": "Télécharger les parties",
+    "Home.Accounts.DragToMerge": "",
+    "Home.Accounts.DropToSeparate": "",
     "Home.Accounts.Empty.Description": "Connectez votre compte Lichess ou Chess.com pour analyser vos parties et suivre vos progrès.",
     "Home.Accounts.Empty.Title": "Aucun compte connecté",
     "Home.Accounts.EnterUsername": "Saisissez votre nom d'utilisateur",
