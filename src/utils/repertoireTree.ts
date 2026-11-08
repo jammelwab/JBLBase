@@ -37,6 +37,9 @@ function addChild(parent: TreeNode, source: TreeNode): { child: TreeNode; added:
     const existing = parent.children.find((c) => c.san === source.san);
     if (existing) return { child: existing, added: false };
     const child = copyMove(source);
+    // Counted from the repertoire, not from the source: a course chapter that starts from a
+    // FEN often says "move 1" for a position the repertoire reaches at move 8
+    child.halfMoves = parent.halfMoves + 1;
     parent.children.push(child);
     return { child, added: true };
 }
@@ -205,9 +208,12 @@ function sideToMove(fen: string): "white" | "black" {
 // Splits text with one or more PGN games into games. A game starts with a header line
 // ("[Tag ...]") at the start of the text or after an empty line.
 export function splitPgnGames(text: string): string[] {
-    const normalized = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+    const normalized = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+    // A new game starts with headers after an empty line, or (chapters pasted without
+    // headers) with move 1 on a new line right after the result of the previous game.
+    const gameStart = /\n[ \t]*\n(?=[ \t]*\[)|(?<=(?:\*|1-0|0-1|1\/2-1\/2))[ \t]*\n\s*(?=1\.)/;
     return normalized
-        .split(/\n[ \t]*\n(?=[ \t]*\[)/)
+        .split(gameStart)
         .map((game) => game.trim())
         .filter((game) => game.length > 0);
 }

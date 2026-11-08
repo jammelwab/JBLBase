@@ -312,3 +312,29 @@ test("a chapter from a later position is attached where the repertoire reaches i
     );
     expect(missing).toEqual({ added: 0, unplaced: ["Sizilianisch"] });
 });
+
+test("chapters pasted without headers are still split at their result", () => {
+    expect(splitPgnGames("1. e4 e5 2. Nf3 *\n\n1. d4 d5 1-0\n1. c4 e5 1/2-1/2")).toEqual([
+        "1. e4 e5 2. Nf3 *",
+        "1. d4 d5 1-0",
+        "1. c4 e5 1/2-1/2",
+    ]);
+    // A result inside a comment in the middle of a line does not split
+    expect(splitPgnGames("1. e4 { like 1-0 } e5 *")).toEqual(["1. e4 { like 1-0 } e5 *"]);
+});
+
+test("moves from a chapter with its own move numbers are numbered like the repertoire", () => {
+    const rep = tree(["d4", "d5", "c4"]);
+    // A FEN chapter after 1.d4 d5 that starts counting at move 1 again
+    const chapterRoot = tree(["d4", "d5", "c4", "e6", "Nc3"]).children[0].children[0];
+    const renumber = (node: TreeNode) => {
+        node.halfMoves -= 2;
+        node.children.forEach(renumber);
+    };
+    renumber(chapterRoot);
+    mergeCourse(rep, [{ name: "QGD", root: chapterRoot }], "white", new Map());
+    const c4 = rep.children[0].children[0].children[0];
+    expect(c4.halfMoves).toBe(3);
+    expect(c4.children[0].halfMoves).toBe(4);
+    expect(c4.children[0].children[0].halfMoves).toBe(5);
+});
