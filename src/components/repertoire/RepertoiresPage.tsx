@@ -242,9 +242,17 @@ export default function RepertoiresPage() {
     return (
       <Box p="md" h="100%">
         {view.mode === "compare" ? (
-          <RepertoireCompareView repertoire={viewRepertoire} onBack={() => setView(null)} />
+          <RepertoireCompareView
+            key={viewRepertoire.file.path}
+            repertoire={viewRepertoire}
+            onBack={() => setView(null)}
+          />
         ) : (
-          <RepertoireTreeView repertoire={viewRepertoire} onBack={() => setView(null)} />
+          <RepertoireTreeView
+            key={viewRepertoire.file.path}
+            repertoire={viewRepertoire}
+            onBack={() => setView(null)}
+          />
         )}
       </Box>
     );

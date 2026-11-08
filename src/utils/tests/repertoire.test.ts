@@ -188,3 +188,19 @@ test("games are compared with the repertoire move by move", async () => {
         ),
     ).toEqual(["e4"]);
 });
+
+test("the tree diagram puts every line on its own row", async () => {
+    const { layoutTree } = await import("../treeLayout");
+    const n = (id: string, ...children: { id: string; children: unknown[] }[]) =>
+        ({ id, children }) as never;
+    const { nodes, width, height } = layoutTree(n("root", n("e4", n("e5"), n("c5")), n("d4")), {
+        colWidth: 100,
+        rowHeight: 10,
+    });
+    expect(nodes.get("e5")).toMatchObject({ x: 200, y: 0, parent: "e4" });
+    expect(nodes.get("c5")).toMatchObject({ x: 200, y: 10 });
+    expect(nodes.get("e4")).toMatchObject({ x: 100, y: 5 });
+    expect(nodes.get("d4")).toMatchObject({ x: 100, y: 20 });
+    expect(nodes.get("root")).toMatchObject({ x: 0, y: 12.5 });
+    expect([width, height]).toEqual([300, 30]);
+});
