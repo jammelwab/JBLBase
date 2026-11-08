@@ -12,7 +12,17 @@ import { updatePersistedState } from "@/state/store/debouncedStorage";
 import { tabsAtom } from "@/state/atoms";
 import { getPGN, headersToPGN, parsePGN } from "./chess";
 import { createFile } from "./files";
-import { indexRepertoire, mergeLine, type MergeResult, repertoireStats } from "./repertoireTree";
+import {
+    type ConflictChoice,
+    type CourseChapter,
+    type CourseMergeResult,
+    indexRepertoire,
+    mergeCourse,
+    mergeLine,
+    type MergeResult,
+    repertoireStats,
+    splitPgnGames,
+} from "./repertoireTree";
 import type { GameHeaders, TreeNode, TreeState } from "./treeReducer";
 import { unwrap } from "./unwrap";
 
@@ -182,6 +192,72 @@ export async function addLineToRepertoire(
         ) {
             updatePersistedState<TreeState>(tab.value, (state) => {
                 mergeLine(state.root, source, path, options);
+                return state;
+            });
+        }
+    }
+
+    bumpRepertoires();
+    return result;
+}
+
+// A course is a PGN file (or pasted text); every game in it is a chapter.
+export type Course = { name: string; chapters: CourseChapter[] };
+
+function chapterName(headers: GameHeaders, number: number): string {
+    const known = (v: string | undefined) => (v && v !== "?" ? v.trim() : "");
+    // Course PGNs often keep the chapter title in the "White" tag and the course in "Event"
+    const parts = [known(headers.white), known(headers.black)].filter(Boolean);
+    const players = parts.length === 2 ? `${parts[0]} – ${parts[1]}` : parts.join("");
+    return players || known(headers.event) || `#${number}`;
+}
+
+async function parseChapters(games: string[]): Promise<CourseChapter[]> {
+    const chapters: CourseChapter[] = [];
+    for (const [i, pgn] of games.entries()) {
+        const tree = await parsePGN(pgn);
+        if (tree.root.children.length === 0) continue;
+        chapters.push({ name: chapterName(tree.headers, i + 1), root: tree.root });
+    }
+    return chapters;
+}
+
+export async function loadCourseFile(path: string): Promise<Course> {
+    const count = unwrap(await commands.countPgnGames(path));
+    const games = count > 0 ? unwrap(await commands.readGames(path, 0, count - 1)) : [];
+    const base = path.split(/[\\/]/).pop() ?? path;
+    return { name: base.replace(/\.pgn$/i, ""), chapters: await parseChapters(games) };
+}
+
+export async function parseCourseText(text: string, name: string): Promise<Course> {
+    return { name, chapters: await parseChapters(splitPgnGames(text)) };
+}
+
+// Merges course chapters into a repertoire file, like addLineToRepertoire: read fresh from
+// disk, written back, and applied to an open tab of the repertoire too.
+export async function importCourseIntoRepertoire(
+    file: FileMetadata,
+    chapters: CourseChapter[],
+    choices: Map<string, ConflictChoice>,
+    note: string,
+): Promise<CourseMergeResult> {
+    const repertoire = await loadRepertoire(file);
+    const result = mergeCourse(repertoire.root, chapters, repertoire.color, choices, note);
+    if (result.added > 0) {
+        unwrap(
+            await commands.writeGame(file.path, 0, serialize(repertoire.root, repertoire.headers)),
+        );
+    }
+
+    const store = getDefaultStore();
+    for (const tab of store.get(tabsAtom)) {
+        const origin = tab.gameOrigin;
+        if (
+            (origin.kind === "file" || origin.kind === "temp_file") &&
+            origin.file.path === file.path
+        ) {
+            updatePersistedState<TreeState>(tab.value, (state) => {
+                mergeCourse(state.root, chapters, repertoire.color, choices, note);
                 return state;
             });
         }

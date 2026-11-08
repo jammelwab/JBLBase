@@ -15,7 +15,13 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconBinaryTree, IconBooks, IconGitCompare, IconPlus } from "@tabler/icons-react";
+import {
+  IconBinaryTree,
+  IconBooks,
+  IconFileImport,
+  IconGitCompare,
+  IconPlus,
+} from "@tabler/icons-react";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
@@ -31,6 +37,7 @@ import {
   repertoireViewAtom,
   useRepertoires,
 } from "@/utils/repertoires";
+import ImportCourseModal from "./ImportCourseModal";
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
 import RepertoireTreeView from "./RepertoireTreeView";
@@ -201,6 +208,7 @@ export default function RepertoiresPage() {
   const { documentDir } = useLoaderData({ from: "/repertoires" });
   const { data: repertoires, isLoading } = useRepertoires(documentDir);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useAtom(repertoireViewAtom);
   const viewRepertoire = view
@@ -261,6 +269,13 @@ export default function RepertoiresPage() {
   return (
     <ScrollArea h="100%">
       <NewRepertoireModal opened={creating} onClose={() => setCreating(false)} owners={owners} />
+      {importing && (
+        <ImportCourseModal
+          opened
+          onClose={() => setImporting(false)}
+          repertoires={repertoires ?? []}
+        />
+      )}
       <Stack p="md" gap="lg" maw={1100}>
         <Group justify="space-between">
           <Group gap="sm">
@@ -275,6 +290,14 @@ export default function RepertoiresPage() {
                 })}
               </Button>
             )}
+            <Button
+              variant="light"
+              leftSection={<IconFileImport size="1rem" />}
+              disabled={!repertoires?.length}
+              onClick={() => setImporting(true)}
+            >
+              {t("Repertoire.Course.Button")}
+            </Button>
             <Button leftSection={<IconPlus size="1rem" />} onClick={() => setCreating(true)}>
               {t("Repertoire.Page.New")}
             </Button>
