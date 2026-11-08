@@ -94,6 +94,30 @@ Ist der meistgespielte Lichess-Zug (nur Platz 1) eines Gegners nicht in
 deinem Repertoire, steht er abgeblasst unter deinen Varianten. Das heißt
 nicht, dass er gut oder schlecht ist, nur dass er oft kommt.
 
+**Zugumstellungen:** Entsteht dieselbe Stellung über verschiedene
+Zugfolgen, steht neben dem Zug ein violettes Pfeil-Symbol (⇄). Der Tooltip
+zeigt die anderen Zugfolgen, ein Klick klappt den Baum dort auf und springt
+hin. Ein weiterer Klick geht zur nächsten Zugfolge.
+
+### Deine bisher gespielten Eröffnungen
+
+- **Als Statistik:** Benutzer → deine Spielerkarte → Tab **Eröffnungen** →
+  „Als Weiß“ oder „Als Schwarz“ → **In der Analyse öffnen**. Rechts im Tab
+  **Datenbank** siehst du für jede Stellung, welche Züge du wie oft gespielt
+  hast und wie sie ausgingen.
+- **Mit dem Repertoire vergleichen:** im selben Tab **Mit meinem
+  Eröffnungsbuch vergleichen**, oder auf der Repertoire-Seite bei deinen
+  Repertoires **Mit meinen Partien vergleichen**. Es zählen nur Züge, die du
+  mindestens 2-mal gespielt hast (oben einstellbar). Oben stehen drei Listen:
+  wo du überrascht wirst (Gegnerzug ohne Antwort im Repertoire), wo du
+  abweichst (du spielst nicht deinen vorbereiteten Zug) und wo dein
+  Repertoire endet, obwohl deine Partien weitergehen. Darunter liegen deine
+  Partien als aufklappbarer Baum, mit Anzahl, Ergebnis und Markierung. Ein
+  Klick auf eine Variante öffnet sie in einer neuen Analyse, von dort fügst
+  du sie mit dem Knopf unter „Brett drehen“ zum Repertoire hinzu.
+  Zugumstellungen werden erkannt: führt eine andere Zugfolge in eine
+  Stellung deines Repertoires, gilt sie als Repertoire.
+
 ### Training „Linien“
 
 Öffne ein Repertoire, Tab **Training → Linien**. Das Training läuft Linie für

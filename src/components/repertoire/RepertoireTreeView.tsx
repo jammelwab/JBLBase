@@ -12,7 +12,12 @@ import {
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
-import { IconArrowLeft, IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconArrowsExchange,
+  IconChevronDown,
+  IconChevronRight,
+} from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
@@ -27,7 +32,8 @@ import {
   lichessMoveCounts,
   ownMoveCounts,
 } from "@/utils/repertoireExplorer";
-import { moveShares } from "@/utils/repertoireTree";
+import { lineText } from "@/utils/gamesTree";
+import { moveShares, nodesOnPath, positionKey } from "@/utils/repertoireTree";
 import { MAIN_OWNER, type Repertoire } from "@/utils/repertoires";
 import type { TreeNode, TreeState } from "@/utils/treeReducer";
 import { ColorDot } from "./RepertoireLabel";
@@ -86,7 +92,78 @@ type TreeContext = {
   expanded: Set<string>;
   toggle: (key: string) => void;
   open: (path: number[]) => void;
+  // Every way the repertoire reaches a position, by position key
+  transpositions: Map<string, number[][]>;
+  highlight: string | null;
+  reveal: (path: number[]) => void;
 };
+
+// The same position reached by different move orders.
+function findTranspositions(root: TreeNode) {
+  const paths = new Map<string, number[][]>();
+  const walk = (node: TreeNode, path: number[]) => {
+    node.children.forEach((child, i) => {
+      const childPath = [...path, i];
+      const key = positionKey(child.fen);
+      paths.set(key, [...(paths.get(key) ?? []), childPath]);
+      walk(child, childPath);
+    });
+  };
+  walk(root, []);
+  for (const [key, list] of paths) if (list.length < 2) paths.delete(key);
+  return paths;
+}
+
+function TranspositionMark({
+  node,
+  path,
+  ctx,
+}: {
+  node: TreeNode;
+  path: number[];
+  ctx: TreeContext;
+}) {
+  const { t } = useTranslation();
+  const all = ctx.transpositions.get(positionKey(node.fen));
+  if (!all) return null;
+  const own = all.findIndex((p) => p.join(",") === path.join(","));
+  const others = all.filter((_, i) => i !== own);
+  // Clicking again walks on to the next move order
+  const next = all[(own + 1) % all.length];
+  const root = ctx.repertoire.root;
+  const lines = others.map((p) =>
+    lineText(
+      nodesOnPath(root, p).map((n) => n.san!),
+      root.halfMoves,
+    ),
+  );
+  return (
+    <Tooltip
+      multiline
+      w={320}
+      openDelay={200}
+      label={
+        <Stack gap={2}>
+          <Text size="xs" fw={600}>
+            {t("Repertoire.Tree.Transposition")}
+          </Text>
+          {lines.map((l) => (
+            <Text key={l} size="xs">
+              {l}
+            </Text>
+          ))}
+          <Text size="xs" c="dimmed">
+            {t("Repertoire.Tree.TranspositionHint")}
+          </Text>
+        </Stack>
+      }
+    >
+      <ActionIcon size="sm" variant="light" color="violet" onClick={() => ctx.reveal(next)}>
+        <IconArrowsExchange size="0.85rem" />
+      </ActionIcon>
+    </Tooltip>
+  );
+}
 
 function Bars({
   lichess,
@@ -139,7 +216,17 @@ function Children({ parent, path, ctx }: { parent: TreeNode; path: number[]; ctx
         const mine = child.halfMoves % 2 === (repertoire.color === "white" ? 1 : 0);
         return (
           <Box key={key}>
-            <Group gap={4} wrap="nowrap" pl={depth * INDENT} py={2} style={{ borderRadius: 4 }}>
+            <Group
+              id={`repertoire-node-${key}`}
+              gap={4}
+              wrap="nowrap"
+              pl={depth * INDENT}
+              py={2}
+              style={{
+                borderRadius: 4,
+                background: ctx.highlight === key ? "var(--mantine-color-violet-light)" : undefined,
+              }}
+            >
               {child.children.length > 0 ? (
                 <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => ctx.toggle(key)}>
                   {isOpen ? <IconChevronDown size="0.9rem" /> : <IconChevronRight size="0.9rem" />}
@@ -153,6 +240,7 @@ function Children({ parent, path, ctx }: { parent: TreeNode; path: number[]; ctx
                   {child.annotations.join("")}
                 </Text>
               </UnstyledButton>
+              <TranspositionMark node={child} path={childPath} ctx={ctx} />
               {!isOpen && child.children.length > 0 && (
                 <Text size="xs" c="dimmed">
                   ({t("Repertoire.MoveCount", { count: countMoves(child) })})
@@ -271,7 +359,35 @@ export default function RepertoireTreeView({
     [repertoire.file, setTabs, setActiveTab, navigate],
   );
 
-  const ctx: TreeContext = { repertoire, showOwn, showLichess, expanded, toggle, open };
+  const transpositions = useMemo(() => findTranspositions(repertoire.root), [repertoire.root]);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  // Opens everything above `path` and scrolls to it
+  const reveal = useCallback((path: number[]) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (let i = 1; i < path.length; i++) next.add(path.slice(0, i).join(","));
+      return next;
+    });
+    const key = path.join(",");
+    setHighlight(key);
+    setTimeout(() => {
+      document
+        .getElementById(`repertoire-node-${key}`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 50);
+  }, []);
+
+  const ctx: TreeContext = {
+    repertoire,
+    showOwn,
+    showLichess,
+    expanded,
+    toggle,
+    open,
+    transpositions,
+    highlight,
+    reveal,
+  };
 
   return (
     <Stack gap="sm" h="100%">
@@ -311,6 +427,14 @@ export default function RepertoireTreeView({
             <Box w={14} h={6} style={{ borderRadius: 3, background: OWN_COLOR }} />
             <Text size="xs" c="dimmed">
               {t("Repertoire.Tree.OwnLegend")}
+            </Text>
+          </Group>
+        )}
+        {transpositions.size > 0 && (
+          <Group gap={6}>
+            <IconArrowsExchange size="0.9rem" color="var(--mantine-color-violet-5)" />
+            <Text size="xs" c="dimmed">
+              {t("Repertoire.Tree.TranspositionLegend", { count: transpositions.size })}
             </Text>
           </Group>
         )}
