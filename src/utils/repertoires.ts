@@ -41,6 +41,15 @@ export const DEFAULT_REPERTOIRES: { owner: string; color: RepertoireColor }[] = 
 // Bumped after every change, so lists and lookups reload.
 export const repertoireVersionAtom = atom(0);
 
+// Which view the repertoire page shows. `color` without `path` picks your own repertoire
+// for that color (used by "Compare with my repertoire" on the player card).
+export type RepertoireView = {
+    mode: "tree" | "compare";
+    path?: string;
+    color?: RepertoireColor;
+};
+export const repertoireViewAtom = atom<RepertoireView | null>(null);
+
 function flatten(entries: (FileMetadata | Directory)[]): FileMetadata[] {
     return entries.flatMap((e) => (e.type === "directory" ? flatten(e.children) : [e]));
 }

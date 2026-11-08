@@ -1,5 +1,5 @@
 import { Button, Group, SegmentedControl, Stack, Text, ThemeIcon } from "@mantine/core";
-import { IconArrowRight, IconBook, IconChess } from "@tabler/icons-react";
+import { IconArrowRight, IconBook, IconChess, IconGitCompare } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { INITIAL_FEN } from "chessops/fen";
 import { useAtom, useStore } from "jotai";
@@ -14,6 +14,7 @@ import {
   currentDbTabAtom,
   currentLocalOptionsAtom,
 } from "@/state/atoms";
+import { repertoireViewAtom } from "@/utils/repertoires";
 import { createTab } from "@/utils/tabs";
 import classes from "./OpeningsPanel.module.css";
 
@@ -36,6 +37,7 @@ function OpeningsPanel({
   const [, setActiveTab] = useAtom(activeTabAtom);
   const [referenceDatabase, setReferenceDatabase] = useAtom(referenceDbAtom);
   const [color, setColor] = useState<"white" | "black">("white");
+  const [, setRepertoireView] = useAtom(repertoireViewAtom);
   const sources = openingSources ?? [];
 
   const openDatabaseInTabs = async () => {
@@ -116,6 +118,17 @@ function OpeningsPanel({
             onClick={openDatabaseInTabs}
           >
             {t("Home.Personal.OpenInAnalysis")}
+          </Button>
+          <Button
+            fullWidth
+            variant="light"
+            leftSection={<IconGitCompare size={16} aria-hidden="true" />}
+            onClick={() => {
+              setRepertoireView({ mode: "compare", color });
+              void navigate({ to: "/repertoires" });
+            }}
+          >
+            {t("Home.Personal.CompareWithRepertoire")}
           </Button>
         </Stack>
       </Stack>

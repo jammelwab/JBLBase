@@ -6,6 +6,7 @@ import { findAccountDatabase, sameName } from "./accountDatabase";
 import { getDatabases, searchPosition } from "./db";
 import { getDatabasesDir } from "./directories";
 import { getLichessGames } from "./lichess/api";
+import type { MoveStat } from "./gamesTree";
 import type { MoveCount } from "./repertoireTree";
 import type { RepertoireColor } from "./repertoires";
 
@@ -13,7 +14,7 @@ import type { RepertoireColor } from "./repertoires";
 // Chess.com/Lichess accounts downloaded under "User"). Results are cached per session.
 
 const lichessCache = new Map<string, Promise<MoveCount[]>>();
-const ownCache = new Map<string, Promise<MoveCount[]>>();
+const ownCache = new Map<string, Promise<MoveStat[]>>();
 
 // The Lichess explorer allows only a few requests at a time, so they queue up.
 let queue: Promise<unknown> = Promise.resolve();
@@ -87,14 +88,14 @@ export async function hasOwnGames(): Promise<boolean> {
     return (await accountsPromise).length > 0;
 }
 
-// Moves played from `fen` in the user's own games where they had `color`.
-export function ownMoveCounts(fen: string, color: RepertoireColor): Promise<MoveCount[]> {
+// Moves played from `fen` in the user's own games where they had `color`, with results.
+export function ownMoveCounts(fen: string, color: RepertoireColor): Promise<MoveStat[]> {
     const key = `${color} ${fen}`;
     const cached = ownCache.get(key);
     if (cached) return cached;
     const promise = (async () => {
         accountsPromise ??= findOwnAccounts();
-        const totals = new Map<string, number>();
+        const totals = new Map<string, MoveStat>();
         for (const account of await accountsPromise) {
             const [openings] = await searchPosition(
                 {
@@ -107,10 +108,21 @@ export function ownMoveCounts(fen: string, color: RepertoireColor): Promise<Move
             ).catch(() => [[]]);
             for (const op of openings) {
                 if (op.move === "*") continue;
-                totals.set(op.move, (totals.get(op.move) ?? 0) + op.total);
+                const t = totals.get(op.move) ?? {
+                    san: op.move,
+                    games: 0,
+                    white: 0,
+                    draw: 0,
+                    black: 0,
+                };
+                t.games += op.total;
+                t.white += op.white;
+                t.draw += op.draw;
+                t.black += op.black;
+                totals.set(op.move, t);
             }
         }
-        return [...totals.entries()].map(([san, games]) => ({ san, games }));
+        return [...totals.values()];
     })();
     ownCache.set(key, promise);
     return promise;

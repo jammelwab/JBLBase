@@ -1,4 +1,5 @@
 import {
+  Alert,
   Autocomplete,
   Box,
   Button,
@@ -14,9 +15,9 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconBinaryTree, IconBooks, IconPlus } from "@tabler/icons-react";
+import { IconBinaryTree, IconBooks, IconGitCompare, IconPlus } from "@tabler/icons-react";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { activeTabAtom, tabsAtom } from "@/state/atoms";
@@ -27,8 +28,10 @@ import {
   MAIN_OWNER,
   type Repertoire,
   type RepertoireColor,
+  repertoireViewAtom,
   useRepertoires,
 } from "@/utils/repertoires";
+import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
 import RepertoireTreeView from "./RepertoireTreeView";
 
@@ -41,9 +44,11 @@ function useColorName() {
 function RepertoireCard({
   repertoire,
   onShowTree,
+  onCompare,
 }: {
   repertoire: Repertoire;
   onShowTree: () => void;
+  onCompare: () => void;
 }) {
   const { t } = useTranslation();
   const colorName = useColorName();
@@ -98,6 +103,16 @@ function RepertoireCard({
             {t("Common.Open")}
           </Button>
         </Group>
+        {repertoire.owner === MAIN_OWNER && (
+          <Button
+            variant="subtle"
+            size="xs"
+            leftSection={<IconGitCompare size="1rem" />}
+            onClick={onCompare}
+          >
+            {t("Repertoire.Compare.Button")}
+          </Button>
+        )}
       </Stack>
     </Card>
   );
@@ -187,8 +202,12 @@ export default function RepertoiresPage() {
   const { data: repertoires, isLoading } = useRepertoires(documentDir);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [treePath, setTreePath] = useState<string | null>(null);
-  const treeRepertoire = (repertoires ?? []).find((r) => r.file.path === treePath);
+  const [view, setView] = useAtom(repertoireViewAtom);
+  const viewRepertoire = view
+    ? (repertoires ?? []).find((r) =>
+        view.path ? r.file.path === view.path : r.owner === MAIN_OWNER && r.color === view.color,
+      )
+    : undefined;
 
   const byOwner = useMemo(() => {
     const groups = new Map<string, Repertoire[]>();
@@ -219,10 +238,14 @@ export default function RepertoiresPage() {
     setBusy(false);
   }
 
-  if (treeRepertoire) {
+  if (view && viewRepertoire) {
     return (
       <Box p="md" h="100%">
-        <RepertoireTreeView repertoire={treeRepertoire} onBack={() => setTreePath(null)} />
+        {view.mode === "compare" ? (
+          <RepertoireCompareView repertoire={viewRepertoire} onBack={() => setView(null)} />
+        ) : (
+          <RepertoireTreeView repertoire={viewRepertoire} onBack={() => setView(null)} />
+        )}
       </Box>
     );
   }
@@ -252,6 +275,13 @@ export default function RepertoiresPage() {
         <Text c="dimmed" size="sm">
           {t("Repertoire.Page.Help")}
         </Text>
+        {view && !viewRepertoire && !isLoading && (
+          <Alert color="blue" withCloseButton onClose={() => setView(null)}>
+            {t("Repertoire.Compare.NoRepertoire", {
+              name: `${MAIN_OWNER} ${colorName(view.color ?? "white")}`,
+            })}
+          </Alert>
+        )}
         {[...byOwner.entries()].map(([owner, list]) => (
           <Stack key={owner} gap="xs">
             <Title order={4}>{owner}</Title>
@@ -260,7 +290,8 @@ export default function RepertoiresPage() {
                 <RepertoireCard
                   key={r.file.path}
                   repertoire={r}
-                  onShowTree={() => setTreePath(r.file.path)}
+                  onShowTree={() => setView({ mode: "tree", path: r.file.path })}
+                  onCompare={() => setView({ mode: "compare", path: r.file.path })}
                 />
               ))}
             </SimpleGrid>

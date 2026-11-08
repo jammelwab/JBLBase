@@ -10,6 +10,7 @@ import {
     positionKey,
     repertoireStats,
 } from "../repertoireTree";
+import { childNodes, collectIssues, lineText } from "../gamesTree";
 import { createNode, defaultTree, type TreeNode } from "../treeReducer";
 
 // Builds a tree from lines of SAN moves; the first line is the main line.
@@ -157,4 +158,33 @@ test("move shares add up to 100 % and name the missing top move", () => {
 
     expect(moveShares(counts, ["c5"]).topMissing).toBeNull();
     expect(moveShares([], ["e5"])).toMatchObject({ total: 0, other: 0, topMissing: null });
+});
+
+test("games are compared with the repertoire move by move", async () => {
+    const rep = tree(["e4", "e5", "Nf3", "Nc6", "Bb5"], ["e4", "c5", "Nf3"]);
+    const index = indexRepertoire(rep);
+    const stat = (san: string, games: number) => ({ san, games, white: games, draw: 0, black: 0 });
+    const games: Record<string, ReturnType<typeof stat>[]> = {
+        [rep.fen]: [stat("e4", 10), stat("d4", 1)],
+        [getFenAfter(["e4"])]: [stat("e5", 5), stat("c5", 2), stat("e6", 3)],
+        [getFenAfter(["e4", "e5"])]: [stat("Nf3", 3), stat("Bc4", 2)],
+        [getFenAfter(["e4", "c5"])]: [stat("Nf3", 2)],
+        [getFenAfter(["e4", "e5", "Nf3"])]: [stat("Nc6", 3)],
+        [getFenAfter(["e4", "e5", "Nf3", "Nc6"])]: [stat("Bb5", 3)],
+        [getFenAfter(["e4", "c5", "Nf3"])]: [stat("d6", 2)],
+        [getFenAfter(["e4", "e5", "Nf3", "Nc6", "Bb5"])]: [stat("a6", 3)],
+    };
+    const issues = await collectIssues(rep.fen, 0, "white", index, async (fen) => games[fen] ?? []);
+    expect(issues.map((i) => `${i.kind} ${lineText(i.line)}`)).toEqual([
+        "surprise 1. e4 e6",
+        "end 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6",
+        "deviation 1. e4 e5 2. Bc4",
+        "end 1. e4 c5 2. Nf3 d6",
+    ]);
+    // d4 was played only once and does not count
+    expect(
+        childNodes({ fen: rep.fen, halfMoves: 0, line: [] }, games[rep.fen], "white", index, 2).map(
+            (n) => n.san,
+        ),
+    ).toEqual(["e4"]);
 });
