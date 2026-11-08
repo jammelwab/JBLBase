@@ -4,11 +4,14 @@ import { expect, test } from "vitest";
 import { positionFromFen } from "../chessops";
 import { classifyMove, countClassifications } from "../moveClassification";
 import {
+    findCourseConflicts,
     indexRepertoire,
+    mergeCourse,
     mergeLine,
     moveShares,
     positionKey,
     repertoireStats,
+    splitPgnGames,
 } from "../repertoireTree";
 import { childNodes, collectIssues, lineText } from "../gamesTree";
 import { createNode, defaultTree, type TreeNode } from "../treeReducer";
@@ -203,4 +206,109 @@ test("the tree diagram puts every line on its own row", async () => {
     expect(nodes.get("d4")).toMatchObject({ x: 100, y: 20 });
     expect(nodes.get("root")).toMatchObject({ x: 0, y: 12.5 });
     expect([width, height]).toEqual([300, 30]);
+});
+
+// --- Course import
+
+test("a PGN with several chapters is split into games", () => {
+    const text =
+        '\uFEFF[Event "Kurs"]\r\n[White "Kapitel 1"]\r\n\r\n1. e4 e5 *\r\n\r\n[Event "Kurs"]\n[White "Kapitel 2"]\n\n1. d4 d5 *\n';
+    const games = splitPgnGames(text);
+    expect(games).toHaveLength(2);
+    expect(games[0]).toContain("Kapitel 1");
+    expect(games[1]).toContain("1. d4 d5");
+    expect(splitPgnGames("1. e4 e5 2. Nf3 *")).toEqual(["1. e4 e5 2. Nf3 *"]);
+});
+
+test("a course move against my own move is a conflict, the opponent's moves are not", () => {
+    // White repertoire: 1.e4 e5 2.Nf3
+    const rep = tree(["e4", "e5", "Nf3"]);
+    // The course plays 2.Bc4 (own move, conflict) and also covers 1...c5 (opponent, fine)
+    const course = tree(["e4", "e5", "Bc4", "Nf6"], ["e4", "c5", "Nf3"]);
+    const conflicts = findCourseConflicts(rep, [{ name: "K1", root: course }], "white");
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toMatchObject({
+        courseMove: "Bc4",
+        repertoireMoves: ["Nf3"],
+        line: ["e4", "e5"],
+        chapter: "K1",
+    });
+});
+
+test("skipped conflicts keep my repertoire, everything else is added", () => {
+    const rep = tree(["e4", "e5", "Nf3"]);
+    const course = tree(["e4", "e5", "Bc4", "Nf6"], ["e4", "c5", "Nf3"]);
+    const result = mergeCourse(rep, [{ name: "K1", root: course }], "white", new Map());
+    expect(result).toEqual({ added: 2, unplaced: [] });
+    expect(lines(rep)).toEqual(["e4 e5 Nf3", "e4 c5 Nf3"]);
+});
+
+test("a conflict can be added as alternative or as the new main move", () => {
+    const course = tree(["e4", "e5", "Bc4", "Nf6"]);
+    const [conflict] = findCourseConflicts(
+        tree(["e4", "e5", "Nf3"]),
+        [{ name: "K1", root: course }],
+        "white",
+    );
+
+    const alt = tree(["e4", "e5", "Nf3"]);
+    mergeCourse(
+        alt,
+        [{ name: "K1", root: course }],
+        "white",
+        new Map([[conflict.key, "alternative"]]),
+    );
+    expect(lines(alt)).toEqual(["e4 e5 Nf3", "e4 e5 Bc4 Nf6"]);
+
+    const main = tree(["e4", "e5", "Nf3"]);
+    mergeCourse(main, [{ name: "K1", root: course }], "white", new Map([[conflict.key, "main"]]));
+    expect(lines(main)).toEqual(["e4 e5 Bc4 Nf6", "e4 e5 Nf3"]);
+});
+
+test("conflicts behind a skipped line are not shown", () => {
+    const rep = tree(["e4", "e5", "Nf3", "Nc6", "Bb5"]);
+    // 1.Nf3 Nc6 2.e4 e5 transposes to the repertoire position after 2...Nc6, where the
+    // repertoire plays 3.Bb5 and the course 3.Bc4
+    const course = tree(["Nf3", "Nc6", "e4", "e5", "Bc4"]);
+    const chapters = [{ name: "K", root: course }];
+    const conflicts = findCourseConflicts(rep, chapters, "white");
+    expect(conflicts.map((c) => c.courseMove)).toEqual(["Nf3"]);
+
+    const opened = findCourseConflicts(
+        rep,
+        chapters,
+        "white",
+        new Map([[conflicts[0].key, "alternative"]]),
+    );
+    expect(opened.map((c) => c.courseMove)).toEqual(["Nf3", "Bc4"]);
+    expect(opened[1].repertoireMoves).toEqual(["Bb5"]);
+});
+
+test("the first new move of each new branch gets the source note", () => {
+    const rep = tree(["e4", "e5"]);
+    const course = tree(["e4", "e5", "Nf3", "Nc6"], ["e4", "c5", "Nf3"]);
+    mergeCourse(rep, [{ name: "K", root: course }], "white", new Map(), "Quelle: Kurs");
+    const e4 = rep.children[0];
+    const nf3 = e4.children[0].children[0];
+    expect(nf3.comment).toBe("Quelle: Kurs");
+    expect(nf3.children[0].comment).toBe("");
+    expect(e4.children[1].comment).toBe("Quelle: Kurs");
+});
+
+test("a chapter from a later position is attached where the repertoire reaches it", () => {
+    const rep = tree(["d4", "d5", "c4"]);
+    // Chapter starting after 1.d4 d5 (as with a FEN header)
+    const chapterRoot = tree(["d4", "d5", "c4", "e6", "Nc3"]).children[0].children[0];
+    const result = mergeCourse(rep, [{ name: "QGD", root: chapterRoot }], "white", new Map());
+    expect(result.added).toBe(2);
+    expect(lines(rep)).toEqual(["d4 d5 c4 e6 Nc3"]);
+
+    const unreachable = tree(["e4", "c5", "Nf3"]).children[0];
+    const missing = mergeCourse(
+        rep,
+        [{ name: "Sizilianisch", root: unreachable }],
+        "white",
+        new Map(),
+    );
+    expect(missing).toEqual({ added: 0, unplaced: ["Sizilianisch"] });
 });

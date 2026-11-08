@@ -164,3 +164,165 @@ export function moveShares(counts: MoveCount[], repertoireMoves: string[]): Move
             : null;
     return { total, shares, other: total > 0 ? (total - covered) / total : 0, topMissing };
 }
+
+// ---------------------------------------------------------------------------
+// Importing a course (one or more PGN chapters) into a repertoire
+
+export type CourseChapter = {
+    name: string;
+    root: TreeNode;
+    // Written in front of the comment of the first new move of every new branch
+    note?: string;
+};
+
+// A position where the repertoire already plays a move for its own side and the course
+// recommends a different one there.
+export type CourseConflict = {
+    // positionKey + "|" + course move; stable between the preview and the actual import
+    key: string;
+    fen: string;
+    chapter: string;
+    // The course moves that lead to the position
+    line: string[];
+    halfMoves: number;
+    courseMove: string;
+    repertoireMoves: string[];
+};
+
+// skip: keep the repertoire as it is and leave out the course line from here
+// alternative: add the course move next to the repertoire's move
+// main: add the course move and make it the first choice
+export type ConflictChoice = "skip" | "alternative" | "main";
+
+function conflictKey(fen: string, san: string) {
+    return `${positionKey(fen)}|${san}`;
+}
+
+function sideToMove(fen: string): "white" | "black" {
+    return fen.trim().split(/\s+/)[1] === "b" ? "black" : "white";
+}
+
+// Splits text with one or more PGN games into games. A game starts with a header line
+// ("[Tag ...]") at the start of the text or after an empty line.
+export function splitPgnGames(text: string): string[] {
+    const normalized = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+    return normalized
+        .split(/\n[ \t]*\n(?=[ \t]*\[)/)
+        .map((game) => game.trim())
+        .filter((game) => game.length > 0);
+}
+
+// Where a chapter can be attached in the repertoire: the shallowest node with the chapter's
+// start position. Chapters from the normal start always fit a repertoire from the normal
+// start; chapters from a later position fit once the repertoire reaches that position.
+export function findAnchor(repertoireRoot: TreeNode, fen: string): TreeNode | null {
+    const key = positionKey(fen);
+    const queue = [repertoireRoot];
+    for (let i = 0; i < queue.length; i++) {
+        const node = queue[i];
+        if (positionKey(node.fen) === key) return node;
+        queue.push(...node.children);
+    }
+    return null;
+}
+
+// Conflicts between a course and the repertoire, in course order. Lines the user chose to
+// skip are not followed, so conflicts behind them don't show up.
+export function findCourseConflicts(
+    repertoireRoot: TreeNode,
+    chapters: CourseChapter[],
+    color: "white" | "black",
+    choices: Map<string, ConflictChoice> = new Map(),
+): CourseConflict[] {
+    const index = indexRepertoire(repertoireRoot);
+    const found = new Map<string, CourseConflict>();
+    for (const chapter of chapters) {
+        if (!findAnchor(repertoireRoot, chapter.root.fen)) continue;
+        const walk = (node: TreeNode, line: string[]) => {
+            const ownMove = sideToMove(node.fen) === color;
+            const repertoireMoves = index.get(positionKey(node.fen)) ?? [];
+            for (const child of node.children) {
+                if (!child.san) continue;
+                if (ownMove && repertoireMoves.length > 0 && !repertoireMoves.includes(child.san)) {
+                    const key = conflictKey(node.fen, child.san);
+                    if (!found.has(key)) {
+                        found.set(key, {
+                            key,
+                            fen: node.fen,
+                            chapter: chapter.name,
+                            line,
+                            halfMoves: node.halfMoves,
+                            courseMove: child.san,
+                            repertoireMoves,
+                        });
+                    }
+                    if ((choices.get(key) ?? "skip") === "skip") continue;
+                }
+                walk(child, [...line, child.san]);
+            }
+        };
+        walk(chapter.root, []);
+    }
+    return [...found.values()];
+}
+
+export type CourseMergeResult = {
+    added: number;
+    // Chapters whose start position the repertoire doesn't reach
+    unplaced: string[];
+};
+
+// Merges the chapters into the repertoire tree. Moves already there are reused, conflicts are
+// resolved with `choices` (default: skip), and the first new move of every new branch gets the
+// chapter's note (or `note`) in front of its comment, so you can see later where a line came
+// from. Mutates
+// `repertoireRoot`.
+export function mergeCourse(
+    repertoireRoot: TreeNode,
+    chapters: CourseChapter[],
+    color: "white" | "black",
+    choices: Map<string, ConflictChoice>,
+    note = "",
+): CourseMergeResult {
+    // Conflicts are judged against the repertoire before the import, so a chapter can't turn
+    // the next chapter's moves into conflicts.
+    const index = indexRepertoire(repertoireRoot);
+    let added = 0;
+    const unplaced: string[] = [];
+
+    const merge = (target: TreeNode, source: TreeNode, insideNew: boolean, note: string) => {
+        const ownMove = sideToMove(source.fen) === color;
+        const repertoireMoves = index.get(positionKey(source.fen)) ?? [];
+        for (const sourceChild of source.children) {
+            if (!sourceChild.move || !sourceChild.san) continue;
+            const isConflict =
+                ownMove && repertoireMoves.length > 0 && !repertoireMoves.includes(sourceChild.san);
+            const choice = isConflict
+                ? (choices.get(conflictKey(source.fen, sourceChild.san)) ?? "skip")
+                : null;
+            if (choice === "skip") continue;
+            const { child, added: isNew } = addChild(target, sourceChild);
+            if (isNew) {
+                added++;
+                if (!insideNew && note) {
+                    child.comment = child.comment ? `${note}\n${child.comment}` : note;
+                }
+            }
+            if (choice === "main") {
+                target.children.splice(target.children.indexOf(child), 1);
+                target.children.unshift(child);
+            }
+            merge(child, sourceChild, insideNew || isNew, note);
+        }
+    };
+
+    for (const chapter of chapters) {
+        const anchor = findAnchor(repertoireRoot, chapter.root.fen);
+        if (!anchor) {
+            unplaced.push(chapter.name);
+            continue;
+        }
+        merge(anchor, chapter.root, false, chapter.note ?? note);
+    }
+    return { added, unplaced };
+}
