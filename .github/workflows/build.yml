@@ -59,9 +59,11 @@ jobs:
       - name: Check macOS signature allows the bundled DuckDB extension
         if: matrix.platform == 'macos-latest'
         run: |
-          app=src-tauri/target/aarch64-apple-darwin/release/bundle/macos/JBLBase.app
-          codesign -dv "$app" 2>&1 | grep -E "flags|TeamIdentifier"
-          codesign -d --entitlements - "$app" 2>&1 | tee /tmp/ent.txt
+          dmg=$(ls src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
+          hdiutil attach -nobrowse -readonly -mountpoint /tmp/jbl "$dmg" >/dev/null
+          codesign -dv /tmp/jbl/JBLBase.app 2>&1 | grep -E "flags|TeamIdentifier"
+          codesign -d --entitlements - /tmp/jbl/JBLBase.app 2>&1 | tee /tmp/ent.txt
+          hdiutil detach /tmp/jbl >/dev/null
           grep -q "disable-library-validation" /tmp/ent.txt
 
       - uses: actions/upload-artifact@v4
