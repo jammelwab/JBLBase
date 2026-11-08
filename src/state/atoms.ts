@@ -1,3 +1,4 @@
+import type { DrawShape } from "@lichess-org/chessground/draw";
 import type { MantineColor } from "@mantine/core";
 import { resolve } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -470,6 +471,18 @@ export const currentAnalysisTabAtom = tabValue(analysisTabFamily);
 
 const practiceTabFamily = atomFamily((_tab: string) => atom("train"));
 export const currentPracticeTabAtom = tabValue(practiceTabFamily);
+
+// Line training talks to the board through this: while it runs, the board hands moves to
+// `onMove` instead of adding them to the tree (null = not your turn) and draws `shapes`.
+export type LineTrainerBoard = {
+    active: boolean;
+    onMove: ((san: string) => void) | null;
+    shapes: DrawShape[];
+};
+const lineTrainerBoardFamily = atomFamily((_tab: string) =>
+    atom<LineTrainerBoard>({ active: false, onMove: null, shapes: [] }),
+);
+export const currentLineTrainerBoardAtom = tabValue(lineTrainerBoardFamily);
 
 const expandedEnginesFamily = atomFamily((_tab: string) => atom<string[] | undefined>(undefined));
 export const currentExpandedEnginesAtom = tabValue(expandedEnginesFamily);

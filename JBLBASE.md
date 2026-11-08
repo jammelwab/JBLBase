@@ -75,6 +75,44 @@ deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
 vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
 spielt ihn auf dem Brett.
 
+### Baumdiagramm
+
+Auf der Repertoire-Seite öffnet **Baum** das Repertoire als aufklappbaren
+Baum. Deine Züge sind fett, die Gegnerzüge grau. Ein Klick auf einen Zug
+öffnet die Stellung auf dem Brett. Jeder Zug hat zwei kleine Leisten:
+
+- **Blau, Lichess-Datenbank:** wie oft der Zug aus dieser Stellung auf
+  Lichess gespielt wird (mit den Filtern aus Datenbank → Lichess). Dafür
+  musst du unter **Benutzer** bei Lichess angemeldet sein.
+- **Grün, deine Partien:** wie oft der Zug in deinen eigenen Partien vorkam,
+  in denen du die Farbe des Repertoires hattest. Grundlage sind die unter
+  **Benutzer** heruntergeladenen Chess.com- und Lichess-Partien. Unter einem
+  Gegnerzug ergeben deine Varianten plus „sonstige Züge“ zusammen 100 %. Bei
+  Aarons Repertoires fehlt diese Leiste, weil es nicht seine Partien sind.
+
+Ist der meistgespielte Lichess-Zug (nur Platz 1) eines Gegners nicht in
+deinem Repertoire, steht er abgeblasst unter deinen Varianten. Das heißt
+nicht, dass er gut oder schlecht ist, nur dass er oft kommt.
+
+### Training „Linien“
+
+Öffne ein Repertoire, Tab **Training → Linien**. Das Training läuft Linie für
+Linie, ähnlich wie bei Chessable:
+
+- Die Gegnerzüge spielt das Programm, deine Züge findest du selbst. Pro Zug
+  hast du **30 Sekunden** (Balken).
+- Stehen in deinem Repertoire noch **andere Gegnerzüge**, zeigen blaue Pfeile
+  sie kurz bevor der Gegner zieht, und sie stehen als Liste daneben.
+- **Falsch oder Zeit abgelaufen:** Ein grüner Pfeil zeigt den richtigen Zug,
+  du spielst ihn nach, und die Linie geht weiter. Die Stellung kommt am Ende
+  der Runde nochmal (ab einem Zug davor) und später wieder, nach dem
+  Wiederholungsplan (gleiche Karten wie im Tab „Training“).
+- **Nächste Linie:** Sie startet nicht wieder bei Zug 1, sondern einen Zug vor
+  der Stelle, an der sie von der vorigen abweicht. So siehst du genau, was
+  anders ist.
+- **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
+  **Alle Linien** das ganze Repertoire.
+
 ## Zugbewertungen
 
 Nach **Analyse → Bericht erstellen** bekommt jeder Zug eine Bewertung wie bei

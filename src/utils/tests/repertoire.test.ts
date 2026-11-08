@@ -3,7 +3,13 @@ import { parseSan } from "chessops/san";
 import { expect, test } from "vitest";
 import { positionFromFen } from "../chessops";
 import { classifyMove, countClassifications } from "../moveClassification";
-import { indexRepertoire, mergeLine, positionKey, repertoireStats } from "../repertoireTree";
+import {
+    indexRepertoire,
+    mergeLine,
+    moveShares,
+    positionKey,
+    repertoireStats,
+} from "../repertoireTree";
 import { createNode, defaultTree, type TreeNode } from "../treeReducer";
 
 // Builds a tree from lines of SAN moves; the first line is the main line.
@@ -134,4 +140,21 @@ test("move ratings follow the expected-score loss", () => {
     ]);
     expect(counts.white.best).toBe(2);
     expect(counts.black.blunder).toBe(1);
+});
+
+test("move shares add up to 100 % and name the missing top move", () => {
+    const counts = [
+        { san: "e5", games: 50 },
+        { san: "c5", games: 120 },
+        { san: "e6", games: 30 },
+    ];
+    const result = moveShares(counts, ["e5", "e6"]);
+    expect(result.total).toBe(200);
+    expect(result.shares.get("e5")).toBe(0.25);
+    expect(result.shares.get("e6")).toBe(0.15);
+    expect(result.other).toBe(0.6);
+    expect(result.topMissing).toEqual({ san: "c5", share: 0.6 });
+
+    expect(moveShares(counts, ["c5"]).topMissing).toBeNull();
+    expect(moveShares([], ["e5"])).toMatchObject({ total: 0, other: 0, topMissing: null });
 });

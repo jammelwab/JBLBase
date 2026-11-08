@@ -62,6 +62,7 @@ import {
 } from "@/state/atoms";
 import { getTabFile, getTabGameNumber } from "@/utils/tabs";
 import { findFen, getNodeAtPath } from "@/utils/treeReducer";
+import LineTrainer from "./LineTrainer";
 import RepertoireInfo from "./RepertoireInfo";
 
 function PracticePanel() {
@@ -315,6 +316,7 @@ function PracticePanel() {
       >
         <Tabs.List>
           <Tabs.Tab value="train">{t("Board.Practice.Train")}</Tabs.Tab>
+          <Tabs.Tab value="lines">{t("Practice.Lines.Tab")}</Tabs.Tab>
           <Tabs.Tab value="build">{t("Board.Practice.Build")}</Tabs.Tab>
         </Tabs.List>
 
@@ -622,6 +624,10 @@ function PracticePanel() {
               </>
             )}
           </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="lines" style={{ overflow: "hidden" }}>
+          <LineTrainer />
         </Tabs.Panel>
 
         <Tabs.Panel value="build" style={{ overflow: "hidden" }}>

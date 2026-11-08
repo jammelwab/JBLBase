@@ -130,3 +130,37 @@ export function repertoireStats(root: TreeNode) {
     }
     return { moves, leaves, depth };
 }
+
+export type MoveCount = { san: string; games: number };
+
+export type MoveShares = {
+    total: number;
+    // Share (0..1) of each repertoire move, in the order given
+    shares: Map<string, number>;
+    // Share of the moves that are not in the repertoire
+    other: number;
+    // The most played move, when the repertoire does not have it
+    topMissing: { san: string; share: number } | null;
+};
+
+// How the games from a position split over the repertoire's moves. The repertoire moves and
+// `other` add up to 100 %.
+export function moveShares(counts: MoveCount[], repertoireMoves: string[]): MoveShares {
+    const total = counts.reduce((acc, c) => acc + c.games, 0);
+    const shares = new Map<string, number>();
+    let covered = 0;
+    for (const san of repertoireMoves) {
+        const games = counts.find((c) => c.san === san)?.games ?? 0;
+        shares.set(san, total > 0 ? games / total : 0);
+        covered += games;
+    }
+    const top = counts.reduce<MoveCount | null>(
+        (best, c) => (best === null || c.games > best.games ? c : best),
+        null,
+    );
+    const topMissing =
+        top && total > 0 && top.games > 0 && !repertoireMoves.includes(top.san)
+            ? { san: top.san, share: top.games / total }
+            : null;
+    return { total, shares, other: total > 0 ? (total - covered) / total : 0, topMissing };
+}
