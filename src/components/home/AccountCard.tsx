@@ -33,7 +33,17 @@ import { getDatabases, query_games } from "@/utils/db";
 import { capitalize } from "@/utils/format";
 import { downloadLichess } from "@/utils/lichess/api";
 import { unwrap } from "@/utils/unwrap";
+import { mutate } from "swr";
+
 import LichessLogo from "./LichessLogo";
+
+function refreshPersonalStats() {
+  return mutate(
+    (key) => Array.isArray(key) && (key[0] === "personalDatabases" || key[0] === "personalInfo"),
+    undefined,
+    { revalidate: true },
+  );
+}
 
 interface AccountCardProps {
   type: "lichess" | "chesscom";
@@ -104,13 +114,17 @@ export function AccountCard({
   async function convert(filepath: string, timestamp: number | null) {
     info(`converting ${filepath} ${timestamp}`);
     const filename = title + (type === "lichess" ? " Lichess" : " Chess.com");
-    const dbPath = await resolve(
-      databaseDir,
-      `${filepath
-        .split(/(\\|\/)/g)
-        .pop()
-        ?.replace(".pgn", ".duckdb")}`,
-    );
+    // Keep adding to the existing database, even when its file name is
+    // spelled differently ("Ragingforlife" vs. "ragingforlife").
+    const dbPath =
+      database?.file ??
+      (await resolve(
+        databaseDir,
+        `${filepath
+          .split(/(\\|\/)/g)
+          .pop()
+          ?.replace(".pgn", ".duckdb")}`,
+      ));
     const sourceFileName = await basename(filepath);
     setConversionState((prev) => ({
       ...prev,
@@ -226,7 +240,7 @@ export function AccountCard({
                   const p = await resolve(databaseDir, `${title}_${type}.pgn`);
                   try {
                     await convert(p, lastGameDate);
-                    const dbPath = p.replace(".pgn", ".duckdb");
+                    const dbPath = database?.file ?? p.replace(".pgn", ".duckdb");
                     await commands.deleteEmptyGames(dbPath);
                   } catch (e) {
                     console.error(e);
@@ -242,6 +256,8 @@ export function AccountCard({
                     }));
                   }
                   setLoading(false);
+                  // Refresh the player overview, which caches its databases.
+                  await refreshPersonalStats();
                 }}
               >
                 <IconDownload size="1rem" />

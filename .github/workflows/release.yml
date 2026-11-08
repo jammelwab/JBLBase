@@ -1,15 +1,44 @@
 name: Release
 
-# Push a tag like v1.0.1 to build signed installers and publish them as a
-# GitHub release. The app's built-in updater reads latest.json from the
-# newest release.
+# Builds signed installers for a GitHub release: either when a release is
+# published on GitHub, or by starting this workflow by hand with a tag (the
+# release is then created). The app's built-in updater reads latest.json from
+# the newest release.
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v1.0.1 (created if missing)"
+        required: true
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
+  # A manual run for a new tag creates the release first, so both
+  # platform builds upload into the same release.
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create release if missing
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "JBLBase ${TAG#v}" --notes "Download for Windows: the \`.exe\` file. For Mac (Apple Silicon): the \`.dmg\` file. Already installed? Use \"Check for updates\" in the app."
+          fi
+
   release:
+    needs: prepare
     permissions:
       contents: write
     strategy:
@@ -49,10 +78,10 @@ jobs:
           AIX_EXTENSION_TARGET: ${{ matrix.aix_target }}
           AIX_EXTENSION_FORCE_DOWNLOAD: "1"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CI: false
         with:
-          tagName: ${{ github.ref_name }}
+          tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: "JBLBase __VERSION__"
           releaseBody: |
             Download for Windows: the `.exe` file. For Mac (Apple Silicon): the `.dmg` file.
