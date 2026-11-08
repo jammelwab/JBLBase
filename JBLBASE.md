@@ -224,7 +224,7 @@ Neue Versionen entstehen so: Version in `package.json` und
 `src-tauri/Cargo.toml` erhöhen, dann auf GitHub unter **Releases → Draft a new
 release** ein Release mit neuem Tag (z. B. `v1.0.1`) veröffentlichen. Alternativ
 unter **Actions → Release → Run workflow** den Tag eingeben, dann legt der
-Workflow das Release selbst an. Der Workflow „Release“ baut dann signierte Installer für Windows und macOS und
+Workflow das Release selbst an (als Entwurf, veröffentlicht erst, wenn beide Builds fertig sind; so bleibt der Update-Check währenddessen intakt). Der Workflow „Release“ baut dann signierte Installer für Windows und macOS und
 veröffentlicht sie unter Releases. Installierte Apps finden das Update über
 **Einstellungen → Nach Updates suchen** (und prüfen beim Start automatisch).
 
