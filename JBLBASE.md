@@ -94,6 +94,25 @@ Ist der meistgespielte Lichess-Zug (nur Platz 1) eines Gegners nicht in
 deinem Repertoire, steht er abgeblasst unter deinen Varianten. Das heißt
 nicht, dass er gut oder schlecht ist, nur dass er oft kommt.
 
+### Training „Linien“
+
+Öffne ein Repertoire, Tab **Training → Linien**. Das Training läuft Linie für
+Linie, ähnlich wie bei Chessable:
+
+- Die Gegnerzüge spielt das Programm, deine Züge findest du selbst. Pro Zug
+  hast du **30 Sekunden** (Balken).
+- Stehen in deinem Repertoire noch **andere Gegnerzüge**, zeigen blaue Pfeile
+  sie kurz bevor der Gegner zieht, und sie stehen als Liste daneben.
+- **Falsch oder Zeit abgelaufen:** Ein grüner Pfeil zeigt den richtigen Zug,
+  du spielst ihn nach, und die Linie geht weiter. Die Stellung kommt am Ende
+  der Runde nochmal (ab einem Zug davor) und später wieder, nach dem
+  Wiederholungsplan (gleiche Karten wie im Tab „Training“).
+- **Nächste Linie:** Sie startet nicht wieder bei Zug 1, sondern einen Zug vor
+  der Stelle, an der sie von der vorigen abweicht. So siehst du genau, was
+  anders ist.
+- **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
+  **Alle Linien** das ganze Repertoire.
+
 ## Zugbewertungen
 
 Nach **Analyse → Bericht erstellen** bekommt jeder Zug eine Bewertung wie bei

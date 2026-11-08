@@ -40,6 +40,7 @@ import {
   practiceCardStartTimeAtom,
   practiceSessionStatsAtom,
   practiceStateAtom,
+  currentLineTrainerBoardAtom,
   showArrowsAtom,
   showConsecutiveArrowsAtom,
   showCoordinatesAtom,
@@ -176,12 +177,18 @@ function Board({
   );
 
   const setPracticeState = useSetAtom(practiceStateAtom);
+  const lineTrainer = useAtomValue(currentLineTrainerBoardAtom);
   const [sessionStats, setSessionStats] = useAtom(practiceSessionStatsAtom);
   const cardStartTime = useAtomValue(practiceCardStartTimeAtom);
 
   async function makeMove(move: NormalMove) {
     if (!pos) return;
     const san = makeSan(pos, move);
+    if (lineTrainer.active) {
+      setPendingMove(null);
+      lineTrainer.onMove?.(san);
+      return;
+    }
     if (practicing) {
       const c = deck.positions.find((c) => c.fen === currentNode.fen);
       if (!c) {
@@ -296,7 +303,12 @@ function Board({
   }
 
   // Variation arrows: show all children moves when there are alternatives
-  if (showVariationArrows && !practicing && currentNode.children.length > 1) {
+  if (
+    showVariationArrows &&
+    !practicing &&
+    !lineTrainer.active &&
+    currentNode.children.length > 1
+  ) {
     for (const child of currentNode.children) {
       if (child.move) {
         const m = child.move as NormalMove;
@@ -319,6 +331,9 @@ function Board({
   if (currentNode.shapes.length > 0) {
     shapes = shapes.concat(currentNode.shapes);
   }
+  if (lineTrainer.active) {
+    shapes = shapes.concat(lineTrainer.shapes);
+  }
 
   const hasClock =
     whiteTime !== undefined ||
@@ -327,7 +342,9 @@ function Board({
     !!headers.white_time_control ||
     !!headers.black_time_control;
 
-  const practiceLock = !!practicing && !deck.positions.find((c) => c.fen === currentNode.fen);
+  const practiceLock =
+    (!!practicing && !deck.positions.find((c) => c.fen === currentNode.fen)) ||
+    (lineTrainer.active && !lineTrainer.onMove);
 
   const movableColor: "white" | "black" | "both" | undefined = useMemo(() => {
     return practiceLock
