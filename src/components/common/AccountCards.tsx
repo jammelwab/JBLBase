@@ -16,6 +16,7 @@ import { sessionsAtom } from "@/state/atoms";
 import { getChessComAccount, getStats } from "@/utils/chess.com/api";
 import { getLichessAccount } from "@/utils/lichess/api";
 import type { Session } from "@/utils/session";
+import { findAccountDatabase } from "@/utils/accountDatabase";
 import { AccountCard } from "../home/AccountCard";
 import { EmptyAccounts } from "../home/EmptyAccounts";
 
@@ -216,9 +217,7 @@ function LichessOrChessCom({
         key={account.id}
         token={lichessSession.accessToken}
         type="lichess"
-        database={
-          databases.find((db) => db.filename === `${account.username}_lichess.duckdb`) ?? null
-        }
+        database={findAccountDatabase(databases, account.username, "lichess")}
         title={account.username}
         updatedAt={session.updatedAt}
         total={totalGames}
@@ -264,10 +263,7 @@ function LichessOrChessCom({
         key={session.chessCom.username}
         type="chesscom"
         title={session.chessCom.username}
-        database={
-          databases.find((db) => db.filename === `${session.chessCom?.username}_chesscom.duckdb`) ??
-          null
-        }
+        database={findAccountDatabase(databases, session.chessCom.username, "chesscom")}
         updatedAt={session.updatedAt}
         total={totalGames}
         stats={getStats(session.chessCom.stats)}

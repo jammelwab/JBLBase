@@ -1578,6 +1578,82 @@ mod tests {
     }
 
     #[test]
+    fn chess_com_download_shows_up_in_player_overview() {
+        let pgn = r#"[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2025.03.14"]
+[Round "-"]
+[White "RagingForLife"]
+[Black "opponent1"]
+[Result "1-0"]
+[CurrentPosition "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -"]
+[Timezone "UTC"]
+[ECO "C20"]
+[ECOUrl "https://www.chess.com/openings/Kings-Pawn-Opening"]
+[UTCDate "2025.03.14"]
+[UTCTime "18:02:11"]
+[WhiteElo "1234"]
+[BlackElo "1200"]
+[TimeControl "600"]
+[Termination "RagingForLife won on time"]
+[StartTime "18:02:11"]
+[EndDate "2025.03.14"]
+[EndTime "18:12:11"]
+[Link "https://www.chess.com/game/live/1"]
+
+1. e4 {[%clk 0:09:58.1]} 1... e5 {[%clk 0:09:57]} 1-0
+
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2025.04.01"]
+[Round "-"]
+[White "opponent2"]
+[Black "RagingForLife"]
+[Result "1/2-1/2"]
+[UTCDate "2025.04.01"]
+[UTCTime "09:00:00"]
+[WhiteElo "1300"]
+[BlackElo "1240"]
+[TimeControl "180+2"]
+
+1. d4 {[%clk 0:02:59]} 1... d5 {[%clk 0:02:58]} 2. c4 {[%clk 0:02:57]} 1/2-1/2
+"#;
+        let db = Connection::open_in_memory().unwrap();
+        prepare_pgn_import(&db, false, "ragingforlife Chess.com", None).unwrap();
+        {
+            let appender = game_appender(&db).unwrap();
+            let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, None);
+            let mut reader = pgn_reader::Reader::new(pgn.as_bytes());
+            while proc.read_batch(&mut reader).unwrap() > 0 {}
+            proc.flush().unwrap();
+        }
+        remove_empty_games(&db).unwrap();
+        let stored: i64 = db
+            .query_row("SELECT COUNT(*) FROM games", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(stored, 2, "both games must be imported");
+        let info = read_player_game_info(&db, "ragingforlife", |_| {}).unwrap();
+        let games: usize = info.site_stats_data.iter().map(|s| s.data.len()).sum();
+        assert_eq!(
+            games,
+            2,
+            "{:?}",
+            info.site_stats_data
+                .iter()
+                .map(|s| (&s.site, &s.player))
+                .collect::<Vec<_>>()
+        );
+        for s in &info.site_stats_data {
+            for d in &s.data {
+                eprintln!(
+                    "site={} player={} date={} tc={}",
+                    s.site, s.player, d.date, d.time_control
+                );
+            }
+        }
+    }
+
+    #[test]
     fn name_search_ignores_word_order_and_punctuation() {
         let db = Connection::open_in_memory().unwrap();
         for (name, query, expected) in [

@@ -18,6 +18,7 @@ import type { DatabaseInfo as PlainDatabaseInfo, PlayerGameInfo } from "@/bindin
 import { commands, events } from "@/bindings";
 import { sessionsAtom } from "@/state/atoms";
 import { activeDatabaseViewStore } from "@/state/store/database";
+import { accountDatabaseFilename, sameName } from "@/utils/accountDatabase";
 import { getDatabases, query_players } from "@/utils/db";
 import type { Session } from "@/utils/session";
 import { unwrap } from "@/utils/unwrap";
@@ -37,7 +38,15 @@ function getSessionUsername(session: Session): string {
 }
 
 function isDatabaseFromSession(db: DatabaseInfo, sessions: Session[]) {
-  const session = sessions.find((session) => db.filename.includes(getSessionUsername(session)));
+  const session = sessions.find((session) =>
+    sameName(
+      db.filename,
+      accountDatabaseFilename(
+        getSessionUsername(session),
+        session.lichess ? "lichess" : "chesscom",
+      ),
+    ),
+  );
 
   if (session !== undefined) {
     db.username = getSessionUsername(session);
@@ -64,7 +73,12 @@ function Databases() {
         (s) => s.player === name || s.lichess?.username === name || s.chessCom?.username === name,
       )
       .map((s) =>
-        s.chessCom ? `${s.chessCom.username} Chess.com` : `${s.lichess?.username} Lichess`,
+        s.chessCom
+          ? accountDatabaseFilename(s.chessCom.username, "chesscom")
+          : accountDatabaseFilename(
+              s.lichess?.account.username ?? s.lichess?.username ?? "",
+              "lichess",
+            ),
       ),
   }));
 
@@ -94,7 +108,11 @@ function Databases() {
       if (!databases || !playerDbs) return [];
       const results = await Promise.allSettled(
         databases
-          .filter((db) => playerDbs.includes((db.type === "success" && db.title) || ""))
+          .filter(
+            (db) =>
+              db.type === "success" &&
+              playerDbs.some((filename) => sameName(filename, db.filename)),
+          )
           .map(async (db) => {
             const info = unwrap(await commands.getPlayersGameInfo(db.file, db.username!));
             return { db, info };

@@ -114,13 +114,17 @@ export function AccountCard({
   async function convert(filepath: string, timestamp: number | null) {
     info(`converting ${filepath} ${timestamp}`);
     const filename = title + (type === "lichess" ? " Lichess" : " Chess.com");
-    const dbPath = await resolve(
-      databaseDir,
-      `${filepath
-        .split(/(\\|\/)/g)
-        .pop()
-        ?.replace(".pgn", ".duckdb")}`,
-    );
+    // Keep adding to the existing database, even when its file name is
+    // spelled differently ("Ragingforlife" vs. "ragingforlife").
+    const dbPath =
+      database?.file ??
+      (await resolve(
+        databaseDir,
+        `${filepath
+          .split(/(\\|\/)/g)
+          .pop()
+          ?.replace(".pgn", ".duckdb")}`,
+      ));
     const sourceFileName = await basename(filepath);
     setConversionState((prev) => ({
       ...prev,
@@ -236,7 +240,7 @@ export function AccountCard({
                   const p = await resolve(databaseDir, `${title}_${type}.pgn`);
                   try {
                     await convert(p, lastGameDate);
-                    const dbPath = p.replace(".pgn", ".duckdb");
+                    const dbPath = database?.file ?? p.replace(".pgn", ".duckdb");
                     await commands.deleteEmptyGames(dbPath);
                   } catch (e) {
                     console.error(e);

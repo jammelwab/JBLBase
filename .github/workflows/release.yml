@@ -1,18 +1,17 @@
 name: Release
 
-# Push a tag like v1.0.1 to build signed installers and publish them as a
-# GitHub release. The app's built-in updater reads latest.json from the
-# newest release.
+# Builds signed installers for a GitHub release: either when a release is
+# published on GitHub, or by starting this workflow by hand with a tag (the
+# release is then created). The app's built-in updater reads latest.json from
+# the newest release.
 
 on:
-  push:
-    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag to build for"
+        description: "Release tag, e.g. v1.0.1 (created if missing)"
         required: true
 
 concurrency:
@@ -20,7 +19,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A manual run for a new tag creates the release first, so both
+  # platform builds upload into the same release.
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create release if missing
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "JBLBase ${TAG#v}" --notes "Download for Windows: the \`.exe\` file. For Mac (Apple Silicon): the \`.dmg\` file. Already installed? Use \"Check for updates\" in the app."
+          fi
+
   release:
+    needs: prepare
     permissions:
       contents: write
     strategy:
