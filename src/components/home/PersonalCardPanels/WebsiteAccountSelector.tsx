@@ -3,6 +3,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { sessionsAtom } from "@/state/atoms";
+import { sessionsOfPlayer } from "@/utils/session";
 
 interface WebsiteAccountSelectorProps {
   playerName: string;
@@ -20,11 +21,12 @@ const WebsiteAccountSelector = ({
   const sessions = useAtomValue(sessionsAtom);
   const { t } = useTranslation();
 
+  const ownSessions = sessionsOfPlayer(sessions, playerName);
   const websites = [];
-  if (sessions.some((s) => s.player === playerName && s.chessCom?.username)) {
+  if (ownSessions.some((s) => s.chessCom?.username)) {
     websites.push({ value: "Chess.com", label: "Chess.com" });
   }
-  if (sessions.some((s) => s.player === playerName && s.lichess?.username)) {
+  if (ownSessions.some((s) => s.lichess?.username)) {
     websites.push({ value: "Lichess", label: "Lichess" });
   }
 
@@ -44,14 +46,13 @@ const WebsiteAccountSelector = ({
   }, [account]);
 
   const accounts = ["All accounts"].concat(
-    sessions
+    ownSessions
       .filter(
         (s) =>
-          s.player === playerName &&
-          ((website === "Chess.com" && s.chessCom?.username) ||
-            (website === "Lichess" && s.lichess?.username)),
+          (website === "Chess.com" && s.chessCom?.username) ||
+          (website === "Lichess" && s.lichess?.username),
       )
-      .map((s) => s.chessCom?.username || s.lichess?.username)
+      .map((s) => s.chessCom?.username || s.lichess?.account?.username || s.lichess?.username)
       .filter((username): username is string => username !== undefined && username !== null),
   );
 

@@ -20,7 +20,7 @@ import { sessionsAtom } from "@/state/atoms";
 import { activeDatabaseViewStore } from "@/state/store/database";
 import { accountDatabaseFilename, sameName } from "@/utils/accountDatabase";
 import { getDatabases, query_players } from "@/utils/db";
-import type { Session } from "@/utils/session";
+import { playerNames, type Session, sessionPlayerName, sessionsOfPlayer } from "@/utils/session";
 import { unwrap } from "@/utils/unwrap";
 import { DatabaseViewStateContext } from "../databases/DatabaseViewStateContext";
 import PersonalPlayerCard from "./PersonalCard";
@@ -63,30 +63,25 @@ function Databases() {
   const { t } = useTranslation();
   const sessions = useAtomValue(sessionsAtom);
 
-  const players = Array.from(
-    new Set(sessions.map((s) => s.player || s.lichess?.username || s.chessCom?.username || "")),
-  );
+  const players = playerNames(sessions);
   const playerDbNames = players.map((name) => ({
     name,
-    databases: sessions
-      .filter(
-        (s) => s.player === name || s.lichess?.username === name || s.chessCom?.username === name,
-      )
-      .map((s) =>
-        s.chessCom
-          ? accountDatabaseFilename(s.chessCom.username, "chesscom")
-          : accountDatabaseFilename(
-              s.lichess?.account.username ?? s.lichess?.username ?? "",
-              "lichess",
-            ),
-      ),
+    databases: sessionsOfPlayer(sessions, name).map((s) =>
+      s.chessCom
+        ? accountDatabaseFilename(s.chessCom.username, "chesscom")
+        : accountDatabaseFilename(
+            s.lichess?.account.username ?? s.lichess?.username ?? "",
+            "lichess",
+          ),
+    ),
   }));
 
   const [name, setName] = useState("");
   useEffect(() => {
-    if (sessions.length > 0) {
-      setName(sessions[0].player || getSessionUsername(sessions[0]));
-    }
+    // Keep the selected player unless it disappeared (e.g. merged into another).
+    setName((current) =>
+      sessions.length > 0 && !players.includes(current) ? sessionPlayerName(sessions[0]) : current,
+    );
   }, [sessions]);
 
   const { data: databases } = useSWRImmutable<DatabaseInfo[]>(

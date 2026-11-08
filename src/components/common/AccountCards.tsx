@@ -2,20 +2,31 @@ import {
   ActionIcon,
   Divider,
   Group,
+  Paper,
   ScrollArea,
   SimpleGrid,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
+import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { IconCheck, IconEdit, IconX } from "@tabler/icons-react";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { DatabaseInfo } from "@/bindings";
 import { sessionsAtom } from "@/state/atoms";
 import { getChessComAccount, getStats } from "@/utils/chess.com/api";
 import { getLichessAccount } from "@/utils/lichess/api";
-import type { Session } from "@/utils/session";
+import {
+  detachSession,
+  moveSessionToPlayer,
+  playerNames,
+  type Session,
+  sessionKey,
+  sessionPlayerName,
+  sessionsOfPlayer,
+} from "@/utils/session";
 import { findAccountDatabase } from "@/utils/accountDatabase";
 import { AccountCard } from "../home/AccountCard";
 import { EmptyAccounts } from "../home/EmptyAccounts";
@@ -29,51 +40,105 @@ function AccountCards({
   setDatabases: React.Dispatch<React.SetStateAction<DatabaseInfo[]>>;
   onAddAccount: () => void;
 }) {
-  const sessions = useAtomValue(sessionsAtom);
-  const playerNames = Array.from(
-    new Set(sessions.map((s) => s.player ?? s.lichess?.username ?? s.chessCom?.username)),
-  );
+  const { t } = useTranslation();
+  const [sessions, setSessions] = useAtom(sessionsAtom);
+  const [dragging, setDragging] = useState<string | null>(null);
 
-  const playerSessions = playerNames.map((name) => ({
+  const playerSessions = playerNames(sessions).map((name) => ({
     name,
-    sessions: sessions.filter(
-      (s) => s.player === name || s.lichess?.username === name || s.chessCom?.username === name,
-    ),
+    sessions: sessionsOfPlayer(sessions, name),
   }));
 
   if (sessions.length === 0) {
     return <EmptyAccounts onAddAccount={onAddAccount} />;
   }
 
+  const draggedSession = dragging ? sessions.find((s) => sessionKey(s) === dragging) : undefined;
+  // Dropping on the empty area only makes sense for an account that shares
+  // its player with other accounts.
+  const canDetach =
+    !!draggedSession && sessionsOfPlayer(sessions, sessionPlayerName(draggedSession)).length > 1;
+
   return (
     <ScrollArea offsetScrollbars>
-      <Stack>
-        {playerSessions.map(({ name, sessions }) => (
-          <PlayerSession
-            key={name}
-            name={name!}
-            sessions={sessions}
-            databases={databases}
-            setDatabases={setDatabases}
-          />
-        ))}
-      </Stack>
+      <DragDropContext
+        onDragStart={(start) => setDragging(start.draggableId)}
+        onDragEnd={({ draggableId, destination }) => {
+          setDragging(null);
+          const target = destination?.droppableId;
+          if (!target) return;
+          if (target === NEW_PLAYER) {
+            setSessions((prev) => detachSession(prev, draggableId));
+          } else if (target.startsWith(PLAYER_PREFIX)) {
+            const player = target.slice(PLAYER_PREFIX.length);
+            setSessions((prev) => moveSessionToPlayer(prev, draggableId, player));
+          }
+        }}
+      >
+        <Stack>
+          {playerSessions.map(({ name, sessions }) => (
+            <PlayerSession
+              key={name}
+              name={name}
+              sessions={sessions}
+              databases={databases}
+              setDatabases={setDatabases}
+              dragging={dragging}
+            />
+          ))}
+          <Droppable droppableId={NEW_PLAYER} isDropDisabled={!canDetach}>
+            {(provided, snapshot) => (
+              <div ref={provided.innerRef} {...provided.droppableProps}>
+                {canDetach && (
+                  <Paper
+                    withBorder
+                    p="md"
+                    style={{
+                      borderStyle: "dashed",
+                      borderColor: snapshot.isDraggingOver
+                        ? "var(--mantine-primary-color-filled)"
+                        : undefined,
+                    }}
+                  >
+                    <Text c="dimmed" ta="center" size="sm">
+                      {t("Home.Accounts.DropToSeparate")}
+                    </Text>
+                  </Paper>
+                )}
+                <div style={{ display: "none" }}>{provided.placeholder}</div>
+              </div>
+            )}
+          </Droppable>
+          {sessions.length > 1 && !dragging && (
+            <Text c="dimmed" size="xs">
+              {t("Home.Accounts.DragToMerge")}
+            </Text>
+          )}
+        </Stack>
+      </DragDropContext>
     </ScrollArea>
   );
 }
+
+const PLAYER_PREFIX = "player:";
+const NEW_PLAYER = "new-player";
 
 function PlayerSession({
   name,
   sessions,
   databases,
   setDatabases,
+  dragging,
 }: {
   name: string;
   sessions: Session[];
   databases: DatabaseInfo[];
   setDatabases: React.Dispatch<React.SetStateAction<DatabaseInfo[]>>;
+  dragging: string | null;
 }) {
   const [, setSessions] = useAtom(sessionsAtom);
+  const ownsDragged = !!dragging && sessions.some((s) => sessionKey(s) === dragging);
+  const isTarget = !!dragging && !ownsDragged;
   const [edit, setEdit] = useState(false);
   const [text, setText] = useState(name);
   useEffect(() => {
@@ -112,16 +177,9 @@ function PlayerSession({
               color="green"
               onClick={() => {
                 setEdit(false);
+                const keys = sessions.map(sessionKey);
                 setSessions((prev) =>
-                  prev.map((s) => {
-                    if (sessions.includes(s)) {
-                      return {
-                        ...s,
-                        player: text,
-                      };
-                    }
-                    return s;
-                  }),
+                  prev.map((s) => (keys.includes(sessionKey(s)) ? { ...s, player: text } : s)),
                 );
               }}
             >
@@ -144,14 +202,7 @@ function PlayerSession({
             variant="subtle"
             color="red"
             onClick={() =>
-              setSessions((sessions) =>
-                sessions.filter(
-                  (s) =>
-                    s.player !== name &&
-                    s.lichess?.username !== name &&
-                    s.chessCom?.username !== name,
-                ),
-              )
+              setSessions((sessions) => sessions.filter((s) => sessionPlayerName(s) !== name))
             }
           >
             <IconX />
@@ -159,17 +210,54 @@ function PlayerSession({
         </Group>
       </Group>
       <Divider />
-      <Group>
-        {sessions.map((session, i) => (
-          <LichessOrChessCom
-            key={i}
-            session={session}
-            databases={databases}
-            setDatabases={setDatabases}
-            setSessions={setSessions}
-          />
-        ))}
-      </Group>
+      <Droppable
+        droppableId={`${PLAYER_PREFIX}${name}`}
+        direction="horizontal"
+        isDropDisabled={!isTarget}
+      >
+        {(provided, snapshot) => (
+          <Group
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            align="flex-start"
+            p={isTarget ? "xs" : undefined}
+            style={{
+              borderRadius: "var(--mantine-radius-md)",
+              outline: isTarget
+                ? `2px dashed ${
+                    snapshot.isDraggingOver
+                      ? "var(--mantine-primary-color-filled)"
+                      : "var(--mantine-color-default-border)"
+                  }`
+                : undefined,
+              background: snapshot.isDraggingOver
+                ? "var(--mantine-primary-color-light)"
+                : undefined,
+              minHeight: isTarget ? 80 : undefined,
+            }}
+          >
+            {sessions.map((session, i) => (
+              <Draggable key={sessionKey(session)} draggableId={sessionKey(session)} index={i}>
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    {...provided.dragHandleProps}
+                  >
+                    <LichessOrChessCom
+                      session={session}
+                      databases={databases}
+                      setDatabases={setDatabases}
+                      setSessions={setSessions}
+                    />
+                  </div>
+                )}
+              </Draggable>
+            ))}
+            <div style={{ display: "none" }}>{provided.placeholder}</div>
+          </Group>
+        )}
+      </Droppable>
     </Stack>
   );
 }
