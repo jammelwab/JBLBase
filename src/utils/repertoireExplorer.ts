@@ -1,6 +1,8 @@
 import { resolve } from "@tauri-apps/api/path";
 import { getDefaultStore } from "jotai";
+import { commands } from "@/bindings";
 import { lichessOptionsAtom, sessionsAtom } from "@/state/atoms";
+import { findAccountDatabase, sameName } from "./accountDatabase";
 import { getDatabases, searchPosition } from "./db";
 import { getDatabasesDir } from "./directories";
 import { getLichessGames } from "./lichess/api";
@@ -46,6 +48,16 @@ type OwnAccount = { path: string; player: string };
 
 let accountsPromise: Promise<OwnAccount[]> | null = null;
 
+// The account name as the games spell it: "ragingforlife" can be "RagingForLife" there.
+async function playerName(path: string, username: string): Promise<string> {
+    const res = await commands.getPlayers(path, {
+        options: { skipCount: true, pageSize: 50, sort: "name", direction: "asc" },
+        name: username,
+    });
+    if (res.status !== "ok") return username;
+    return res.data.data.find((p) => sameName(p.name, username))?.name ?? username;
+}
+
 async function findOwnAccounts(): Promise<OwnAccount[]> {
     const sessions = getDefaultStore().get(sessionsAtom);
     const databases = await getDatabases();
@@ -54,18 +66,17 @@ async function findOwnAccounts(): Promise<OwnAccount[]> {
     for (const session of sessions) {
         const candidates = [
             session.lichess && {
-                file: `${session.lichess.account.username}_lichess.duckdb`,
-                player: session.lichess.account.username,
+                type: "lichess" as const,
+                username: session.lichess.account.username,
             },
-            session.chessCom && {
-                file: `${session.chessCom.username}_chesscom.duckdb`,
-                player: session.chessCom.username,
-            },
+            session.chessCom && { type: "chesscom" as const, username: session.chessCom.username },
         ];
         for (const c of candidates) {
-            if (c && databases.some((db) => db.filename === c.file)) {
-                accounts.push({ path: await resolve(dir, c.file), player: c.player });
-            }
+            if (!c) continue;
+            const db = findAccountDatabase(databases, c.username, c.type);
+            if (!db) continue;
+            const path = await resolve(dir, db.filename);
+            accounts.push({ path, player: await playerName(path, c.username) });
         }
     }
     return accounts;
