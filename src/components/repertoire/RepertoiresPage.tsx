@@ -148,7 +148,10 @@ function NewRepertoireModal({
     }
     const result = await createRepertoire({
       name: name.trim(),
-      owner: owner.trim() || MAIN_OWNER,
+      // "aaron" joins the existing "Aaron" instead of starting a second group
+      owner:
+        owners.find((o) => o.toLowerCase() === owner.trim().toLowerCase()) ??
+        (owner.trim() || MAIN_OWNER),
       color,
       dir: documentDir,
     });

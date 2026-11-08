@@ -7,6 +7,7 @@ import { error, info } from "@tauri-apps/plugin-log";
 import { Chess } from "chessops";
 import { ChildNode, defaultGame, makePgn, type PgnNodeData } from "chessops/pgn";
 import { makeSan } from "chessops/san";
+import i18n from "i18next";
 import { z } from "zod";
 import { events } from "@/bindings";
 import { apiHeaders } from "@/utils/http";
@@ -52,8 +53,11 @@ export async function getChessComAccount(player: string): Promise<ChessComStats 
   if (!response.ok) {
     error(`Failed to fetch Chess.com account: ${response.status} ${response.url}`);
     notifications.show({
-      title: "Failed to fetch Chess.com account",
-      message: `Could not find account "${player}" on chess.com`,
+      title: i18n.t("Home.Accounts.ChessComAccountFailed"),
+      message: i18n.t("Home.Accounts.ChessComAccountNotFound", {
+        player,
+        interpolation: { escapeValue: false },
+      }),
       color: "red",
       icon: <IconX />,
     });
@@ -66,8 +70,11 @@ export async function getChessComAccount(player: string): Promise<ChessComStats 
       `Invalid response for Chess.com account: ${response.status} ${response.url}\n${stats.error}`,
     );
     notifications.show({
-      title: "Failed to fetch Chess.com account",
-      message: `Invalid response for "${player}" on chess.com`,
+      title: i18n.t("Home.Accounts.ChessComAccountFailed"),
+      message: i18n.t("Home.Accounts.ChessComAccountInvalid", {
+        player,
+        interpolation: { escapeValue: false },
+      }),
       color: "red",
       icon: <IconX />,
     });
@@ -96,8 +103,11 @@ export async function downloadChessCom(player: string, timestamp: number | null)
   const archives = await getGameArchives(player);
   if (!archives) {
     notifications.show({
-      title: "Failed to fetch Chess.com games",
-      message: `Could not load the game archive of "${player}" from chess.com`,
+      title: i18n.t("Home.Accounts.DownloadFailed"),
+      message: i18n.t("Home.Accounts.ChessComArchiveFailed", {
+        player,
+        interpolation: { escapeValue: false },
+      }),
       color: "red",
       icon: <IconX />,
     });
@@ -146,8 +156,13 @@ export async function downloadChessCom(player: string, timestamp: number | null)
   info(`Downloaded ${total} Chess.com games for ${player} (${failed} months failed)`);
   if (failed > 0) {
     notifications.show({
-      title: "Some Chess.com games are missing",
-      message: `${failed} of ${filteredArchives.length} months could not be downloaded for "${player}". Try again later.`,
+      title: i18n.t("Home.Accounts.ChessComGamesMissing"),
+      message: i18n.t("Home.Accounts.ChessComMonthsFailed", {
+        failed,
+        total: filteredArchives.length,
+        player,
+        interpolation: { escapeValue: false },
+      }),
       color: "yellow",
     });
   }

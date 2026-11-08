@@ -20,7 +20,12 @@ import { sessionsAtom } from "@/state/atoms";
 import { getChessComAccount } from "@/utils/chess.com/api";
 import { getDatabases } from "@/utils/db";
 import { getLichessAccount } from "@/utils/lichess/api";
-import { type ChessComSession, type LichessSession, playerNames } from "@/utils/session";
+import {
+  addSession,
+  type ChessComSession,
+  type LichessSession,
+  playerNames,
+} from "@/utils/session";
 import AccountCards from "../common/AccountCards";
 import GenericCard from "../common/GenericCard";
 import LichessLogo from "./LichessLogo";
@@ -37,34 +42,21 @@ function Accounts() {
   const [open, setOpen] = useState(false);
 
   function addChessComSession(alias: string, session: ChessComSession) {
-    setSessions((sessions) => {
-      const newSessions = sessions.filter((s) => s.chessCom?.username !== session.username);
-      return [
-        ...newSessions,
-        {
-          chessCom: session,
-          player: alias,
-          updatedAt: Date.now(),
-        },
-      ];
-    });
+    setSessions((sessions) =>
+      addSession(sessions, { chessCom: session, player: alias, updatedAt: Date.now() }),
+    );
   }
 
   function addLichessSession(alias: string, session: LichessSession) {
-    setSessions((sessions) => {
-      const newSessions = sessions.filter((s) => s.lichess?.username !== session.username);
-      return [
-        ...newSessions,
-        {
-          lichess: session,
-          player: alias,
-          updatedAt: Date.now(),
-        },
-      ];
-    });
+    setSessions((sessions) =>
+      addSession(sessions, { lichess: session, player: alias, updatedAt: Date.now() }),
+    );
   }
 
   async function addChessCom(player: string, username: string) {
+    username = username.trim();
+    player = player.trim();
+    if (!username) return;
     const p = player !== "" ? player : username;
     const stats = await getChessComAccount(username);
     if (!stats) {
@@ -74,6 +66,9 @@ function Accounts() {
   }
 
   async function addLichessNoLogin(player: string, username: string) {
+    username = username.trim();
+    player = player.trim();
+    if (!username) return;
     const p = player !== "" ? player : username;
     const account = await getLichessAccount({ username });
     if (!account) return;
@@ -92,8 +87,8 @@ function Accounts() {
 
   async function addLichess(player: string, username: string, withLogin: boolean) {
     if (withLogin) {
-      sessionStorage.setItem("lichess_player_alias", player);
-      return await commands.authenticate(username);
+      sessionStorage.setItem("lichess_player_alias", player.trim());
+      return await commands.authenticate(username.trim());
     }
     return await addLichessNoLogin(player, username);
   }

@@ -22,6 +22,7 @@ import {
   detachSession,
   moveSessionToPlayer,
   playerNames,
+  renamePlayer,
   type Session,
   sessionKey,
   sessionPlayerName,
@@ -177,10 +178,7 @@ function PlayerSession({
               color="green"
               onClick={() => {
                 setEdit(false);
-                const keys = sessions.map(sessionKey);
-                setSessions((prev) =>
-                  prev.map((s) => (keys.includes(sessionKey(s)) ? { ...s, player: text } : s)),
-                );
+                setSessions((prev) => renamePlayer(prev, name, text));
               }}
             >
               <IconCheck />
@@ -310,7 +308,7 @@ function LichessOrChessCom({
         updatedAt={session.updatedAt}
         total={totalGames}
         logout={() => {
-          setSessions((sessions) => sessions.filter((s) => s.lichess?.account.id !== account.id));
+          setSessions((sessions) => sessions.filter((s) => s.lichess?.account?.id !== account.id));
         }}
         setDatabases={setDatabases}
         reload={async () => {
@@ -321,7 +319,7 @@ function LichessOrChessCom({
           if (!account) return;
           setSessions((sessions) =>
             sessions.map((s) =>
-              s.lichess?.account.id === account.id
+              s.lichess?.account?.id === account.id
                 ? {
                     ...s,
                     lichess: {

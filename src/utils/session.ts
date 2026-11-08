@@ -67,3 +67,37 @@ export function moveSessionToPlayer(sessions: Session[], key: string, player: st
 export function detachSession(sessions: Session[], key: string): Session[] {
     return sessions.map((s) => (sessionKey(s) === key ? { ...s, player: undefined } : s));
 }
+
+function sameAccount(a: Session, b: Session): boolean {
+    const lower = (s: string | undefined) => s?.toLowerCase();
+    if (a.chessCom && b.chessCom) return lower(a.chessCom.username) === lower(b.chessCom.username);
+    if (a.lichess && b.lichess) {
+        const idA = a.lichess.account?.id;
+        const idB = b.lichess.account?.id;
+        if (idA && idB) return idA === idB;
+        return lower(sessionUsername(a)) === lower(sessionUsername(b));
+    }
+    return false;
+}
+
+/**
+ * Adds an account, replacing the same account if it was added before. Usernames are
+ * compared case-insensitively ("Ragingforlife" and "ragingforlife" are one Chess.com
+ * account), and a player name that only differs in case joins the existing player.
+ */
+export function addSession(sessions: Session[], session: Session): Session[] {
+    const wanted = session.player?.trim();
+    const existingPlayer = wanted
+        ? playerNames(sessions).find((p) => p.toLowerCase() === wanted.toLowerCase())
+        : undefined;
+    const player = existingPlayer ?? (wanted || undefined);
+    return [...sessions.filter((s) => !sameAccount(s, session)), { ...session, player }];
+}
+
+/** Renames a player. An empty name gives each account its own player again. */
+export function renamePlayer(sessions: Session[], from: string, to: string): Session[] {
+    const name = to.trim();
+    return sessions.map((s) =>
+        sessionPlayerName(s) === from ? { ...s, player: name || undefined } : s,
+    );
+}

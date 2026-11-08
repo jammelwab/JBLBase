@@ -21,7 +21,8 @@ import {
 } from "@tabler/icons-react";
 import { basename } from "@tauri-apps/api/path";
 import { resolve } from "@tauri-apps/api/path";
-import { info } from "@tauri-apps/plugin-log";
+import { notifications } from "@mantine/notifications";
+import { error, info } from "@tauri-apps/plugin-log";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,6 +33,7 @@ import { downloadChessCom } from "@/utils/chess.com/api";
 import { getDatabases, query_games } from "@/utils/db";
 import { capitalize } from "@/utils/format";
 import { downloadLichess } from "@/utils/lichess/api";
+import { refreshOwnGames } from "@/utils/repertoireExplorer";
 import { unwrap } from "@/utils/unwrap";
 import { mutate } from "swr";
 
@@ -190,6 +192,19 @@ export function AccountCard({
     return null;
   }
 
+  async function downloadGames() {
+    const lastGameDate = database ? await getLastGameDate({ database }) : null;
+    if (type === "lichess") {
+      await downloadLichess(title, lastGameDate, total - downloadedGames, setProgress, token);
+    } else {
+      await downloadChessCom(title, lastGameDate);
+    }
+    const p = await resolve(databaseDir, `${title}_${type}.pgn`);
+    await convert(p, lastGameDate);
+    const dbPath = database?.file ?? p.replace(".pgn", ".duckdb");
+    await commands.deleteEmptyGames(dbPath);
+  }
+
   return (
     <Card withBorder radius="md" padding="lg">
       <Card.Section withBorder inheritPadding py="xs">
@@ -225,25 +240,15 @@ export function AccountCard({
                 disabled={loading}
                 onClick={async () => {
                   setLoading(true);
-                  const lastGameDate = database ? await getLastGameDate({ database }) : null;
-                  if (type === "lichess") {
-                    await downloadLichess(
-                      title,
-                      lastGameDate,
-                      total - downloadedGames,
-                      setProgress,
-                      token,
-                    );
-                  } else {
-                    await downloadChessCom(title, lastGameDate);
-                  }
-                  const p = await resolve(databaseDir, `${title}_${type}.pgn`);
                   try {
-                    await convert(p, lastGameDate);
-                    const dbPath = database?.file ?? p.replace(".pgn", ".duckdb");
-                    await commands.deleteEmptyGames(dbPath);
+                    await downloadGames();
                   } catch (e) {
-                    console.error(e);
+                    error(`Downloading ${type} games of ${title} failed: ${e}`);
+                    notifications.show({
+                      color: "red",
+                      title: t("Home.Accounts.DownloadFailed"),
+                      message: e instanceof Error ? e.message : String(e),
+                    });
                   } finally {
                     setConversionState((prev) => ({
                       ...prev,
@@ -254,10 +259,13 @@ export function AccountCard({
                       targetDatabaseTitle: null,
                       sourceFileName: null,
                     }));
+                    // A failed download must not leave the button spinning forever
+                    setLoading(false);
+                    // Refresh the player overview and the repertoire pages, which cache
+                    // the downloaded games.
+                    refreshOwnGames();
+                    await refreshPersonalStats();
                   }
-                  setLoading(false);
-                  // Refresh the player overview, which caches its databases.
-                  await refreshPersonalStats();
                 }}
               >
                 <IconDownload size="1rem" />
@@ -289,7 +297,9 @@ export function AccountCard({
             </Text>
           </Group>
           <Progress
-            value={loading ? 100 : (downloadedGames / effectiveTotal) * 100}
+            value={
+              loading ? 100 : effectiveTotal > 0 ? (downloadedGames / effectiveTotal) * 100 : 0
+            }
             size="sm"
             striped={loading}
             animated={loading}
@@ -301,7 +311,7 @@ export function AccountCard({
                 interpolation: { escapeValue: false },
               })}
             </Text>
-            {loading && progress && (
+            {loading && !!progress && (
               <Text size="xs" c="dimmed">
                 {progress.toFixed(0)}%
               </Text>

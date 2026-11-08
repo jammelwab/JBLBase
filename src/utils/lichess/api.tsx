@@ -7,6 +7,7 @@ import { error } from "@tauri-apps/plugin-log";
 import { parseUci } from "chessops";
 import { makeFen } from "chessops/fen";
 import { makeSan } from "chessops/san";
+import i18n from "i18next";
 import { match, P } from "ts-pattern";
 import {
   type BestMoves,
@@ -402,8 +403,12 @@ export async function downloadLichess(
   if (res.status === "error") {
     error(`Failed to download Lichess games for ${player}: ${res.error}`);
     notifications.show({
-      title: "Failed to download Lichess games",
-      message: `Could not download the games of "${player}" from lichess.org: ${res.error}`,
+      title: i18n.t("Home.Accounts.DownloadFailed"),
+      message: i18n.t("Home.Accounts.LichessDownloadFailed", {
+        player,
+        error: res.error,
+        interpolation: { escapeValue: false },
+      }),
       color: "red",
     });
   }
