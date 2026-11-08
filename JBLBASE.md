@@ -77,9 +77,14 @@ spielt ihn auf dem Brett.
 
 ### Baumdiagramm
 
-Auf der Repertoire-Seite öffnet **Baum** das Repertoire als aufklappbaren
-Baum. Deine Züge sind fett, die Gegnerzüge grau. Ein Klick auf einen Zug
-öffnet die Stellung auf dem Brett. Jeder Zug hat zwei kleine Leisten:
+Auf der Repertoire-Seite öffnet **Baum** das Repertoire als gezeichnetes
+Baumdiagramm, das sich von links („Start“) nach rechts verzweigt. Deine Züge
+sind blau hinterlegt, die Gegnerzüge grau. Mit gedrückter Maus verschiebst du
+den Baum, das Mausrad zoomt, die Knöpfe oben rechts zoomen oder zeigen alles.
+Der Kreis mit + oder − rechts an einem Zug klappt die Folgezüge auf und zu
+(die Zahl daneben sagt, wie viele Züge darunter liegen). Ein Klick auf einen
+Zug öffnet die Stellung auf dem Brett, mit der Maus über einem Zug siehst du
+die Prozente. Jeder Zug hat zwei kleine Leisten:
 
 - **Blau, Lichess-Datenbank:** wie oft der Zug aus dieser Stellung auf
   Lichess gespielt wird (mit den Filtern aus Datenbank → Lichess). Dafür
@@ -91,13 +96,14 @@ Baum. Deine Züge sind fett, die Gegnerzüge grau. Ein Klick auf einen Zug
   Aarons Repertoires fehlt diese Leiste, weil es nicht seine Partien sind.
 
 Ist der meistgespielte Lichess-Zug (nur Platz 1) eines Gegners nicht in
-deinem Repertoire, steht er abgeblasst unter deinen Varianten. Das heißt
+deinem Repertoire, steht er gestrichelt und abgeblasst unter deinen Varianten. Das heißt
 nicht, dass er gut oder schlecht ist, nur dass er oft kommt.
 
 **Zugumstellungen:** Entsteht dieselbe Stellung über verschiedene
-Zugfolgen, steht neben dem Zug ein violettes Pfeil-Symbol (⇄). Der Tooltip
-zeigt die anderen Zugfolgen, ein Klick klappt den Baum dort auf und springt
-hin. Ein weiterer Klick geht zur nächsten Zugfolge.
+Zugfolgen, zeigt ein gestrichelter violetter Pfeil von der einen Zugfolge zur
+anderen, und der Zug trägt oben rechts ein violettes ⇄. Ein Klick auf ⇄
+klappt den Baum bei der anderen Zugfolge auf und springt hin, ein weiterer
+Klick geht zur nächsten.
 
 ### Deine bisher gespielten Eröffnungen
 
@@ -112,7 +118,9 @@ hin. Ein weiterer Klick geht zur nächsten Zugfolge.
   wo du überrascht wirst (Gegnerzug ohne Antwort im Repertoire), wo du
   abweichst (du spielst nicht deinen vorbereiteten Zug) und wo dein
   Repertoire endet, obwohl deine Partien weitergehen. Darunter liegen deine
-  Partien als aufklappbarer Baum, mit Anzahl, Ergebnis und Markierung. Ein
+  Partien als gezeichneter Baum, mit Anzahl und Ergebnis an jedem Zug; der
+  Rahmen ist grün (im Repertoire), orange (Überraschung), rot (Abweichung) oder
+  blau (Repertoire endet). Ein
   Klick auf eine Variante öffnet sie in einer neuen Analyse, von dort fügst
   du sie mit dem Knopf unter „Brett drehen“ zum Repertoire hinzu.
   Zugumstellungen werden erkannt: führt eine andere Zugfolge in eine

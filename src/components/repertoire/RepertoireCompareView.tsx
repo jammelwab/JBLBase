@@ -12,18 +12,12 @@ import {
   Stack,
   Text,
   Title,
-  Tooltip,
   UnstyledButton,
 } from "@mantine/core";
-import {
-  IconArrowLeft,
-  IconChevronDown,
-  IconChevronRight,
-  IconExternalLink,
-} from "@tabler/icons-react";
+import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useSWR from "swr";
 import { activeTabAtom, tabsAtom } from "@/state/atoms";
@@ -34,14 +28,15 @@ import {
   type GameNode,
   type Issue,
   lineText,
+  type MoveStat,
 } from "@/utils/gamesTree";
 import { hasOwnGames, ownMoveCounts } from "@/utils/repertoireExplorer";
 import type { Repertoire } from "@/utils/repertoires";
 import { createTab } from "@/utils/tabs";
 import { defaultTree } from "@/utils/treeReducer";
 import { ColorDot } from "./RepertoireLabel";
-
-const INDENT = 22;
+import TreeDiagram, { type DiagramNode } from "./TreeDiagram";
+import { usePositionData } from "./usePositionData";
 
 const STATUS_COLOR: Record<GameMoveStatus, string> = {
   book: "green",
@@ -65,83 +60,12 @@ function percent(value: number) {
 
 type CompareContext = {
   repertoire: Repertoire;
-  minGames: number;
-  expanded: Set<string>;
-  toggle: (key: string) => void;
   openLine: (line: string[]) => void;
 };
 
 function moveLabel(node: GameNode) {
   const number = Math.ceil(node.halfMoves / 2);
   return node.halfMoves % 2 === 1 ? `${number}. ${node.san}` : `${number}… ${node.san}`;
-}
-
-// One position of your games tree, loaded when it is opened.
-function GameRows({
-  parent,
-  depth,
-  ctx,
-}: {
-  parent: { fen: string; halfMoves: number; line: string[] };
-  depth: number;
-  ctx: CompareContext;
-}) {
-  const { t } = useTranslation();
-  const { repertoire } = ctx;
-  const { data: stats } = useSWR(["own-moves", repertoire.color, parent.fen], () =>
-    ownMoveCounts(parent.fen, repertoire.color),
-  );
-  const nodes = useMemo(
-    () =>
-      stats ? childNodes(parent, stats, repertoire.color, repertoire.index, ctx.minGames) : [],
-    [stats, parent, repertoire, ctx.minGames],
-  );
-
-  if (!stats) return <Loader size="xs" ml={depth * INDENT + 26} my={4} />;
-  if (nodes.length === 0 && depth === 0) {
-    return (
-      <Text size="sm" c="dimmed">
-        {t("Repertoire.Compare.NoGames", { count: ctx.minGames })}
-      </Text>
-    );
-  }
-
-  return (
-    <>
-      {nodes.map((node) => {
-        const key = node.line.join(" ");
-        const isOpen = ctx.expanded.has(key);
-        return (
-          <Box key={key}>
-            <Group gap={6} wrap="nowrap" pl={depth * INDENT} py={2}>
-              <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => ctx.toggle(key)}>
-                {isOpen ? <IconChevronDown size="0.9rem" /> : <IconChevronRight size="0.9rem" />}
-              </ActionIcon>
-              <UnstyledButton onClick={() => ctx.openLine(node.line)}>
-                <Text size="sm" c={node.status === "outside" ? "dimmed" : undefined}>
-                  {moveLabel(node)}
-                </Text>
-              </UnstyledButton>
-              {node.status !== "outside" && (
-                <Badge size="xs" variant="light" color={STATUS_COLOR[node.status]}>
-                  {t(STATUS_LABEL[node.status])}
-                </Badge>
-              )}
-              <Text size="xs" c="dimmed" ml="auto">
-                {t("Repertoire.Compare.Games", { count: node.games })}
-              </Text>
-              <Tooltip label={t("Repertoire.Compare.ScoreHint")} openDelay={300}>
-                <Text size="xs" c="dimmed" w={40} ta="right">
-                  {percent(node.score)}
-                </Text>
-              </Tooltip>
-            </Group>
-            {isOpen && <GameRows parent={node} depth={depth + 1} ctx={ctx} />}
-          </Box>
-        );
-      })}
-    </>
-  );
 }
 
 function IssueList({
@@ -260,7 +184,69 @@ export default function RepertoireCompareView({
     [root, repertoire.color, setTabs, setActiveTab, navigate],
   );
 
-  const ctx: CompareContext = { repertoire, minGames, expanded, toggle, openLine };
+  const loadStats = useCallback(
+    (fen: string) => ownMoveCounts(fen, repertoire.color),
+    [repertoire.color],
+  );
+  const [openFens, setOpenFens] = useState<string[]>([root.fen]);
+  const stats = usePositionData<MoveStat[]>(openFens, loadStats, ownAvailable === true);
+
+  // Your games as a drawn tree; positions are loaded as they are opened
+  const { diagram, fens } = useMemo(() => {
+    const fens: string[] = [];
+    const build = (
+      parent: { fen: string; halfMoves: number; line: string[] },
+      node: GameNode | null,
+    ): DiagramNode => {
+      const id = parent.line.length === 0 ? "root" : parent.line.join(" ");
+      // The first moves start open; `expanded` holds the ones you switched
+      const openByDefault = parent.line.length <= 2;
+      const isOpen = node === null || openByDefault !== expanded.has(id);
+      const loaded = stats.get(parent.fen);
+      if (isOpen) fens.push(parent.fen);
+      const kids =
+        isOpen && loaded
+          ? childNodes(parent, loaded, repertoire.color, repertoire.index, minGames)
+          : [];
+      const mine = node !== null && node.halfMoves % 2 === (repertoire.color === "white" ? 1 : 0);
+      return {
+        id,
+        label: node ? moveLabel(node) : t("Repertoire.Diagram.Start"),
+        kind:
+          node === null ? "root" : node.status === "outside" ? "theirs" : mine ? "mine" : "theirs",
+        accent:
+          node && node.status !== "outside"
+            ? `var(--mantine-color-${STATUS_COLOR[node.status]}-6)`
+            : undefined,
+        note: node
+          ? `${t("Repertoire.Compare.Games", { count: node.games })} · ${percent(node.score)}`
+          : undefined,
+        title: node
+          ? [
+              node.status !== "outside" ? t(STATUS_LABEL[node.status]) : "",
+              `${t("Repertoire.Compare.ScoreHint")}: ${percent(node.score)}`,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : undefined,
+        children: kids.map((k) => build(k, k)),
+        toggle:
+          node === null || (loaded && kids.length === 0 && isOpen)
+            ? undefined
+            : { open: isOpen, hidden: 0, onToggle: () => toggle(id) },
+        onOpen: node ? () => openLine(node.line) : undefined,
+      };
+    };
+    const diagram = build(rootNode, null);
+    return { diagram, fens };
+  }, [rootNode, expanded, stats, repertoire, minGames, toggle, openLine, t]);
+
+  const fensKey = fens.join("\n");
+  useEffect(() => {
+    setOpenFens(fensKey.split("\n"));
+  }, [fensKey]);
+
+  const ctx: CompareContext = { repertoire, openLine };
   const byKind = (kind: Issue["kind"]) => (issues ?? []).filter((i) => i.kind === kind);
 
   return (
@@ -331,10 +317,23 @@ export default function RepertoireCompareView({
             )}
 
             <Paper withBorder p="sm">
-              <Text fw={600} size="sm" mb="xs">
-                {t("Repertoire.Compare.GamesTree")}
-              </Text>
-              <GameRows parent={rootNode} depth={0} ctx={ctx} />
+              <Group justify="space-between" mb="xs">
+                <Text fw={600} size="sm">
+                  {t("Repertoire.Compare.GamesTree")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("Repertoire.Diagram.Help")}
+                </Text>
+              </Group>
+              {stats.has(root.fen) && diagram.children.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {t("Repertoire.Compare.NoGames", { count: minGames })}
+                </Text>
+              ) : (
+                <Box h={520}>
+                  <TreeDiagram root={diagram} />
+                </Box>
+              )}
             </Paper>
           </>
         )}
