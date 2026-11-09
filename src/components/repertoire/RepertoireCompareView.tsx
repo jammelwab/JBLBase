@@ -30,13 +30,23 @@ import {
   lineText,
   type MoveStat,
 } from "@/utils/gamesTree";
-import { hasOwnGames, ownMoveCounts } from "@/utils/repertoireExplorer";
+import {
+  hasLichessToken,
+  hasOwnGames,
+  lichessMoveCounts,
+  ownMoveCounts,
+} from "@/utils/repertoireExplorer";
+import type { MoveCount } from "@/utils/repertoireTree";
 import type { Repertoire } from "@/utils/repertoires";
 import { createTab } from "@/utils/tabs";
 import { defaultTree } from "@/utils/treeReducer";
+import BoardPreview from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
 import TreeDiagram, { type DiagramNode } from "./TreeDiagram";
 import { usePositionData } from "./usePositionData";
+
+const LICHESS_COLOR = "var(--mantine-color-blue-5)";
+const OWN_COLOR = "var(--mantine-color-teal-5)";
 
 const STATUS_COLOR: Record<GameMoveStatus, string> = {
   book: "green",
@@ -190,6 +200,9 @@ export default function RepertoireCompareView({
   );
   const [openFens, setOpenFens] = useState<string[]>([root.fen]);
   const stats = usePositionData<MoveStat[]>(openFens, loadStats, ownAvailable === true);
+  const showLichess = hasLichessToken();
+  const lichess = usePositionData<MoveCount[]>(openFens, lichessMoveCounts, showLichess);
+  const [selected, setSelected] = useState<{ id: string; line: string[] } | null>(null);
 
   // Your games as a drawn tree; positions are loaded as they are opened
   const { diagram, fens } = useMemo(() => {
@@ -197,6 +210,7 @@ export default function RepertoireCompareView({
     const build = (
       parent: { fen: string; halfMoves: number; line: string[] },
       node: GameNode | null,
+      info: { lichess?: number; own?: number; top?: { san: string; share: number } } = {},
     ): DiagramNode => {
       const id = parent.line.length === 0 ? "root" : parent.line.join(" ");
       // The first moves start open; `expanded` holds the ones you switched
@@ -209,6 +223,25 @@ export default function RepertoireCompareView({
           ? childNodes(parent, loaded, repertoire.color, repertoire.index, minGames)
           : [];
       const mine = node !== null && node.halfMoves % 2 === (repertoire.color === "white" ? 1 : 0);
+      // Shares of the moves from this position, for the bars of the moves below
+      const ownTotal = (loaded ?? []).reduce((sum, m) => sum + m.games, 0);
+      const lichessCounts = lichess.get(parent.fen);
+      const lichessTotal = (lichessCounts ?? []).reduce((sum, m) => sum + m.games, 0);
+      const top = lichessCounts?.reduce<MoveCount | null>(
+        (best, m) => (!best || m.games > best.games ? m : best),
+        null,
+      );
+      const childInfo = (k: GameNode) => ({
+        own: ownTotal > 0 ? k.games / ownTotal : undefined,
+        lichess:
+          lichessCounts && lichessTotal > 0
+            ? (lichessCounts.find((m) => m.san === k.san)?.games ?? 0) / lichessTotal
+            : undefined,
+        top:
+          top && lichessTotal > 0 ? { san: top.san, share: top.games / lichessTotal } : undefined,
+      });
+      // Your move is not the one most players choose on Lichess
+      const offMainLine = !!node && mine && !!info.top && info.top.san !== node.san;
       return {
         id,
         label: node ? moveLabel(node) : t("Repertoire.Diagram.Start"),
@@ -218,28 +251,46 @@ export default function RepertoireCompareView({
           node && node.status !== "outside"
             ? `var(--mantine-color-${STATUS_COLOR[node.status]}-6)`
             : undefined,
+        side: node ? (node.halfMoves % 2 === 1 ? "white" : "black") : undefined,
         note: node
           ? `${t("Repertoire.Compare.Games", { count: node.games })} · ${percent(node.score)}`
           : undefined,
+        bars: node
+          ? [
+              ...(showLichess ? [{ value: info.lichess, color: LICHESS_COLOR }] : []),
+              { value: info.own, color: OWN_COLOR },
+            ]
+          : undefined,
+        flag: offMainLine ? { color: "var(--mantine-color-orange-6)" } : undefined,
         title: node
           ? [
               node.status !== "outside" ? t(STATUS_LABEL[node.status]) : "",
               `${t("Repertoire.Compare.ScoreHint")}: ${percent(node.score)}`,
+              showLichess
+                ? `${t("Repertoire.Tree.LichessLegend")}: ${percent(info.lichess ?? 0)}`
+                : "",
+              `${t("Repertoire.Tree.OwnLegend")}: ${percent(info.own ?? 0)}`,
+              offMainLine
+                ? t("Repertoire.Compare.LichessTop", {
+                    move: info.top!.san,
+                    share: percent(info.top!.share),
+                  })
+                : "",
             ]
               .filter(Boolean)
               .join("\n")
           : undefined,
-        children: kids.map((k) => build(k, k)),
+        children: kids.map((k) => build(k, k, childInfo(k))),
         toggle:
           node === null || (loaded && kids.length === 0 && isOpen)
             ? undefined
             : { open: isOpen, hidden: 0, onToggle: () => toggle(id) },
-        onOpen: node ? () => openLine(node.line) : undefined,
+        onClick: node ? () => setSelected({ id, line: node.line }) : undefined,
       };
     };
     const diagram = build(rootNode, null);
     return { diagram, fens };
-  }, [rootNode, expanded, stats, repertoire, minGames, toggle, openLine, t]);
+  }, [rootNode, expanded, stats, lichess, showLichess, repertoire, minGames, toggle, t]);
 
   const fensKey = fens.join("\n");
   useEffect(() => {
@@ -325,13 +376,61 @@ export default function RepertoireCompareView({
                   {t("Repertoire.Diagram.Help")}
                 </Text>
               </Group>
+              <Group gap="lg" mb="xs">
+                {showLichess && (
+                  <Group gap={6}>
+                    <Box w={14} h={6} style={{ borderRadius: 3, background: LICHESS_COLOR }} />
+                    <Text size="xs" c="dimmed">
+                      {t("Repertoire.Tree.LichessLegend")}
+                    </Text>
+                  </Group>
+                )}
+                <Group gap={6}>
+                  <Box w={14} h={6} style={{ borderRadius: 3, background: OWN_COLOR }} />
+                  <Text size="xs" c="dimmed">
+                    {t("Repertoire.Tree.OwnLegend")}
+                  </Text>
+                </Group>
+                {showLichess && (
+                  <Group gap={6}>
+                    <Box
+                      w={16}
+                      h={16}
+                      style={{
+                        borderRadius: 8,
+                        background: "var(--mantine-color-orange-6)",
+                        color: "white",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textAlign: "center",
+                        lineHeight: "16px",
+                      }}
+                    >
+                      L
+                    </Box>
+                    <Text size="xs" c="dimmed">
+                      {t("Repertoire.Compare.LichessFlagLegend")}
+                    </Text>
+                  </Group>
+                )}
+              </Group>
               {stats.has(root.fen) && diagram.children.length === 0 ? (
                 <Text size="sm" c="dimmed">
                   {t("Repertoire.Compare.NoGames", { count: minGames })}
                 </Text>
               ) : (
-                <Box h={520}>
-                  <TreeDiagram root={diagram} />
+                <Box h={560} pos="relative">
+                  <TreeDiagram root={diagram} highlight={selected?.id ?? null} />
+                  {selected && (
+                    <BoardPreview
+                      rootFen={root.fen}
+                      rootHalfMoves={root.halfMoves}
+                      line={selected.line}
+                      orientation={repertoire.color}
+                      onOpen={() => openLine(selected.line)}
+                      onClose={() => setSelected(null)}
+                    />
+                  )}
                 </Box>
               )}
             </Paper>
