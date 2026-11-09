@@ -808,6 +808,7 @@
     "Settings.AutoSave.Desc": "Автоматически сохранять после каждого хода",
     "Settings.Board": "Доска",
     "Settings.Board.Desc": "Настроить доску анализа и игровые элементы управления",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Последовательные стрелки",
     "Settings.ConsecutiveArrows.Desc": "Показывать несколько стрелок для лучшей линии, если она состоит из нескольких ходов одной и той же фигурой",
     "Settings.Coordinates": "Координаты",

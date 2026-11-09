@@ -87,11 +87,27 @@ gcloud projects add-iam-policy-binding jblbase --member="serviceAccount:$SA" --r
    „Budget exceeded, dry run“ stehen.
 4. `.env` wieder löschen und erneut deployen, damit die Bremse scharf ist.
 
+## 9. Anmeldung mit Lichess (Phase 2)
+
+Die Function `lichessLogin` prüft das Lichess-Token und stellt ein
+Firebase-Anmeldetoken aus. Nach dem Deploy (wie in Schritt 7) einmalig in
+der Cloud Shell:
+
+```sh
+gcloud services enable iamcredentials.googleapis.com --project jblbase
+SA=$(gcloud functions describe lichessLogin --region=europe-west3 --project jblbase --format='value(serviceConfig.serviceAccountEmail)')
+gcloud iam service-accounts add-iam-policy-binding "$SA" --member="serviceAccount:$SA" --role=roles/iam.serviceAccountTokenCreator --project jblbase
+```
+
+Die Rolle erlaubt dem Dienstkonto nur, für sich selbst Tokens zu signieren.
+
+Optional: <https://console.firebase.google.com/project/jblbase/authentication/emails>
+→ Vorlagensprache auf Deutsch stellen (Mails zum Bestätigen und Zurücksetzen).
+
 ## Später
 
 - **Admin-Rolle:** sobald das eigene Konto existiert (Phase 2). Schlüssel
   unter Projekteinstellungen → _Dienstkonten_ → _Neuen privaten Schlüssel
   generieren_, außerhalb des Repositorys ablegen, dann
   `npm run set-role -- <email> admin` (siehe README).
-- **App Check:** wird zusammen mit der Anmeldung in der App eingeschaltet
-  (Phase 2).
+- **App Check:** kommt, bevor die App Daten hochlädt (Phase 3).

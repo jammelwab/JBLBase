@@ -39,6 +39,8 @@ export default defineConfig({
             "Classification.*",
             "GoMode.*",
             "Errors.*",
+            // Messages chosen at runtime (cloudErrorKey, status texts).
+            "Settings.Cloud.*",
         ],
         sort: true,
     },

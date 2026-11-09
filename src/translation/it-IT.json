@@ -771,6 +771,7 @@
     "Settings.AutoSave.Desc": "Salva automaticamente il file dopo ogni mossa",
     "Settings.Board": "Scacchiera",
     "Settings.Board.Desc": "Personalizza la scacchiera di analisi e i controlli di gioco",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Frecce consecutive",
     "Settings.ConsecutiveArrows.Desc": "Mostra più frecce per la miglior linea, se comporta muovere lo stesso pezzo più volte",
     "Settings.Coordinates": "Coordinate",

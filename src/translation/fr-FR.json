@@ -785,6 +785,7 @@
     "Settings.AutoSave.Desc": "Sauvegarde la partie automatiquement après chaque coup",
     "Settings.Board": "Échiquier",
     "Settings.Board.Desc": "Personnaliser l'échiquier d'analyse et les contrôles",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Flèches successives",
     "Settings.ConsecutiveArrows.Desc": "Affiche plusieurs flèches pour la meilleure ligne, si cela implique de déplacer la même pièce plusieurs fois",
     "Settings.Coordinates": "Coordonnées",

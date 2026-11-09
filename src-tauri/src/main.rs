@@ -54,7 +54,7 @@ use crate::game::{
 
 use crate::fs::set_file_as_executable;
 use crate::lexer::lex_pgn;
-use crate::oauth::authenticate;
+use crate::oauth::{authenticate, authenticate_cloud};
 use crate::pgn::{count_pgn_games, delete_game, read_games, write_game};
 use crate::puzzle::{
     delete_puzzle_database, get_puzzle, get_puzzle_db_info, get_puzzle_themes,
@@ -171,6 +171,7 @@ fn main() {
             db::collection::copy_collection,
             db::collection::delete_collection,
             authenticate,
+            authenticate_cloud,
             write_game,
             download_file,
             get_tournaments,

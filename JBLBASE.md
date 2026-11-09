@@ -293,6 +293,21 @@ Kostenbremse und Rollen. Beschreibung in `firebase/README.md`, die Schritte
 in der Konsole in `firebase/SETUP.md`. Ohne Anmeldung ändert sich an der App
 nichts.
 
+**JBLBase-Konto** (Einstellungen → JBLBase-Konto):
+
+- Anmelden oder registrieren mit E-Mail und Passwort, mit Bestätigungsmail
+  und „Passwort vergessen“.
+- „Mit Lichess anmelden“ öffnet den normalen Lichess-Login im Browser. Die
+  Cloud Function `lichessLogin` fragt Lichess, wem das Token gehört, und
+  meldet die App als `lichess:<id>` an. Das Lichess-Token wird nicht
+  gespeichert, und es wird kein Lichess-Konto in der Kontenliste angelegt.
+- Chess.com hat keine Anmeldung für fremde Apps und wird nur mit dem
+  Benutzernamen verknüpft (geprüft über die öffentliche Chess.com-API).
+- Die Rolle (Nutzer oder Admin) wird angezeigt. Sie steuert die
+  Tiefengrenze 28 beim Speichern; Matts werden immer gespeichert.
+- Firebase wird erst geladen, wenn man diese Seite öffnet.
+- Hochgeladen wird noch nichts; das kommt in Phase 3.
+
 ## Bauen
 
 Voraussetzungen: Node 22, pnpm, Rust (stable), unter Windows zusätzlich die

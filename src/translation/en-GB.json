@@ -762,6 +762,7 @@
     "Settings.AutoSave.Desc": "Auto save to file after each move",
     "Settings.Board": "Board",
     "Settings.Board.Desc": "Customise the analysis board and game controls",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Consecutive Arrows",
     "Settings.ConsecutiveArrows.Desc": "Show multiple arrows for the best line, if it involves moving the same piece several times",
     "Settings.Coordinates": "Coordinates",

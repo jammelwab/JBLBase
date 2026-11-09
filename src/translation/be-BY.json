@@ -794,6 +794,7 @@
     "Settings.AutoSave.Desc": "Аўтаматычна захоўваць пасля кожнага ходу",
     "Settings.Board": "Дошка",
     "Settings.Board.Desc": "Наладзіць дошку аналізу і элементы кіравання гульнёй",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Паслядоўныя стрэлкі",
     "Settings.ConsecutiveArrows.Desc": "Паказваць некалькі стрэлак для лепшай лініі, калі яна складаецца з некалькіх хадоў адной і той жа фігурай",
     "Settings.Coordinates": "Каардынаты",

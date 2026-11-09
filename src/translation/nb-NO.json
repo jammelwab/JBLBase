@@ -748,6 +748,7 @@
     "Settings.AutoSave.Desc": "Lagre til filen etter hvert trekk",
     "Settings.Board": "Brett",
     "Settings.Board.Desc": "Tilpass analysebrett",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Konskutive Piler",
     "Settings.ConsecutiveArrows.Desc": "Vis flere piler for den beste linjen, hvis det innebærer å flytte den samme brikken flere ganger",
     "Settings.Coordinates": "Kordinater",

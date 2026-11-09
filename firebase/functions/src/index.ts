@@ -1,8 +1,12 @@
 import { CloudBillingClient } from "@google-cloud/billing";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { logger } from "firebase-functions/v2";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
+import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { budgetExceeded, parseNotification } from "./budget.js";
+import { lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
 
 // All functions run in Frankfurt with at most one instance, so a bug or an
 // attack can never scale up costs.
@@ -12,6 +16,7 @@ setGlobalOptions({ region: "europe-west3", maxInstances: 1 });
 export const BUDGET_TOPIC = "budget-alerts";
 
 const billing = new CloudBillingClient();
+initializeApp();
 
 /**
  * Cost brake: when the monthly budget is used up, detach the billing
@@ -49,4 +54,39 @@ export const budgetGuard = onMessagePublished(BUDGET_TOPIC, async (event) => {
         projectBillingInfo: { billingAccountName: "" },
     });
     logger.warn(`Budget exceeded, billing disabled for ${projectId}`);
+});
+
+/**
+ * Sign in with Lichess. The app sends the Lichess OAuth access token it got
+ * from the normal Lichess login; this function asks Lichess whose token it
+ * is and answers with a Firebase custom token for the uid "lichess:<id>".
+ * The Lichess token is used once and never stored.
+ *
+ * Creating custom tokens needs the role "Service Account Token Creator" for
+ * the function's service account (see SETUP.md).
+ */
+export const lichessLogin = onCall({ cors: true, timeoutSeconds: 15 }, async (request) => {
+    const token = parseToken(request.data);
+    if (!token) throw new HttpsError("invalid-argument", "Lichess token missing");
+
+    const res = await fetch("https://lichess.org/api/account", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 401) throw new HttpsError("unauthenticated", "Lichess token rejected");
+    if (!res.ok) throw new HttpsError("unavailable", `Lichess answered ${res.status}`);
+
+    const account = parseLichessAccount(await res.json());
+    if (!account) throw new HttpsError("internal", "Unexpected Lichess answer");
+
+    const uid = lichessUid(account);
+    const auth = getAuth();
+    try {
+        await auth.updateUser(uid, { displayName: account.username });
+    } catch {
+        await auth.createUser({ uid, displayName: account.username });
+    }
+    const customToken = await auth.createCustomToken(uid, { lichess: account.username });
+    logger.info("Lichess login", { uid });
+    return { token: customToken, username: account.username };
 });
