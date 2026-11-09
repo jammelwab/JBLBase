@@ -2,11 +2,13 @@ import { resolve } from "@tauri-apps/api/path";
 import { getDefaultStore } from "jotai";
 import { mutate } from "swr";
 import { commands } from "@/bindings";
-import { lichessOptionsAtom, sessionsAtom } from "@/state/atoms";
+import { lichessOptionsAtom, mainOwnerAtom, sessionsAtom } from "@/state/atoms";
+import { type Session, sessionPlayerName } from "@/utils/session";
 import { findAccountDatabase, sameName } from "./accountDatabase";
 import { getDatabases, searchPosition } from "./db";
 import { getDatabasesDir } from "./directories";
 import { getLichessGames } from "./lichess/api";
+import { getMainOwner } from "./mainOwner";
 import type { MoveStat } from "./gamesTree";
 import type { MoveCount } from "./repertoireTree";
 import type { RepertoireColor } from "./repertoires";
@@ -50,7 +52,30 @@ export function lichessMoveCounts(fen: string): Promise<MoveCount[]> {
 
 type OwnAccount = { path: string; player: string };
 
-let accountsPromise: Promise<OwnAccount[]> | null = null;
+// Accounts per repertoire owner, so each player's repertoire is compared with their own games.
+const accountsCache = new Map<string, Promise<OwnAccount[]>>();
+
+/**
+ * The accounts whose games belong to a repertoire owner: those of the player with the same
+ * name (as on the player cards). The main user without a matching player keeps all accounts,
+ * as before players were matched.
+ */
+export function sessionsOfOwner(sessions: Session[], owner: string, mainOwner: string): Session[] {
+    const matched = sessions.filter((s) => sameName(sessionPlayerName(s), owner));
+    if (matched.length > 0 || !sameName(owner, mainOwner)) return matched;
+    return sessions;
+}
+
+function accountsOf(owner: string): Promise<OwnAccount[]> {
+    const key = owner.toLowerCase();
+    let promise = accountsCache.get(key);
+    if (!promise) {
+        promise = findOwnAccounts(owner);
+        promise.catch(() => accountsCache.delete(key));
+        accountsCache.set(key, promise);
+    }
+    return promise;
+}
 
 // The account name as the games spell it: "beispielkonto" can be "BeispielKonto" there.
 async function playerName(path: string, username: string): Promise<string> {
@@ -62,8 +87,8 @@ async function playerName(path: string, username: string): Promise<string> {
     return res.data.data.find((p) => sameName(p.name, username))?.name ?? username;
 }
 
-async function findOwnAccounts(): Promise<OwnAccount[]> {
-    const sessions = getDefaultStore().get(sessionsAtom);
+async function findOwnAccounts(owner: string): Promise<OwnAccount[]> {
+    const sessions = sessionsOfOwner(getDefaultStore().get(sessionsAtom), owner, getMainOwner());
     const databases = await getDatabases();
     const dir = await getDatabasesDir();
     const accounts: OwnAccount[] = [];
@@ -86,20 +111,27 @@ async function findOwnAccounts(): Promise<OwnAccount[]> {
     return accounts;
 }
 
-export async function hasOwnGames(): Promise<boolean> {
-    accountsPromise ??= findOwnAccounts();
-    return (await accountsPromise).length > 0;
+export async function hasOwnGames(owner: string = getMainOwner()): Promise<boolean> {
+    return (await accountsOf(owner)).length > 0;
 }
 
-// Moves played from `fen` in the user's own games where they had `color`, with results.
-export function ownMoveCounts(fen: string, color: RepertoireColor): Promise<MoveStat[]> {
-    const key = `${color} ${fen}`;
+// SWR key for hasOwnGames, refreshed together when accounts change.
+export function ownGamesKey(owner: string) {
+    return ["own-games-available", owner.toLowerCase()] as const;
+}
+
+// Moves played from `fen` in the owner's own games where they had `color`, with results.
+export function ownMoveCounts(
+    fen: string,
+    color: RepertoireColor,
+    owner: string = getMainOwner(),
+): Promise<MoveStat[]> {
+    const key = `${owner.toLowerCase()} ${color} ${fen}`;
     const cached = ownCache.get(key);
     if (cached) return cached;
     const promise = (async () => {
-        accountsPromise ??= findOwnAccounts();
         const totals = new Map<string, MoveStat>();
-        for (const account of await accountsPromise) {
+        for (const account of await accountsOf(owner)) {
             const [openings] = await searchPosition(
                 {
                     path: account.path,
@@ -130,7 +162,7 @@ export function ownMoveCounts(fen: string, color: RepertoireColor): Promise<Move
     // A failed lookup is tried again next time instead of staying empty
     promise.catch(() => {
         ownCache.delete(key);
-        accountsPromise = null;
+        accountsCache.delete(owner.toLowerCase());
     });
     ownCache.set(key, promise);
     return promise;
@@ -139,7 +171,7 @@ export function ownMoveCounts(fen: string, color: RepertoireColor): Promise<Move
 export function clearExplorerCache() {
     lichessCache.clear();
     ownCache.clear();
-    accountsPromise = null;
+    accountsCache.clear();
 }
 
 // Your own games change when games are downloaded or an account is added, removed or
@@ -147,8 +179,9 @@ export function clearExplorerCache() {
 // from the first time they were opened until the app was restarted.
 export function refreshOwnGames() {
     ownCache.clear();
-    accountsPromise = null;
-    void mutate("own-games-available");
+    accountsCache.clear();
+    void mutate((key) => Array.isArray(key) && key[0] === "own-games-available");
 }
 
 getDefaultStore().sub(sessionsAtom, refreshOwnGames);
+getDefaultStore().sub(mainOwnerAtom, refreshOwnGames);

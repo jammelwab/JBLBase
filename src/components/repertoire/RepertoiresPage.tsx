@@ -33,6 +33,7 @@ import {
   defaultRepertoires,
   type Repertoire,
   type RepertoireColor,
+  repertoireOwner,
   repertoireViewAtom,
   useMainOwner,
   useRepertoires,
@@ -63,7 +64,6 @@ function RepertoireCard({
   const setActiveTab = useSetAtom(activeTabAtom);
   const navigate = useNavigate();
   const { stats } = repertoire;
-  const mainOwner = useMainOwner();
 
   return (
     <Card withBorder padding="md">
@@ -111,16 +111,14 @@ function RepertoireCard({
             {t("Common.Open")}
           </Button>
         </Group>
-        {repertoire.owner === mainOwner && (
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconGitCompare size="1rem" />}
-            onClick={onCompare}
-          >
-            {t("Repertoire.Compare.Button")}
-          </Button>
-        )}
+        <Button
+          variant="subtle"
+          size="xs"
+          leftSection={<IconGitCompare size="1rem" />}
+          onClick={onCompare}
+        >
+          {t("Repertoire.Compare.Button")}
+        </Button>
       </Stack>
     </Card>
   );
@@ -217,9 +215,13 @@ export default function RepertoiresPage() {
   const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useAtom(repertoireViewAtom);
+  // A player card asks for its player's repertoire, matched by name like the owner field
+  const viewOwner = view?.owner ? repertoireOwner(view.owner, mainOwner) : mainOwner;
   const viewRepertoire = view
     ? (repertoires ?? []).find((r) =>
-        view.path ? r.file.path === view.path : r.owner === mainOwner && r.color === view.color,
+        view.path
+          ? r.file.path === view.path
+          : r.owner.toLowerCase() === viewOwner.toLowerCase() && r.color === view.color,
       )
     : undefined;
 
@@ -316,7 +318,7 @@ export default function RepertoiresPage() {
         {view && !viewRepertoire && !isLoading && (
           <Alert color="blue" withCloseButton onClose={() => setView(null)}>
             {t("Repertoire.Compare.NoRepertoire", {
-              name: `${mainOwner} ${colorName(view.color ?? "white")}`,
+              name: `${viewOwner} ${colorName(view.color ?? "white")}`,
             })}
           </Alert>
         )}

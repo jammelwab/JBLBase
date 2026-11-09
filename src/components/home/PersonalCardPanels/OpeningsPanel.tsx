@@ -124,7 +124,7 @@ function OpeningsPanel({
             variant="light"
             leftSection={<IconGitCompare size={16} aria-hidden="true" />}
             onClick={() => {
-              setRepertoireView({ mode: "compare", color });
+              setRepertoireView({ mode: "compare", color, owner: playerName });
               void navigate({ to: "/repertoires" });
             }}
           >

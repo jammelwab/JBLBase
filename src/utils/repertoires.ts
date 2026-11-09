@@ -24,6 +24,7 @@ import {
     splitPgnGames,
 } from "./repertoireTree";
 import type { GameHeaders, TreeNode, TreeState } from "./treeReducer";
+import { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName } from "./mainOwner";
 import { unwrap } from "./unwrap";
 
 export type RepertoireColor = "white" | "black";
@@ -39,18 +40,8 @@ export type Repertoire = {
     stats: ReturnType<typeof repertoireStats>;
 };
 
-// Who a repertoire belongs to. The user's own name is set in the settings (stored locally);
-// until then their repertoires belong to "Ich". Older repertoires without an owner count as
-// the main user's.
-export const DEFAULT_MAIN_OWNER = "Ich";
-
-export function mainOwnerName(stored: string | null | undefined): string {
-    return stored?.trim() || DEFAULT_MAIN_OWNER;
-}
-
-export function getMainOwner(): string {
-    return mainOwnerName(getDefaultStore().get(mainOwnerAtom));
-}
+// Who a repertoire belongs to: the main user (see ./mainOwner) or anyone else by name.
+export { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName };
 
 export function useMainOwner(): string {
     return mainOwnerName(useAtomValue(mainOwnerAtom));
@@ -84,6 +75,8 @@ export type RepertoireView = {
     mode: "tree" | "compare";
     path?: string;
     color?: RepertoireColor;
+    // Whose repertoire `color` picks (a player card passes its player); the main user if unset
+    owner?: string;
 };
 export const repertoireViewAtom = atom<RepertoireView | null>(null);
 
