@@ -89,6 +89,15 @@ deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
 vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
 spielt ihn auf dem Brett.
 
+### Repertoire im Datenbank-Bereich des Analysebretts
+
+Im Datenbank-Bereich des Analysebretts gibt es neben Lokal, Lichess Alle und Lichess
+Meister die Quelle **Repertoire**. Sie zeigt die Züge deines Repertoires in der
+aktuellen Stellung: wie viele Varianten hinter jedem Zug stehen und in welchen
+Repertoires er vorkommt. Ein Klick auf eine Zeile spielt den Zug. Oben wählst du
+„Alle meine Repertoires“ oder ein bestimmtes Repertoire (auch das eines anderen
+Spielers).
+
 ### Import-Historie
 
 Vor jedem Import in ein Repertoire (Kurs importieren oder Zeile aus einer Partie

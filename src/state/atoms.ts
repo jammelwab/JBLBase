@@ -461,10 +461,18 @@ export const masterOptionsAtom = atomWithStorage<MasterGamesOptions>(
     },
 );
 
-const dbTypeFamily = atomFamily((_tab: string) =>
-    atom<"local" | "lch_all" | "lch_master">("local"),
-);
+// "rep": your repertoires as a source, their moves in the current position
+export type DbType = "local" | "lch_all" | "lch_master" | "rep";
+const dbTypeFamily = atomFamily((_tab: string) => atom<DbType>("local"));
 export const currentDbTypeAtom = tabValue(dbTypeFamily);
+
+// Which repertoire the database panel shows with "rep": "mine" (all of your own) or a file path
+export const repertoireDbSourceAtom = atomWithStorage<string>(
+    "repertoire-db-source",
+    "mine",
+    createJSONStorage(() => localStorage),
+    { getOnInit: true },
+);
 
 const dbTabFamily = atomFamily((_tab: string) => atom("stats"));
 export const currentDbTabAtom = tabValue(dbTabFamily);

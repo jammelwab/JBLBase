@@ -15,6 +15,7 @@ import {
     positionKey,
     repertoireSizes,
     repertoireStats,
+    repertoireMovesAt,
     repertoireWeights,
     splitPgnGames,
 } from "../repertoireTree";
@@ -480,4 +481,26 @@ test("lineTree builds a single line to add to a repertoire", () => {
     const result = mergeLine(rep, line, [0, 0, 0]);
     expect(result).toMatchObject({ ok: true, added: 2 });
     expect(lines(rep)).toEqual(["e4 e5", "e4 c5 Nf3"]);
+});
+
+test("repertoireMovesAt adds up the moves of several repertoires in one position", () => {
+    const a = tree(["d4", "Nf6", "c4", "g6"], ["d4", "Nf6", "Nf3", "g6"], ["d4", "d5"]);
+    const b = tree(["d4", "Nf6", "c4", "e6"], ["e4", "c5"]);
+    const sources = [
+        { name: "A", color: "black" as const, weights: repertoireWeights(a) },
+        { name: "B", color: "black" as const, weights: repertoireWeights(b) },
+    ];
+    const afterD4 = playLine(INITIAL_FEN, ["d4"]).fen;
+    expect(repertoireMovesAt(sources, afterD4)).toEqual([
+        {
+            move: "Nf6",
+            lines: 3,
+            repertoires: [
+                { name: "A", color: "black" },
+                { name: "B", color: "black" },
+            ],
+        },
+        { move: "d5", lines: 1, repertoires: [{ name: "A", color: "black" }] },
+    ]);
+    expect(repertoireMovesAt(sources, playLine(INITIAL_FEN, ["a3"]).fen)).toEqual([]);
 });
