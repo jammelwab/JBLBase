@@ -1,4 +1,4 @@
-import { readDir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, readDir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { INITIAL_FEN } from "chessops/fen";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 import useSWR from "swr";
@@ -25,7 +25,19 @@ import {
 } from "./repertoireTree";
 import type { GameHeaders, TreeNode, TreeState } from "./treeReducer";
 import { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName } from "./mainOwner";
-import { combineTrees, normalizeFolder } from "./repertoireFolders";
+import {
+    addStoredFolder,
+    combineTrees,
+    inFolder,
+    normalizeFolder,
+    parseStoredFolders,
+    planFolderImport,
+    removeStoredFolder,
+    renamedFolder,
+    renameStoredFolders,
+    type StoredFolder,
+    uniqueName,
+} from "./repertoireFolders";
 import {
     type ImportEntry,
     readHistory,
@@ -397,4 +409,188 @@ export async function undoImport(file: FileMetadata, id: string): Promise<Import
 
     bumpRepertoires();
     return plan.undone;
+}
+
+// Folders made in the app (also empty ones), next to the repertoires in the documents folder
+function storedFoldersPath(documentDir: string) {
+    return `${documentDir.replace(/[\\/]+$/, "")}/repertoire-folders.json`;
+}
+
+export async function readStoredFolders(documentDir: string): Promise<StoredFolder[]> {
+    const path = storedFoldersPath(documentDir);
+    if (!(await exists(path).catch(() => false))) return [];
+    return parseStoredFolders(await readTextFile(path));
+}
+
+async function writeStoredFolders(documentDir: string, list: StoredFolder[]) {
+    await writeTextFile(storedFoldersPath(documentDir), JSON.stringify(list, null, 1));
+}
+
+export function useStoredFolders(documentDir: string) {
+    const version = useAtomValue(repertoireVersionAtom);
+    return useSWR(["repertoire-folders", documentDir, version], () =>
+        readStoredFolders(documentDir),
+    );
+}
+
+export async function createFolder(documentDir: string, folder: StoredFolder) {
+    await writeStoredFolders(
+        documentDir,
+        addStoredFolder(await readStoredFolders(documentDir), folder),
+    );
+    bumpRepertoires();
+}
+
+// Only for folders without repertoires; the page offers it only then
+export async function deleteFolder(
+    documentDir: string,
+    owner: string,
+    color: RepertoireColor,
+    path: string,
+) {
+    await writeStoredFolders(
+        documentDir,
+        removeStoredFolder(await readStoredFolders(documentDir), owner, color, path),
+    );
+    bumpRepertoires();
+}
+
+// Renames (or moves) a folder with everything in it. The repertoires keep their .info,
+// including the id their training progress hangs on; only the folder changes.
+export async function renameFolder(
+    documentDir: string,
+    repertoires: Repertoire[],
+    owner: string,
+    color: RepertoireColor,
+    from: string,
+    to: string,
+) {
+    for (const r of repertoires) {
+        if (r.parts || r.owner.toLowerCase() !== owner.toLowerCase() || r.color !== color) {
+            continue;
+        }
+        if (!inFolder(r.folder, from)) continue;
+        const info = await readInfo(r.file);
+        await writeTextFile(
+            r.file.path.replace(/\.pgn$/, ".info"),
+            JSON.stringify({ ...info, folder: renamedFolder(r.folder, from, to) }),
+        );
+    }
+    const stored = await readStoredFolders(documentDir);
+    await writeStoredFolders(
+        documentDir,
+        addStoredFolder(renameStoredFolders(stored, owner, color, from, to), {
+            owner,
+            color,
+            path: to,
+        }),
+    );
+    bumpRepertoires();
+}
+
+// The PGN files in a folder on disk and its subfolders, with paths relative to it
+export async function scanPgnFolder(
+    dir: string,
+): Promise<{ files: { path: string; relative: string }[]; dirs: string[] }> {
+    const files: { path: string; relative: string }[] = [];
+    const dirs: string[] = [];
+    const walk = async (path: string, relative: string, depth: number) => {
+        if (depth > 12) return;
+        const entries = await readDir(path);
+        for (const entry of entries) {
+            if (entry.name.startsWith(".")) continue;
+            const childPath = `${path.replace(/[\\/]+$/, "")}/${entry.name}`;
+            const childRelative = relative ? `${relative}/${entry.name}` : entry.name;
+            if (entry.isDirectory) {
+                dirs.push(childRelative);
+                await walk(childPath, childRelative, depth + 1);
+            } else if (/\.pgn$/i.test(entry.name)) {
+                files.push({ path: childPath, relative: childRelative });
+            }
+        }
+    };
+    await walk(dir, "", 0);
+    return { files, dirs };
+}
+
+export type FolderImportProgress = { done: number; total: number; current: string };
+
+// Every PGN of a folder on disk becomes a repertoire (named after the file, its games as
+// chapters), in folders that follow the folder's structure. Each import is in the
+// repertoire's import history.
+export async function importPgnFolder({
+    documentDir,
+    dir,
+    owner,
+    color,
+    target,
+    keepRootName,
+    onProgress,
+}: {
+    documentDir: string;
+    dir: string;
+    owner: string;
+    color: RepertoireColor;
+    target: string;
+    keepRootName: boolean;
+    onProgress?: (p: FolderImportProgress) => void;
+}): Promise<{ created: number; moves: number; failed: { name: string; error: string }[] }> {
+    const scan = await scanPgnFolder(dir);
+    const rootName = keepRootName ? (dir.split(/[\\/]/).filter(Boolean).pop() ?? null) : null;
+    const plan = planFolderImport(scan.files, scan.dirs, target, rootName);
+
+    let stored = await readStoredFolders(documentDir);
+    for (const path of plan.folders) stored = addStoredFolder(stored, { owner, color, path });
+    await writeStoredFolders(documentDir, stored);
+
+    const taken = new Set(
+        (await listRepertoires(documentDir)).map((r) => r.file.name.toLowerCase()),
+    );
+    let created = 0;
+    let moves = 0;
+    const failed: { name: string; error: string }[] = [];
+    for (const [i, item] of plan.items.entries()) {
+        onProgress?.({ done: i, total: plan.items.length, current: item.name });
+        try {
+            let name = uniqueName(item.name, taken);
+            let result = await createRepertoire({
+                name,
+                color,
+                owner,
+                dir: documentDir,
+                folder: item.folder,
+            });
+            // A file of that name that is no repertoire (e.g. a game file) also takes the name
+            while (
+                result.isErr &&
+                (await exists(`${documentDir}/${name}.pgn`).catch(() => false))
+            ) {
+                name = uniqueName(item.name, taken);
+                result = await createRepertoire({
+                    name,
+                    color,
+                    owner,
+                    dir: documentDir,
+                    folder: item.folder,
+                });
+            }
+            if (result.isErr) throw result.error;
+            created++;
+            const course = await loadCourseFile(item.source);
+            const label = [item.folder, item.name].filter(Boolean).join(" › ");
+            const merged = await importCourseIntoRepertoire(
+                result.value,
+                course.chapters,
+                new Map(),
+                "",
+                label,
+            );
+            moves += merged.added;
+        } catch (e) {
+            failed.push({ name: item.name, error: e instanceof Error ? e.message : String(e) });
+        }
+    }
+    onProgress?.({ done: plan.items.length, total: plan.items.length, current: "" });
+    bumpRepertoires();
+    return { created, moves, failed };
 }
