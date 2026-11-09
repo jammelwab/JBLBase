@@ -27,6 +27,7 @@ import {
   IconFileImport,
   IconFolder,
   IconFolderShare,
+  IconHistory,
   IconGitCompare,
   IconPlus,
 } from "@tabler/icons-react";
@@ -58,6 +59,7 @@ import {
   useRepertoires,
 } from "@/utils/repertoires";
 import ImportCourseModal from "./ImportCourseModal";
+import ImportHistoryModal from "./ImportHistoryModal";
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
 import RepertoireTreeView from "./RepertoireTreeView";
@@ -85,9 +87,14 @@ function RepertoireCard({
   const setActiveTab = useSetAtom(activeTabAtom);
   const navigate = useNavigate();
   const { stats } = repertoire;
+  const [showHistory, setShowHistory] = useState(false);
 
   return (
     <Card withBorder padding="md">
+      <ImportHistoryModal
+        repertoire={showHistory ? repertoire : null}
+        onClose={() => setShowHistory(false)}
+      />
       <Stack gap="xs">
         <Group gap="xs" wrap="nowrap">
           <ColorDot color={repertoire.color} />
@@ -97,6 +104,16 @@ function RepertoireCard({
           <Tooltip label={t("Repertoire.Folder.Move")}>
             <ActionIcon variant="subtle" color="gray" size="sm" onClick={onMove}>
               <IconFolderShare size="1rem" />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t("Repertoire.History.Button")}>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              onClick={() => setShowHistory(true)}
+            >
+              <IconHistory size="1rem" />
             </ActionIcon>
           </Tooltip>
         </Group>

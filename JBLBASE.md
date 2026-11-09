@@ -89,6 +89,16 @@ deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
 vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
 spielt ihn auf dem Brett.
 
+### Import-Historie
+
+Vor jedem Import in ein Repertoire (Kurs importieren oder Zeile aus einer Partie
+hinzufügen) wird der Stand davor gespeichert. Über das Uhr-Symbol auf der
+Repertoire-Karte öffnest du die **Import-Historie**: jeder Import mit Datum, Quelle
+und Anzahl der neuen Züge. **Rückgängig** setzt das Repertoire auf den Stand vor
+diesem Import zurück. Spätere Importe und Änderungen von Hand seit diesem Import
+gehen dabei ebenfalls verloren, darauf weist ein Hinweis vorher hin. Die letzten 30
+Importe werden aufbewahrt, in der Datei `Name.history.json` neben dem Repertoire.
+
 ### Baumdiagramm
 
 Auf der Repertoire-Seite öffnet **Baum** das Repertoire als gezeichnetes

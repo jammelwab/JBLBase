@@ -82,6 +82,7 @@ export default function AddToRepertoireModal({
     try {
       const result = await addLineToRepertoire(target.file, root, position, {
         withVariations,
+        label: lineText(line),
       });
       if (!result.ok) {
         notifications.show({
