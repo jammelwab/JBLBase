@@ -3,7 +3,7 @@ import type { DatabaseInfo } from "@/bindings";
 /**
  * File name of the database that holds an account's downloaded games.
  * Usernames are compared case-insensitively: Chess.com and Lichess treat
- * "Ragingforlife" and "ragingforlife" as the same account.
+ * "Beispielkonto" and "beispielkonto" as the same account.
  */
 export function accountDatabaseFilename(username: string, type: "lichess" | "chesscom") {
     return `${username}_${type}.duckdb`;

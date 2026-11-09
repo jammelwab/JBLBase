@@ -5,18 +5,18 @@ import { findAccountDatabase } from "../accountDatabase";
 const db = (filename: string) => ({ filename, file: `/db/${filename}` }) as unknown as DatabaseInfo;
 
 describe("findAccountDatabase", () => {
-    const databases = [db("Ragingforlife_chesscom.duckdb"), db("JBLBASE_lichess.duckdb")];
+    const databases = [db("Beispielkonto_chesscom.duckdb"), db("LichessKonto_lichess.duckdb")];
 
     test("ignores the capitalisation of the username", () => {
-        expect(findAccountDatabase(databases, "ragingforlife", "chesscom")?.filename).toBe(
-            "Ragingforlife_chesscom.duckdb",
+        expect(findAccountDatabase(databases, "beispielkonto", "chesscom")?.filename).toBe(
+            "Beispielkonto_chesscom.duckdb",
         );
-        expect(findAccountDatabase(databases, "jblbase", "lichess")?.filename).toBe(
-            "JBLBASE_lichess.duckdb",
+        expect(findAccountDatabase(databases, "lichesskonto", "lichess")?.filename).toBe(
+            "LichessKonto_lichess.duckdb",
         );
     });
 
     test("keeps Lichess and Chess.com apart", () => {
-        expect(findAccountDatabase(databases, "ragingforlife", "lichess")).toBeNull();
+        expect(findAccountDatabase(databases, "beispielkonto", "lichess")).toBeNull();
     });
 });

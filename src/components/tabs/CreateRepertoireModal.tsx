@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { activeTabAtom, addRecentFileAtom, tabFamily, tabsAtom } from "@/state/atoms";
 import { headersToPGN } from "@/utils/chess";
-import { createRepertoire, MAIN_OWNER } from "@/utils/repertoires";
+import { createRepertoire, useMainOwner } from "@/utils/repertoires";
 import { createTab } from "@/utils/tabs";
 
 export default function CreateRepertoireModal({
@@ -19,7 +19,8 @@ export default function CreateRepertoireModal({
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [color, setColor] = useState<"white" | "black">("white");
-  const [owner, setOwner] = useState(MAIN_OWNER);
+  const mainOwner = useMainOwner();
+  const [owner, setOwner] = useState(mainOwner);
   const [error, setError] = useState("");
   const { documentDir } = useLoaderData({ from: "/" });
 
@@ -49,7 +50,7 @@ export default function CreateRepertoireModal({
     const result = await createRepertoire({
       name: trimmedName,
       color,
-      owner: owner.trim() || MAIN_OWNER,
+      owner: owner.trim() || mainOwner,
       dir: documentDir,
     });
 

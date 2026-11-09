@@ -847,6 +847,8 @@
     "Settings.Repertoire.Depth.Desc": "Mindestanzahl von Partien, damit ein Zug für das Repertoire berücksichtigt wird",
     "Settings.Repertoire.Desc": "Hier können benutzerdefinierte Einstellungen zum Repertoire festgelegt werden",
     "Settings.Repertoire.Essential": "Essentiell",
+    "Settings.Repertoire.MainOwner": "Dein Name",
+    "Settings.Repertoire.MainOwner.Desc": "Unter diesem Namen stehen deine eigenen Repertoires. Nimm denselben Namen wie auf deiner Spielerkarte, dann werden sie mit deinen Partien verglichen. Er wird nur auf diesem Gerät gespeichert. Ohne Namen heißen sie „Ich“.",
     "Settings.Repertoire.Standard": "Standard",
     "Settings.ScrollThroughMoves": "Züge durchscrollen",
     "Settings.ScrollThroughMoves.Desc": "Aktiviere oder deaktiviere das Durchscrollen von Zügen auf dem Schachbrett",

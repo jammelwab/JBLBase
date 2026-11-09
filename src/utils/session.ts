@@ -82,7 +82,7 @@ function sameAccount(a: Session, b: Session): boolean {
 
 /**
  * Adds an account, replacing the same account if it was added before. Usernames are
- * compared case-insensitively ("Ragingforlife" and "ragingforlife" are one Chess.com
+ * compared case-insensitively ("Beispielkonto" and "beispielkonto" are one Chess.com
  * account), and a player name that only differs in case joins the existing player.
  */
 export function addSession(sessions: Session[], session: Session): Session[] {

@@ -76,6 +76,7 @@ import EvalCacheSettings from "./EvalCacheSettings";
 import FontSizeSlider from "./FontSizeSlider";
 import KeybindInput from "./KeybindInput";
 import PiecesSelect from "./PiecesSelect";
+import RepertoireMainOwnerSetting from "./RepertoireMainOwnerSetting";
 import RepertoireMinGamesSetting from "./RepertoireMinGamesSetting";
 import classes from "./SettingsPage.module.css";
 import SettingsSwitch from "./SettingsSwitch";
@@ -550,6 +551,14 @@ export default function Page() {
         ),
       },
       // Repertoire settings
+      {
+        id: "repertoire-main-owner",
+        category: "repertoire",
+        title: t("Settings.Repertoire.MainOwner"),
+        description: t("Settings.Repertoire.MainOwner.Desc"),
+        keywords: ["repertoire", "name", "owner", "player"],
+        render: () => <RepertoireMainOwnerSetting />,
+      },
       {
         id: "repertoire-depth",
         category: "repertoire",

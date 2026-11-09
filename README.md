@@ -8,7 +8,7 @@
 ## Worum geht es?
 
 Mit JBLBase baue ich mein eigenes Repertoire für Weiß und Schwarz auf (und ein
-kleines für meinen Freund Aaron). Analysiert wird lokal mit zwei Engines
+kleines für einen Freund). Analysiert wird lokal mit zwei Engines
 gleichzeitig: **Stockfish 19** für die objektiv beste Fortsetzung und
 **Patricia**, die bewusst aggressiv spielt und gern Gambits wählt.
 
@@ -28,7 +28,7 @@ nicht neu gerechnet werden.
 
 **Geplant**
 
-- Repertoire-Bäume für Weiß, Schwarz und Aaron
+- Repertoire-Bäume für Weiß, Schwarz und für Freunde
 - Opening Tree aus meinen eigenen Partien
 - Vergleich: Was spiele ich wirklich, was steht in meinem Repertoire?
 - Training des Repertoires

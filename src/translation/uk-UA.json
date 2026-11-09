@@ -824,6 +824,8 @@
     "Settings.Repertoire.Depth.Desc": "",
     "Settings.Repertoire.Desc": "",
     "Settings.Repertoire.Essential": "",
+    "Settings.Repertoire.MainOwner": "",
+    "Settings.Repertoire.MainOwner.Desc": "",
     "Settings.Repertoire.Standard": "",
     "Settings.ScrollThroughMoves": "Прокрутка ходів",
     "Settings.ScrollThroughMoves.Desc": "Увімкнути або вимкнути прокрутку ходів на дошці",

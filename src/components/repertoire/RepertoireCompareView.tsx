@@ -34,6 +34,7 @@ import {
   hasLichessToken,
   hasOwnGames,
   lichessMoveCounts,
+  ownGamesKey,
   ownMoveCounts,
 } from "@/utils/repertoireExplorer";
 import type { MoveCount } from "@/utils/repertoireTree";
@@ -146,7 +147,9 @@ export default function RepertoireCompareView({
   const setActiveTab = useSetAtom(activeTabAtom);
   const [minGames, setMinGames] = useState(2);
   const [expanded, setExpanded] = useState(() => new Set<string>());
-  const { data: ownAvailable } = useSWR("own-games-available", hasOwnGames);
+  const { data: ownAvailable } = useSWR(ownGamesKey(repertoire.owner), () =>
+    hasOwnGames(repertoire.owner),
+  );
 
   const { root } = repertoire;
   const rootNode = useMemo(
@@ -164,7 +167,7 @@ export default function RepertoireCompareView({
         root.halfMoves,
         repertoire.color,
         repertoire.index,
-        (fen) => ownMoveCounts(fen, repertoire.color),
+        (fen) => ownMoveCounts(fen, repertoire.color, repertoire.owner),
         { minGames },
       ),
   );
@@ -195,8 +198,8 @@ export default function RepertoireCompareView({
   );
 
   const loadStats = useCallback(
-    (fen: string) => ownMoveCounts(fen, repertoire.color),
-    [repertoire.color],
+    (fen: string) => ownMoveCounts(fen, repertoire.color, repertoire.owner),
+    [repertoire.color, repertoire.owner],
   );
   const [openFens, setOpenFens] = useState<string[]>([root.fen]);
   const stats = usePositionData<MoveStat[]>(openFens, loadStats, ownAvailable === true);

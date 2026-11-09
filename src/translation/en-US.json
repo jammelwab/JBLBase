@@ -853,6 +853,8 @@
     "Settings.Repertoire.Depth.Desc": "Minimum number of games for a move to be considered relevant",
     "Settings.Repertoire.Desc": "Customize the repertoire settings",
     "Settings.Repertoire.Essential": "Essential",
+    "Settings.Repertoire.MainOwner": "Your Name",
+    "Settings.Repertoire.MainOwner.Desc": "Your own repertoires are listed under this name. Use the same name as on your player card so they are compared with your games. It is only stored on this device. Without a name they are called \"Ich\".",
     "Settings.Repertoire.Standard": "Standard",
     "Settings.ScrollThroughMoves": "Scroll Through Moves",
     "Settings.ScrollThroughMoves.Desc": "Enable or disable scrolling through moves on the chessboard",

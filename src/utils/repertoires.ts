@@ -9,7 +9,7 @@ import {
     processEntriesRecursively,
 } from "@/components/files/file";
 import { updatePersistedState } from "@/state/store/debouncedStorage";
-import { tabsAtom } from "@/state/atoms";
+import { mainOwnerAtom, tabsAtom } from "@/state/atoms";
 import { getPGN, headersToPGN, parsePGN } from "./chess";
 import { createFile } from "./files";
 import {
@@ -24,6 +24,7 @@ import {
     splitPgnGames,
 } from "./repertoireTree";
 import type { GameHeaders, TreeNode, TreeState } from "./treeReducer";
+import { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName } from "./mainOwner";
 import { unwrap } from "./unwrap";
 
 export type RepertoireColor = "white" | "black";
@@ -39,20 +40,29 @@ export type Repertoire = {
     stats: ReturnType<typeof repertoireStats>;
 };
 
-// Who a repertoire belongs to. Older repertoires without an owner count as the main user's.
-export const MAIN_OWNER = "Jannick";
-export const DEFAULT_REPERTOIRES: { owner: string; color: RepertoireColor }[] = [
-    { owner: "Jannick", color: "white" },
-    { owner: "Jannick", color: "black" },
-    { owner: "Aaron", color: "white" },
-    { owner: "Aaron", color: "black" },
-];
+// Who a repertoire belongs to: the main user (see ./mainOwner) or anyone else by name.
+export { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName };
 
-// "jannick" or " Jannick " typed as owner is still the main user, otherwise their
-// repertoires would lose the comparison with their own games.
-export function repertoireOwner(owner: unknown): string {
+export function useMainOwner(): string {
+    return mainOwnerName(useAtomValue(mainOwnerAtom));
+}
+
+// The repertoires offered with one click: White and Black for the user themself.
+export function defaultRepertoires(mainOwner: string): { owner: string; color: RepertoireColor }[] {
+    return [
+        { owner: mainOwner, color: "white" },
+        { owner: mainOwner, color: "black" },
+    ];
+}
+
+// The configured name in any spelling, and "Ich" from before a name was set, are still the
+// main user, otherwise their repertoires would lose the comparison with their own games.
+export function repertoireOwner(owner: unknown, mainOwner: string = getMainOwner()): string {
     const name = typeof owner === "string" ? owner.trim() : "";
-    if (!name || name.toLowerCase() === MAIN_OWNER.toLowerCase()) return MAIN_OWNER;
+    const lower = name.toLowerCase();
+    if (!name || lower === mainOwner.toLowerCase() || lower === DEFAULT_MAIN_OWNER.toLowerCase()) {
+        return mainOwner;
+    }
     return name;
 }
 
@@ -65,6 +75,8 @@ export type RepertoireView = {
     mode: "tree" | "compare";
     path?: string;
     color?: RepertoireColor;
+    // Whose repertoire `color` picks (a player card passes its player); the main user if unset
+    owner?: string;
 };
 export const repertoireViewAtom = atom<RepertoireView | null>(null);
 
@@ -80,7 +92,10 @@ async function readInfo(file: FileMetadata): Promise<Record<string, unknown>> {
     }
 }
 
-async function loadRepertoire(file: FileMetadata): Promise<Repertoire> {
+async function loadRepertoire(
+    file: FileMetadata,
+    mainOwner: string = getMainOwner(),
+): Promise<Repertoire> {
     const [pgn] = unwrap(await commands.readGames(file.path, 0, 0));
     const tree = await parsePGN(pgn ?? "");
     const info = await readInfo(file);
@@ -90,7 +105,7 @@ async function loadRepertoire(file: FileMetadata): Promise<Repertoire> {
             : tree.headers.orientation === "black"
               ? "black"
               : "white";
-    const owner = repertoireOwner(info.owner);
+    const owner = repertoireOwner(info.owner, mainOwner);
     return {
         file,
         name: file.name,
@@ -103,17 +118,20 @@ async function loadRepertoire(file: FileMetadata): Promise<Repertoire> {
     };
 }
 
-export async function listRepertoires(documentDir: string): Promise<Repertoire[]> {
+export async function listRepertoires(
+    documentDir: string,
+    mainOwner: string = getMainOwner(),
+): Promise<Repertoire[]> {
     const entries = await processEntriesRecursively(documentDir, await readDir(documentDir));
     const files = flatten(entries).filter((f) => f.metadata.type === "repertoire");
     const repertoires = await Promise.all(
-        files.map((file) => loadRepertoire(file).catch(() => null)),
+        files.map((file) => loadRepertoire(file, mainOwner).catch(() => null)),
     );
     return repertoires
         .filter((r): r is Repertoire => r !== null)
         .sort(
             (a, b) =>
-                Number(b.owner === MAIN_OWNER) - Number(a.owner === MAIN_OWNER) ||
+                Number(b.owner === mainOwner) - Number(a.owner === mainOwner) ||
                 a.owner.localeCompare(b.owner) ||
                 Number(a.color === "black") - Number(b.color === "black") ||
                 a.name.localeCompare(b.name),
@@ -122,9 +140,12 @@ export async function listRepertoires(documentDir: string): Promise<Repertoire[]
 
 export function useRepertoires(documentDir: string) {
     const version = useAtomValue(repertoireVersionAtom);
-    return useSWR(["repertoires", documentDir, version], () => listRepertoires(documentDir), {
-        revalidateOnFocus: false,
-    });
+    const mainOwner = useMainOwner();
+    return useSWR(
+        ["repertoires", documentDir, version, mainOwner],
+        () => listRepertoires(documentDir, mainOwner),
+        { revalidateOnFocus: false },
+    );
 }
 
 export function bumpRepertoires() {

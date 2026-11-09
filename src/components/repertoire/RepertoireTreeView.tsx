@@ -12,11 +12,12 @@ import { lineText } from "@/utils/gamesTree";
 import {
   hasLichessToken,
   hasOwnGames,
+  ownGamesKey,
   lichessMoveCounts,
   ownMoveCounts,
 } from "@/utils/repertoireExplorer";
 import { type MoveCount, moveShares, nodesOnPath, positionKey } from "@/utils/repertoireTree";
-import { MAIN_OWNER, type Repertoire } from "@/utils/repertoires";
+import type { Repertoire } from "@/utils/repertoires";
 import type { TreeNode, TreeState } from "@/utils/treeReducer";
 import BoardPreview from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
@@ -113,15 +114,20 @@ export default function RepertoireTreeView({
     [repertoire.root],
   );
   const [focus, setFocus] = useState<{ id: string } | null>(null);
-  const { data: ownAvailable } = useSWR("own-games-available", hasOwnGames);
+  const { data: ownAvailable } = useSWR(ownGamesKey(repertoire.owner), () =>
+    hasOwnGames(repertoire.owner),
+  );
 
   const showLichess = hasLichessToken();
-  const showOwn = repertoire.owner === MAIN_OWNER && !!ownAvailable;
+  const showOwn = !!ownAvailable;
   const { root, color } = repertoire;
 
   const fens = useMemo(() => openPositions(root, expanded), [root, expanded]);
   const lichess = usePositionData<MoveCount[]>(fens, lichessMoveCounts, showLichess);
-  const loadOwn = useCallback((fen: string) => ownMoveCounts(fen, color), [color]);
+  const loadOwn = useCallback(
+    (fen: string) => ownMoveCounts(fen, color, repertoire.owner),
+    [color, repertoire.owner],
+  );
   const own = usePositionData<MoveCount[]>(fens, loadOwn, showOwn);
 
   const transpositions = useMemo(() => findTranspositions(root), [root]);
@@ -352,7 +358,7 @@ export default function RepertoireTreeView({
           <Text size="sm">{t("Repertoire.Tree.NoLichess")}</Text>
         </Alert>
       )}
-      {repertoire.owner === MAIN_OWNER && ownAvailable === false && (
+      {ownAvailable === false && (
         <Alert color="gray" py="xs">
           <Text size="sm">{t("Repertoire.Tree.NoOwnGames")}</Text>
         </Alert>

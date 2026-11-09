@@ -387,6 +387,9 @@ export const puzzleThemeAtom = atomWithStorage<string | null>("puzzle-theme", nu
 
 export const coverageMinGamesAtom = atomWithStorage<number>("coverage-min-games", 50);
 
+// The user's own name for their repertoires. It only lives in the local settings, never in code.
+export const mainOwnerAtom = atomWithStorage<string>("repertoire-main-owner", "");
+
 export const puzzleTimerFamily = atomFamily((_tab: string) => atom<number | null>(null));
 export const currentPuzzleTimerAtom = tabValue(puzzleTimerFamily);
 

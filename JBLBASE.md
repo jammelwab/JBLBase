@@ -1,6 +1,6 @@
 # JBLBase: Anleitung
 
-Eigenes Schachprogramm von Jannick Schwab, aufgebaut auf
+Eigenes Schachprogramm, aufgebaut auf
 [En Croissant](https://github.com/franciscoBSalgueiro/en-croissant) (GPL-3.0).
 Dieses Projekt steht deshalb ebenfalls unter GPL-3.0.
 
@@ -52,9 +52,11 @@ Stellung liefert.
 ## Repertoires
 
 In der Seitenleiste gibt es **Repertoires** (Bücher-Symbol). Dort legst du mit
-einem Klick die vier Standard-Repertoires an: „Jannick Weiß“, „Jannick
-Schwarz“, „Aaron Weiß“ und „Aaron Schwarz“. Weitere Repertoires gehen über
-**Neues Repertoire** (Name, für wen, Farbe). Ein Repertoire ist eine normale
+einem Klick deine zwei Standard-Repertoires für Weiß und Schwarz an. Sie
+stehen unter dem Namen, den du in den Einstellungen unter **Repertoire → Dein
+Name** einträgst (nur lokal gespeichert, ohne Eintrag „Ich“). Weitere
+Repertoires, etwa für einen Freund, gehen über **Neues Repertoire** (Name, für
+wen, Farbe). Ein Repertoire ist eine normale
 PGN-Datei im Dokumente-Ordner, die Varianten bilden den Baum, ohne
 Tiefenlimit.
 
@@ -97,7 +99,7 @@ Mit der Maus über einem Zug siehst du die Prozente. Jeder Zug hat zwei kleine L
   in denen du die Farbe des Repertoires hattest. Grundlage sind die unter
   **Benutzer** heruntergeladenen Chess.com- und Lichess-Partien. Unter einem
   Gegnerzug ergeben deine Varianten plus „sonstige Züge“ zusammen 100 %. Bei
-  Aarons Repertoires fehlt diese Leiste, weil es nicht seine Partien sind.
+  Repertoires für andere Personen fehlt diese Leiste, weil es nicht deren Partien sind.
 
 Ist der meistgespielte Lichess-Zug (nur Platz 1) eines Gegners nicht in
 deinem Repertoire, steht er gestrichelt und abgeblasst unter deinen Varianten. Das heißt
