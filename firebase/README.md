@@ -88,6 +88,6 @@ Die Schritte in der Firebase- und Google-Cloud-Konsole stehen in
 ```sh
 cd firebase
 npx firebase login
-npx firebase use --add          # Projekt wählen, Alias "default"
+npx firebase use default        # Projekt jblbase
 npx firebase deploy --only firestore,functions
 ```

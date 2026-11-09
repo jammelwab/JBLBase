@@ -72,7 +72,7 @@ cd firebase
 npm install
 npm --prefix functions install
 npx firebase login
-npx firebase use --add        # <PROJEKT-ID> wählen, Alias: default
+npx firebase use default       # Projekt jblbase
 npx firebase deploy --only firestore,functions
 ```
 
