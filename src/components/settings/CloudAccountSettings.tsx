@@ -12,8 +12,9 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { IconCloud, IconLogout } from "@tabler/icons-react";
+import { IconCloud, IconLogout, IconRefresh } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
+import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
@@ -34,6 +35,7 @@ import {
   signOutCloud,
   watchCloudAccount,
 } from "@/utils/cloud/auth";
+import { cloudSyncStatusAtom, startCloudSync, syncNow } from "@/utils/cloud/sync";
 
 type Message = { color: "red" | "green" | "blue"; text: string };
 
@@ -62,7 +64,10 @@ export default function CloudAccountSettings() {
   useEffect(() => {
     let stop: (() => void) | undefined;
     let cancelled = false;
-    watchCloudAccount(setAccount)
+    watchCloudAccount((a) => {
+      setAccount(a);
+      if (a) startCloudSync(true);
+    })
       .then((unsubscribe) => {
         if (cancelled) unsubscribe();
         else stop = unsubscribe;
@@ -290,6 +295,8 @@ function SignedIn({ account, busy, run }: RunProps & { account: CloudAccount }) 
         </Stack>
       )}
 
+      <SyncStatus />
+
       <Group justify="flex-end">
         <Button
           variant="subtle"
@@ -301,6 +308,64 @@ function SignedIn({ account, busy, run }: RunProps & { account: CloudAccount }) 
           {t("Settings.Cloud.SignOut")}
         </Button>
       </Group>
+    </Stack>
+  );
+}
+
+function SyncStatus() {
+  const { t, i18n } = useTranslation();
+  const status = useAtomValue(cloudSyncStatusAtom);
+  const syncing = status.state === "syncing";
+  const rep = status.repertoires;
+
+  return (
+    <Stack gap="xs">
+      <Divider label={t("Settings.Cloud.Sync")} labelPosition="left" />
+      <Text size="sm" c="dimmed">
+        {t("Settings.Cloud.Sync.Desc")}
+      </Text>
+      <Group justify="space-between">
+        <Text size="sm">
+          {syncing
+            ? t("Settings.Cloud.Sync.Running")
+            : status.lastSync
+              ? t("Settings.Cloud.Sync.Last", {
+                  time: new Date(status.lastSync).toLocaleTimeString(i18n.language),
+                })
+              : t("Settings.Cloud.Sync.Never")}
+        </Text>
+        <Button
+          size="compact-sm"
+          variant="light"
+          leftSection={<IconRefresh size="0.9rem" />}
+          loading={syncing}
+          onClick={() => void syncNow()}
+        >
+          {t("Settings.Cloud.Sync.Now")}
+        </Button>
+      </Group>
+      {status.lastSync && !syncing && (
+        <Text size="xs" c="dimmed">
+          {t("Settings.Cloud.Sync.Result", {
+            up: (rep?.uploaded ?? 0) + (status.trainingUploaded ?? 0),
+            down: (rep?.downloaded ?? 0) + (status.trainingDownloaded ?? 0),
+          })}
+        </Text>
+      )}
+      {status.state === "error" && (
+        <Alert color="red" title={t("Settings.Cloud.Sync.Failed")}>
+          {status.error}
+        </Alert>
+      )}
+      {rep && rep.conflicts > 0 && (
+        <Alert color="yellow">{t("Settings.Cloud.Sync.Conflicts", { count: rep.conflicts })}</Alert>
+      )}
+      {rep && rep.tooBig.length > 0 && (
+        <Alert color="yellow">
+          {t("Settings.Cloud.Sync.TooBig", { files: rep.tooBig.join(", ") })}
+        </Alert>
+      )}
+      {rep?.deletionsHeld && <Alert color="yellow">{t("Settings.Cloud.Sync.DeletionsHeld")}</Alert>}
     </Stack>
   );
 }

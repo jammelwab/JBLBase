@@ -33,6 +33,7 @@ import {
     undoPlan,
     writeHistory,
 } from "./repertoireHistory";
+import { notifyLocalChange } from "./cloud/syncSignal";
 import { unwrap } from "./unwrap";
 
 export type RepertoireColor = "white" | "black";
@@ -167,6 +168,7 @@ export function useRepertoires(documentDir: string) {
 export function bumpRepertoires() {
     const store = getDefaultStore();
     store.set(repertoireVersionAtom, (v) => v + 1);
+    notifyLocalChange();
 }
 
 export async function createRepertoire({

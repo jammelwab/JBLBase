@@ -13,16 +13,17 @@ die Cloud schaltet nur den Sync ein.
 
 ## Datenmodell
 
-| Pfad                                                     | Wer liest         | Wer schreibt                                                  |
-| -------------------------------------------------------- | ----------------- | ------------------------------------------------------------- |
-| `users/{uid}`                                            | Besitzer          | Besitzer (nur `lichess`, `chesscom`, `settings`, `updatedAt`) |
-| `users/{uid}/repertoires/{repId}` und `…/moves/{moveId}` | Besitzer          | Besitzer                                                      |
-| `users/{uid}/cards/{cardId}`                             | Besitzer          | Besitzer                                                      |
-| `users/{uid}/reviews/{id}`                               | Besitzer          | Besitzer, nur anhängen                                        |
-| `users/{uid}/evals/{evalId}`                             | Besitzer          | Besitzer, Nutzer bis Tiefe 28, Matts immer                    |
-| `evals/{evalId}` (gemeinsamer Positionsspeicher)         | alle Angemeldeten | nur Admins                                                    |
+| Pfad                                                | Wer liest         | Wer schreibt                                                  |
+| --------------------------------------------------- | ----------------- | ------------------------------------------------------------- |
+| `users/{uid}`                                       | Besitzer          | Besitzer (nur `lichess`, `chesscom`, `settings`, `updatedAt`) |
+| `users/{uid}/repertoires/{repId}` (ganze PGN-Datei) | Besitzer          | Besitzer, feste Felder, PGN bis 900 KB                        |
+| `users/{uid}/cards/{cardId}`                        | Besitzer          | Besitzer, feste Felder                                        |
+| `users/{uid}/reviews/{id}`                          | Besitzer          | Besitzer, nur anhängen                                        |
+| `users/{uid}/evals/{evalId}`                        | Besitzer          | Besitzer, Nutzer bis Tiefe 28, Matts immer                    |
+| `evals/{evalId}` (gemeinsamer Positionsspeicher)    | alle Angemeldeten | nur Admins                                                    |
 
-Alles andere ist gesperrt.
+Alles andere ist gesperrt. Jedes synchronisierte Dokument trägt `syncedAt`
+(Serverzeit, von den Regeln geprüft); danach fragt die App „was ist neu“.
 
 ### Rollen
 

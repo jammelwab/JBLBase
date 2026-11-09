@@ -48,17 +48,56 @@ function evalDoc({ depth = 20, mate, lines } = {}) {
   };
 }
 
+function repertoireDoc(over = {}) {
+  return {
+    path: "Weiß/e4",
+    info: '{"type":"repertoire"}',
+    pgn: "1. e4 e5 *",
+    hash: "a".repeat(64),
+    updatedAt: 1,
+    deleted: false,
+    syncedAt: serverTimestamp(),
+    ...over,
+  };
+}
+
+function cardDoc(over = {}) {
+  return {
+    deck: "rep1",
+    position: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -",
+    fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+    answer: "e5",
+    card: "{}",
+    ord: 0,
+    updatedAt: 1,
+    deleted: false,
+    syncedAt: serverTimestamp(),
+    ...over,
+  };
+}
+
+function reviewDoc(over = {}) {
+  return {
+    deck: "rep1",
+    fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+    log: "{}",
+    reviewedAt: 1,
+    syncedAt: serverTimestamp(),
+    ...over,
+  };
+}
+
 describe("own area", () => {
   test("a user reads and writes only below users/{uid}", async () => {
     const db = user("alice");
     await assertSucceeds(setDoc(doc(db, "users/alice"), { chesscom: "someone" }));
     await assertSucceeds(getDoc(doc(db, "users/alice")));
-    await assertSucceeds(setDoc(doc(db, "users/alice/repertoires/r1"), { name: "White" }));
+    await assertSucceeds(setDoc(doc(db, "users/alice/repertoires/r1"), repertoireDoc()));
     await assertSucceeds(setDoc(doc(db, "users/alice/repertoires/r1/moves/m1"), { uci: "e2e4" }));
-    await assertSucceeds(setDoc(doc(db, "users/alice/cards/c1"), { due: 1 }));
+    await assertSucceeds(setDoc(doc(db, "users/alice/cards/c1"), cardDoc()));
 
     await assertFails(getDoc(doc(db, "users/bob")));
-    await assertFails(setDoc(doc(db, "users/bob/repertoires/r1"), { name: "x" }));
+    await assertFails(setDoc(doc(db, "users/bob/repertoires/r1"), repertoireDoc()));
     await assertFails(getDoc(doc(db, "users/bob/evals/e1")));
   });
 
@@ -76,8 +115,24 @@ describe("own area", () => {
 
   test("reviews are append-only", async () => {
     const db = user("alice");
-    await assertSucceeds(setDoc(doc(db, "users/alice/reviews/r1"), { rating: 3 }));
-    await assertFails(setDoc(doc(db, "users/alice/reviews/r1"), { rating: 4 }));
+    await assertSucceeds(setDoc(doc(db, "users/alice/reviews/r1"), reviewDoc()));
+    // Uploading the same review again is fine, changing it is not.
+    await assertSucceeds(setDoc(doc(db, "users/alice/reviews/r1"), reviewDoc()));
+    await assertFails(setDoc(doc(db, "users/alice/reviews/r1"), reviewDoc({ log: "{}x" })));
+    await assertFails(setDoc(doc(db, "users/alice/reviews/r2"), { rating: 3 }));
+  });
+
+  test("synced documents must have the expected shape", async () => {
+    const db = user("alice");
+    await assertFails(setDoc(doc(db, "users/alice/repertoires/r1"), { name: "White" }));
+    await assertFails(
+      setDoc(doc(db, "users/alice/repertoires/r1"), repertoireDoc({ pgn: "x".repeat(900001) })),
+    );
+    await assertFails(
+      setDoc(doc(db, "users/alice/repertoires/r1"), repertoireDoc({ syncedAt: 5 })),
+    );
+    await assertFails(setDoc(doc(db, "users/alice/cards/c1"), { due: 1 }));
+    await assertFails(setDoc(doc(db, "users/alice/cards/c1"), cardDoc({ extra: true })));
   });
 
   test("unknown collections are closed", async () => {

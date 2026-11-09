@@ -62,6 +62,43 @@ service cloud.firestore {
         && d.updatedAt == request.time;
     }
 
+    // Synced repertoire file (pgn below Firestore's 1 MB document limit).
+    function validRepertoire(d) {
+      return d.keys().hasOnly(['path', 'info', 'pgn', 'hash', 'updatedAt', 'deleted', 'syncedAt'])
+        && d.keys().hasAll(['path', 'info', 'pgn', 'hash', 'updatedAt', 'deleted', 'syncedAt'])
+        && d.path is string && d.path.size() > 0 && d.path.size() <= 500
+        && d.info is string && d.info.size() <= 10000
+        && d.pgn is string && d.pgn.size() <= 900000
+        && d.hash is string && d.hash.size() <= 64
+        && d.updatedAt is number
+        && d.deleted is bool
+        && d.syncedAt == request.time;
+    }
+
+    function validCard(d) {
+      return d.keys().hasOnly(['deck', 'position', 'fen', 'answer', 'card', 'ord', 'updatedAt', 'deleted', 'syncedAt'])
+        && d.keys().hasAll(['deck', 'position', 'fen', 'answer', 'card', 'ord', 'updatedAt', 'deleted', 'syncedAt'])
+        && d.deck is string && d.deck.size() <= 200
+        && d.position is string && d.position.size() <= 100
+        && d.fen is string && d.fen.size() <= 100
+        && d.answer is string && d.answer.size() <= 20
+        && d.card is string && d.card.size() <= 2000
+        && d.ord is int
+        && d.updatedAt is number
+        && d.deleted is bool
+        && d.syncedAt == request.time;
+    }
+
+    function validReview(d) {
+      return d.keys().hasOnly(['deck', 'fen', 'log', 'reviewedAt', 'syncedAt'])
+        && d.keys().hasAll(['deck', 'fen', 'log', 'reviewedAt', 'syncedAt'])
+        && d.deck is string && d.deck.size() <= 200
+        && d.fen is string && d.fen.size() <= 100
+        && d.log is string && d.log.size() <= 2000
+        && d.reviewedAt is number
+        && d.syncedAt == request.time;
+    }
+
     // The best line (multipv 1) is a mate. If any line mates, the best one
     // does too, so checking the first line is enough.
     function isMate(d) {
@@ -84,22 +121,30 @@ service cloud.firestore {
         && (!('chesscom' in request.resource.data) || request.resource.data.chesscom is string)
         && (!('settings' in request.resource.data) || request.resource.data.settings is map);
 
-      // Repertoires and their moves (phase 3).
+      // Repertoires, synced as whole files (phase 3, see
+      // src/utils/cloud/repertoireSync.ts). Deleted ones keep a mark.
       match /repertoires/{repId} {
-        allow read, write: if isOwner(uid);
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validRepertoire(request.resource.data);
         match /moves/{moveId} {
           allow read, write: if isOwner(uid);
         }
       }
 
-      // Training cards and the append-only review log (phase 1/3).
+      // Training cards, last change wins (see src/utils/cloud/trainingSync.ts).
       match /cards/{cardId} {
-        allow read, write: if isOwner(uid);
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validCard(request.resource.data);
       }
+
+      // Append-only review log. Uploading the same review again (after an
+      // interrupted sync) only touches syncedAt.
       match /reviews/{reviewId} {
-        allow read, create: if isOwner(uid);
-        allow update: if false;
-        allow delete: if isOwner(uid);
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validReview(request.resource.data);
+        allow update: if isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncedAt'])
+          && request.resource.data.syncedAt == request.time;
       }
 
       // Own evaluations, limited to depth 28 for normal users.

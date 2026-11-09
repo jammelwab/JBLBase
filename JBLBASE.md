@@ -305,8 +305,30 @@ nichts.
   Benutzernamen verknüpft (geprüft über die öffentliche Chess.com-API).
 - Die Rolle (Nutzer oder Admin) wird angezeigt. Sie steuert die
   Tiefengrenze 28 beim Speichern; Matts werden immer gespeichert.
-- Firebase wird erst geladen, wenn man diese Seite öffnet.
-- Hochgeladen wird noch nichts; das kommt in Phase 3.
+- Firebase wird erst geladen, wenn man sich auf diesem Gerät einmal
+  angemeldet hat.
+
+**Synchronisierung** (läuft nur angemeldet; beim Start, alle 5 Minuten,
+kurz nach Änderungen und per Knopf):
+
+- **Repertoires** werden als ganze Dateien abgeglichen
+  (`src/utils/cloud/repertoireSync.ts`). Jedes Gerät merkt sich pro
+  Repertoire den Stand nach dem letzten Abgleich. Nur hier geändert:
+  hochladen. Nur dort geändert: herunterladen. Beides geändert: Die neuere
+  Fassung gilt, die andere bleibt als Datei „… (Konflikt <Datum>)“ (Typ
+  „Sonstiges“) liegen. Umbenennen und Verschieben wandern mit. Gelöschte
+  Repertoires bekommen eine Löschmarke; auf den anderen Geräten wird die
+  Datei in `*.pgn.deleted-<Zeit>` umbenannt, nicht gelöscht. Fehlen auf
+  einmal die meisten Dateien (z. B. anderer Ordner), wird nichts gelöscht.
+- Beim ersten Abgleich auf einem zweiten Gerät werden Repertoires mit
+  gleichem Pfad im Dateien-Ordner verknüpft. Sie übernehmen die ID aus der
+  Cloud, der lokale Trainingsfortschritt zieht mit.
+- **Trainingsfortschritt** (`src/utils/cloud/trainingSync.ts`): Karten mit
+  „letzte Änderung gewinnt“, Wiederholungen nur anhängen. Der lokale
+  Speicher merkt sich, was noch hochgeladen werden muss (Schema 2 in
+  `training.rs`).
+- PGN-Dateien über 900 KB werden nicht hochgeladen; die Einstellungsseite
+  sagt dann, welche.
 
 ## Bauen
 
