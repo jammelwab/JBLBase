@@ -417,3 +417,32 @@ export function findPosition(root: TreeNode, fen: string): number[] | null {
     }
     return null;
 }
+
+// The moves several repertoires have in one position, for a database-like table: per move
+// the lines behind it (added up) and which repertoires have it. Most lines first.
+export type RepertoireMoveRow = {
+    move: string;
+    lines: number;
+    repertoires: { name: string; color: "white" | "black" }[];
+};
+
+export function repertoireMovesAt(
+    sources: {
+        name: string;
+        color: "white" | "black";
+        weights: Map<string, Map<string, number>>;
+    }[],
+    fen: string,
+): RepertoireMoveRow[] {
+    const key = positionKey(fen);
+    const rows = new Map<string, RepertoireMoveRow>();
+    for (const source of sources) {
+        for (const [move, lines] of source.weights.get(key) ?? []) {
+            const row = rows.get(move) ?? { move, lines: 0, repertoires: [] };
+            row.lines += lines;
+            row.repertoires.push({ name: source.name, color: source.color });
+            rows.set(move, row);
+        }
+    }
+    return [...rows.values()].sort((a, b) => b.lines - a.lines || a.move.localeCompare(b.move));
+}

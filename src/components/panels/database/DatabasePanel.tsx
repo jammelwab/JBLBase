@@ -20,6 +20,7 @@ import { TreeStateContext } from "@/components/common/TreeStateContext";
 import {
   currentDbTabAtom,
   currentDbTypeAtom,
+  type DbType,
   currentLocalOptionsAtom,
   currentTabAtom,
   lichessOptionsAtom,
@@ -36,6 +37,10 @@ import DatabaseLoader from "./DatabaseLoader";
 import GamesTable from "./GamesTable";
 import NoDatabaseWarning from "./NoDatabaseWarning";
 import OpeningsTable from "./OpeningsTable";
+import RepertoireMovesTable, {
+  RepertoireNoGames,
+  RepertoireSourceSelect,
+} from "./RepertoireMovesTable";
 import LichessOptionsPanel from "./options/LichessOptionsPanel";
 import LocalOptionsPanel from "./options/LocalOptionsPanel";
 import MasterOptionsPanel from "./options/MastersOptionsPanel";
@@ -116,7 +121,8 @@ function DatabasePanel() {
   const [db, setDb] = useAtom(currentDbTypeAtom);
   const explorerToken = sessions.find((session) => session.lichess?.accessToken)?.lichess
     ?.accessToken;
-  const missingExplorerToken = db !== "local" && !explorerToken;
+  const isRep = db === "rep";
+  const missingExplorerToken = (db === "lch_all" || db === "lch_master") && !explorerToken;
 
   const { data: databases } = useSWR(db === "local" ? "databases" : null, () => getDatabases());
 
@@ -139,7 +145,9 @@ function DatabasePanel() {
     }
   }, [referenceDatabase, setLocalOptions, db]);
 
-  const dbType: DBType = match(db)
+  // The repertoire is not an explorer; the explorer settings below stay as they were
+  const explorerDb = isRep ? "local" : db;
+  const dbType: DBType = match(explorerDb)
     .with("local", (v) => ({
       type: v,
       options: localOptions,
@@ -184,7 +192,8 @@ function DatabasePanel() {
     isLoading,
     error,
   } = useSWR(
-    tabType !== "options" &&
+    !isRep &&
+      tabType !== "options" &&
       (db !== "local" || tabType === "stats") &&
       !missingExplorerToken &&
       (dbType.type !== "local" || Boolean(dbType.options.path && dbType.options.position?.fen))
@@ -206,10 +215,13 @@ function DatabasePanel() {
               { label: t("Board.Database.Local"), value: "local" },
               { label: t("Board.Database.LichessAll"), value: "lch_all" },
               { label: t("Board.Database.LichessMaster"), value: "lch_master" },
+              { label: t("Board.Database.Repertoire.Label"), value: "rep" },
             ]}
             value={db}
-            onChange={(value) => setDb(value as "local" | "lch_all" | "lch_master")}
+            onChange={(value) => setDb(value as DbType)}
           />
+
+          {isRep && <RepertoireSourceSelect />}
 
           {db === "local" && (
             <Select
@@ -227,7 +239,7 @@ function DatabasePanel() {
           )}
         </Group>
 
-        {tabType !== "options" && (
+        {tabType !== "options" && !isRep && (
           <Text style={{ whiteSpace: "nowrap" }}>
             {t("Board.Database.Matches", {
               matches: formatNumber(
@@ -268,7 +280,11 @@ function DatabasePanel() {
           header={header}
           missingExplorerToken={missingExplorerToken}
         >
-          <OpeningsTable openings={openingData?.openings || []} loading={isLoading} fen={fen} />
+          {isRep ? (
+            <RepertoireMovesTable fen={fen} />
+          ) : (
+            <OpeningsTable openings={openingData?.openings || []} loading={isLoading} fen={fen} />
+          )}
         </PanelWithError>
         <PanelWithError
           value="games"
@@ -277,20 +293,24 @@ function DatabasePanel() {
           header={header}
           missingExplorerToken={missingExplorerToken}
         >
-          <GamesTable
-            games={db === "local" ? localGames?.data || [] : openingData?.games || []}
-            loading={db === "local" ? gamesLoading : isLoading}
-            databasePath={dbType.type === "local" ? dbType.options.path : null}
-            pagination={
-              db === "local"
-                ? {
-                    page: gamesPage,
-                    totalRecords: localGames?.count ?? 0,
-                    onPageChange: (page) => setGamesPagination({ key: localGamesKey, page }),
-                  }
-                : undefined
-            }
-          />
+          {isRep ? (
+            <RepertoireNoGames />
+          ) : (
+            <GamesTable
+              games={db === "local" ? localGames?.data || [] : openingData?.games || []}
+              loading={db === "local" ? gamesLoading : isLoading}
+              databasePath={dbType.type === "local" ? dbType.options.path : null}
+              pagination={
+                db === "local"
+                  ? {
+                      page: gamesPage,
+                      totalRecords: localGames?.count ?? 0,
+                      onPageChange: (page) => setGamesPagination({ key: localGamesKey, page }),
+                    }
+                  : undefined
+              }
+            />
+          )}
         </PanelWithError>
         <PanelWithError
           value="options"
@@ -304,6 +324,11 @@ function DatabasePanel() {
               .with("local", () => <LocalOptionsPanel />)
               .with("lch_all", () => <LichessOptionsPanel />)
               .with("lch_master", () => <MasterOptionsPanel />)
+              .with("rep", () => (
+                <Text size="sm" c="dimmed">
+                  {t("Board.Database.Repertoire.NoOptions")}
+                </Text>
+              ))
               .exhaustive()}
           </ScrollArea>
         </PanelWithError>
