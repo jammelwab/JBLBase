@@ -323,6 +323,12 @@ pub async fn convert_pgn(
     db.execute("CHECKPOINT", [])?;
 
     let total_games = proc.count();
+    if proc.skipped() > 0 {
+        info!(
+            "Imported {total_games} games, skipped {} with an unusable start position",
+            proc.skipped()
+        );
+    }
     let elapsed = start.elapsed().as_millis() as u32;
     let _ = app.emit(
         "convert_progress",
@@ -1651,6 +1657,49 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn import_skips_games_with_an_illegal_start_position() {
+        // Chess.com variants can start from positions that are not legal chess.
+        let pgn = r#"[Event "Live Chess"]
+[White "a"]
+[Black "b"]
+[Result "1-0"]
+
+1. e4 e5 1-0
+
+[Event "Odds Chess"]
+[White "a"]
+[Black "b"]
+[Result "0-1"]
+[SetUp "1"]
+[FEN "r1bqkb1r/pppppppp/8/8/8/8/PPPPPPPP/NNNNKNNN w kq - 0 1"]
+
+1. Nb3 e5 0-1
+
+[Event "Live Chess"]
+[White "a"]
+[Black "b"]
+[Result "1/2-1/2"]
+
+1. d4 d5 1/2-1/2
+"#;
+        let db = Connection::open_in_memory().unwrap();
+        prepare_pgn_import(&db, false, "test", None).unwrap();
+        let (count, skipped) = {
+            let appender = game_appender(&db).unwrap();
+            let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, None);
+            let mut reader = pgn_reader::Reader::new(pgn.as_bytes());
+            while proc.read_batch(&mut reader).unwrap() > 0 {}
+            proc.flush().unwrap();
+            (proc.count(), proc.skipped())
+        };
+        assert_eq!((count, skipped), (2, 1));
+        let stored: i64 = db
+            .query_row("SELECT COUNT(*) FROM games", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(stored, 2);
     }
 
     #[test]

@@ -14,6 +14,7 @@ pub struct PgnProcessor<'a> {
     level: CompressionLevel,
     continue_on_invalid_move: bool,
     timestamp: Option<i32>,
+    skipped: u32,
 }
 
 #[derive(Default, Debug)]
@@ -51,6 +52,7 @@ impl<'a> PgnProcessor<'a> {
             level,
             continue_on_invalid_move,
             timestamp,
+            skipped: 0,
         }
     }
 
@@ -60,6 +62,12 @@ impl<'a> PgnProcessor<'a> {
 
     pub fn count(&self) -> u32 {
         self.count
+    }
+
+    /// Games left out because their start position could not be set up,
+    /// e.g. Chess.com variants with custom starting positions.
+    pub fn skipped(&self) -> u32 {
+        self.skipped
     }
 
     pub fn read_batch<R: std::io::Read>(&mut self, reader: &mut Reader<R>) -> Result<usize, Error> {
@@ -360,6 +368,13 @@ impl<'a> Visitor for PgnProcessor<'a> {
     fn begin_movetext(&mut self, tags: Self::Tags) -> ControlFlow<Self::Output, Self::Movetext> {
         match GameInProcessing::new(tags, self.level) {
             Ok(game) => ControlFlow::Continue(game),
+            // One unusable game (e.g. a Chess.com variant with a start position
+            // that is not legal chess) must not abort a whole import.
+            Err(error) if self.continue_on_invalid_move => {
+                eprintln!("skipping game: {error}");
+                self.skipped += 1;
+                ControlFlow::Break(Ok(()))
+            }
             Err(error) => ControlFlow::Break(Err(invalid_pgn(error))),
         }
     }
