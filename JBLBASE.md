@@ -60,6 +60,18 @@ wen, Farbe). Ein Repertoire ist eine normale
 PGN-Datei im Dokumente-Ordner, die Varianten bilden den Baum, ohne
 Tiefenlimit.
 
+**Ordner:** Die Seite ist nach Spieler → Weiß/Schwarz → Ordner aufgebaut. Für
+verschiedene Eröffnungen legst du mehrere Repertoires an und sortierst sie in
+Ordner, z. B. Weiß → `1.d4` → `Londoner System`. Den Ordner gibst du beim
+Anlegen an oder später mit dem Ordner-Symbol oben rechts auf der Karte
+(**In Ordner verschieben**); Unterordner trennst du mit `/`
+(`1.d4/Londoner System`). Ein Ordner gibt es, solange ein Repertoire darin
+liegt. Das **+** an einem Ordner legt ein neues Repertoire direkt dort an.
+Liegen mehrere Repertoires in einem Ordner (oder unter Weiß/Schwarz), zeigen
+**Baum von allem** und **Mit meinen Partien vergleichen** sie zusammen als ein
+Baum. Der Vergleich über die Spielerkarte nimmt ebenfalls alle Repertoires
+dieser Farbe zusammen.
+
 **Eine Stellung ins Repertoire aufnehmen:**
 
 1. In irgendeiner Partie oder Analyse zur gewünschten Stellung gehen.

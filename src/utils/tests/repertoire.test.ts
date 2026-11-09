@@ -354,3 +354,38 @@ test("arrows for the board preview go from square to square", async () => {
     expect(sanToSquares(castle, "O-O-O")).toEqual(["e1", "c1"]);
     expect(sanToSquares(INITIAL_FEN, "Nf6")).toBeNull();
 });
+
+test("repertoires are sorted into folders and can be looked at together", async () => {
+    const { allFolders, buildFolderTree, combineTrees, folderItems, inFolder, normalizeFolder } =
+        await import("../repertoireFolders");
+    expect(normalizeFolder(" 1.d4 / Londoner System/ ")).toBe("1.d4/Londoner System");
+    expect(normalizeFolder(undefined)).toBe("");
+
+    const items = [
+        { name: "Londoner", folder: "1.d4/Systeme" },
+        { name: "Damengambit", folder: "1.d4" },
+        { name: "Allgemein", folder: "" },
+        { name: "Colle", folder: "1.D4/systeme" },
+    ];
+    const folders = buildFolderTree(items);
+    expect(folders.items.map((i) => i.name)).toEqual(["Allgemein"]);
+    expect(folders.children.map((c) => c.path)).toEqual(["1.d4"]);
+    expect(folders.children[0].children[0].items.map((i) => i.name)).toEqual(["Colle", "Londoner"]);
+    expect(folderItems(folders.children[0]).map((i) => i.name)).toEqual([
+        "Damengambit",
+        "Colle",
+        "Londoner",
+    ]);
+    expect(allFolders(items)).toEqual(["1.d4", "1.d4/Systeme"]);
+    expect(inFolder("1.d4/Systeme", "1.d4")).toBe(true);
+    expect(inFolder("1.d4x", "1.d4")).toBe(false);
+    expect(inFolder("anything", "")).toBe(true);
+
+    const a = tree(["d4", "d5", "Bf4"]);
+    const b = tree(["d4", "Nf6", "c4"], ["e4", "e5"]);
+    const combined = combineTrees([a, b])!;
+    expect(combined.children.map((c) => c.san)).toEqual(["d4", "e4"]);
+    expect(combined.children[0].children.map((c) => c.san)).toEqual(["d5", "Nf6"]);
+    // the originals stay as they were
+    expect(a.children[0].children.map((c) => c.san)).toEqual(["d5"]);
+});

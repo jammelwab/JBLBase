@@ -44,7 +44,7 @@ function addChild(parent: TreeNode, source: TreeNode): { child: TreeNode; added:
     return { child, added: true };
 }
 
-function mergeSubtree(target: TreeNode, source: TreeNode): number {
+export function mergeSubtree(target: TreeNode, source: TreeNode): number {
     let added = 0;
     for (const sourceChild of source.children) {
         const { child, added: isNew } = addChild(target, sourceChild);

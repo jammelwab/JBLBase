@@ -25,6 +25,7 @@ import {
 } from "./repertoireTree";
 import type { GameHeaders, TreeNode, TreeState } from "./treeReducer";
 import { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName } from "./mainOwner";
+import { combineTrees, normalizeFolder } from "./repertoireFolders";
 import { unwrap } from "./unwrap";
 
 export type RepertoireColor = "white" | "black";
@@ -34,10 +35,15 @@ export type Repertoire = {
     name: string;
     color: RepertoireColor;
     owner: string;
+    // Folder path like "1.d4/London System", "" for the top level
+    folder: string;
     root: TreeNode;
     headers: GameHeaders;
     index: Map<string, string[]>;
     stats: ReturnType<typeof repertoireStats>;
+    // Set when this is several repertoires (a folder) looked at together; it has no file of
+    // its own then, `file` is the first part's
+    parts?: Repertoire[];
 };
 
 // Who a repertoire belongs to: the main user (see ./mainOwner) or anyone else by name.
@@ -77,6 +83,8 @@ export type RepertoireView = {
     color?: RepertoireColor;
     // Whose repertoire `color` picks (a player card passes its player); the main user if unset
     owner?: string;
+    // With `color`: only the repertoires in this folder (and its subfolders)
+    folder?: string;
 };
 export const repertoireViewAtom = atom<RepertoireView | null>(null);
 
@@ -111,6 +119,7 @@ async function loadRepertoire(
         name: file.name,
         color,
         owner,
+        folder: normalizeFolder(info.folder),
         root: tree.root,
         headers: tree.headers,
         index: indexRepertoire(tree.root),
@@ -158,11 +167,13 @@ export async function createRepertoire({
     color,
     owner,
     dir,
+    folder = "",
 }: {
     name: string;
     color: RepertoireColor;
     owner: string;
     dir: string;
+    folder?: string;
 }) {
     const pgn = headersToPGN({
         id: 0,
@@ -176,11 +187,41 @@ export async function createRepertoire({
     });
     const result = await createFile({ filename: name, filetype: "repertoire", pgn, dir });
     if (result.isOk) {
-        const metadata = { ...result.value.metadata, color, owner };
+        const metadata = {
+            ...result.value.metadata,
+            color,
+            owner,
+            folder: normalizeFolder(folder),
+        };
         await writeTextFile(result.value.path.replace(/\.pgn$/, ".info"), JSON.stringify(metadata));
         bumpRepertoires();
     }
     return result;
+}
+
+// Moves a repertoire into another folder ("" for the top level).
+export async function setRepertoireFolder(file: FileMetadata, folder: string) {
+    const info = await readInfo(file);
+    await writeTextFile(
+        file.path.replace(/\.pgn$/, ".info"),
+        JSON.stringify({ ...info, folder: normalizeFolder(folder) }),
+    );
+    bumpRepertoires();
+}
+
+// Several repertoires of one player and color as one, e.g. a whole folder.
+export function combineRepertoires(parts: Repertoire[], name: string): Repertoire | null {
+    if (parts.length === 0) return null;
+    if (parts.length === 1) return parts[0];
+    const root = combineTrees(parts.map((p) => p.root))!;
+    return {
+        ...parts[0],
+        name,
+        root,
+        index: indexRepertoire(root),
+        stats: repertoireStats(root),
+        parts,
+    };
 }
 
 function serialize(root: TreeNode, headers: GameHeaders) {
