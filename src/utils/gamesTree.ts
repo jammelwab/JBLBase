@@ -1,8 +1,11 @@
 import { makeFen } from "chessops/fen";
-import { makeSquare } from "chessops";
-import { parseSan } from "chessops/san";
+import { makeSquare, parseSquare } from "chessops";
+import { normalizeMove } from "chessops/chess";
+import { chessgroundDests } from "chessops/compat";
+import { makeSan, parseSan } from "chessops/san";
 import { positionFromFen } from "./chessops";
 import { positionKey } from "./repertoireTree";
+import { createNode, defaultTree, type TreeNode } from "./treeReducer";
 
 // Your own games as an opening tree, compared with a repertoire. Only moves played at least
 // `minGames` times count, so one-off games don't clutter the tree.
@@ -161,4 +164,52 @@ export function sanToSquares(fen: string, san: string): [string, string] | null 
         return [makeSquare(move.from), makeSquare(kingTo)];
     }
     return [makeSquare(move.from), makeSquare(move.to)];
+}
+
+// For a playable board: whose turn it is and where every piece may go.
+export function boardMoves(fen: string): {
+    turn: "white" | "black";
+    dests: Map<string, string[]>;
+} {
+    const [pos] = positionFromFen(fen);
+    if (!pos) return { turn: "white", dests: new Map() };
+    return { turn: pos.turn, dests: chessgroundDests(pos) as Map<string, string[]> };
+}
+
+// The SAN of a move dragged on the board (castling either way, promotion to a queen).
+export function squaresToSan(fen: string, orig: string, dest: string): string | null {
+    const [pos] = positionFromFen(fen);
+    const from = parseSquare(orig);
+    const to = parseSquare(dest);
+    if (!pos || from === undefined || to === undefined) return null;
+    const piece = pos.board.get(from);
+    const promotes =
+        piece?.role === "pawn" && (dest[1] === "8" || dest[1] === "1") ? "queen" : undefined;
+    const move = normalizeMove(pos, { from, to, promotion: promotes });
+    if (!pos.isLegal(move)) return null;
+    return makeSan(pos, move);
+}
+
+// A tree that is only `line`, from `rootFen`, e.g. to add it to a repertoire.
+export function lineTree(rootFen: string, rootHalfMoves: number, line: string[]): TreeNode {
+    const root = defaultTree(rootFen).root;
+    root.halfMoves = rootHalfMoves;
+    const [pos] = positionFromFen(rootFen);
+    if (!pos) return root;
+    let cur = root;
+    for (const san of line) {
+        const move = parseSan(pos, san);
+        if (!move) break;
+        const sanText = makeSan(pos, move);
+        pos.play(move);
+        const child = createNode({
+            fen: makeFen(pos.toSetup()),
+            move,
+            san: sanText,
+            halfMoves: cur.halfMoves + 1,
+        });
+        cur.children.push(child);
+        cur = child;
+    }
+    return root;
 }

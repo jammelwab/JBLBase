@@ -113,6 +113,14 @@ Varianten deines Repertoires stehen, hat den kräftigsten grünen Pfeil, die and
 dünner. Die Größe des kleinen Bretts ziehst du an der Ecke oben links (Doppelklick setzt
 sie zurück), sie wird gemerkt.
 
+Auf dem kleinen Brett kannst du auch selbst ziehen, der Baum folgt dann deinem
+Repertoire: Steht der Zug im Repertoire, springt der Baum dorthin (klappt auf und
+markiert ihn), und die Pfeile zeigen die nächsten Züge. Erreichst du eine Stellung über
+eine andere Zugfolge, zeigt der Baum sie dort. Verlässt du das Repertoire, steht
+„Nicht in deinem Repertoire“ unter dem Brett, die Züge außerhalb sind orange
+umrandet, und **Zeile hinzufügen** nimmt die Zeile ins Repertoire auf (landet auch in
+der Import-Historie). Der Pfeil oben nimmt den letzten Zug zurück.
+
 Unter jedem Zug zeigt eine blaue Leiste den Anteil auf Lichess und eine grüne den Anteil
 deiner Varianten, die hinter diesem Zug stehen. Deine eigenen Züge sind nach Repertoire
 sortiert (oben der mit den meisten Varianten), die Züge des Gegners nach Lichess (oben

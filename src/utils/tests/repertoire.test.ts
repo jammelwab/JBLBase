@@ -5,6 +5,8 @@ import { positionFromFen } from "../chessops";
 import { classifyMove, countClassifications } from "../moveClassification";
 import {
     findCourseConflicts,
+    findPosition,
+    pathForLine,
     indexRepertoire,
     mergeCourse,
     mergeLine,
@@ -16,7 +18,14 @@ import {
     repertoireWeights,
     splitPgnGames,
 } from "../repertoireTree";
-import { childNodes, collectIssues, lineText } from "../gamesTree";
+import {
+    childNodes,
+    collectIssues,
+    lineText,
+    lineTree,
+    playLine,
+    squaresToSan,
+} from "../gamesTree";
 import { createNode, defaultTree, type TreeNode } from "../treeReducer";
 
 // Builds a tree from lines of SAN moves; the first line is the main line.
@@ -436,4 +445,39 @@ test("orderBy sorts by the scores, most first, and keeps ties in file order", ()
     const items = ["a", "b", "c", "d"];
     const score: Record<string, number[]> = { a: [1, 5], b: [3, 0], c: [1, 9], d: [3, 0] };
     expect(orderBy(items, (i) => score[i])).toEqual([1, 3, 2, 0]);
+});
+
+test("pathForLine follows the repertoire as far as the line goes", () => {
+    const rep = tree(["d4", "Nf6", "c4", "g6"], ["d4", "Nf6", "Nf3", "d5"]);
+    expect(pathForLine(rep, ["d4", "Nf6", "Nf3", "d5"])).toEqual([0, 0, 1, 0]);
+    expect(pathForLine(rep, ["d4", "Nf6", "Bg5"])).toEqual([0, 0]);
+    expect(pathForLine(rep, ["e4"])).toEqual([]);
+});
+
+test("findPosition finds a position reached by another move order", () => {
+    const rep = tree(["d4", "Nf6", "c4", "e6"], ["c4", "e5"]);
+    const fen = playLine(INITIAL_FEN, ["c4", "Nf6", "d4", "e6"]).fen;
+    expect(findPosition(rep, fen)).toEqual([0, 0, 0, 0]);
+    expect(findPosition(rep, playLine(INITIAL_FEN, ["e4"]).fen)).toBeNull();
+});
+
+test("squaresToSan turns a dragged move into SAN", () => {
+    expect(squaresToSan(INITIAL_FEN, "g1", "f3")).toBe("Nf3");
+    expect(squaresToSan(INITIAL_FEN, "e2", "e5")).toBeNull();
+    const castle = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+    // chessground offers both the king's square and the rook's square for castling
+    expect(squaresToSan(castle, "e1", "g1")).toBe("O-O");
+    expect(squaresToSan(castle, "e1", "h1")).toBe("O-O");
+    expect(squaresToSan(castle, "e1", "c1")).toBe("O-O-O");
+    expect(squaresToSan("7k/P7/8/8/8/8/8/K7 w - - 0 1", "a7", "a8")).toBe("a8=Q+");
+});
+
+test("lineTree builds a single line to add to a repertoire", () => {
+    const line = lineTree(INITIAL_FEN, 0, ["e4", "c5", "Nf3"]);
+    expect(lines(line)).toEqual(["e4 c5 Nf3"]);
+    expect(line.children[0].children[0].halfMoves).toBe(2);
+    const rep = tree(["e4", "e5"]);
+    const result = mergeLine(rep, line, [0, 0, 0]);
+    expect(result).toMatchObject({ ok: true, added: 2 });
+    expect(lines(rep)).toEqual(["e4 e5", "e4 c5 Nf3"]);
 });

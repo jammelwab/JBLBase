@@ -1,14 +1,14 @@
 import { ActionIcon, Box, Button, Group, Paper, Text } from "@mantine/core";
-import { IconArrowsDiagonal2, IconX } from "@tabler/icons-react";
+import { IconArrowBackUp, IconArrowsDiagonal2, IconPlus, IconX } from "@tabler/icons-react";
 import type { DrawBrushes, DrawShape } from "@lichess-org/chessground/draw";
 import type { Key } from "@lichess-org/chessground/types";
 import { useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { type PointerEvent as ReactPointerEvent, useMemo, useRef } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import useSWR from "swr";
 import { Chessground } from "@/chessground/Chessground";
-import { playLine, sanToSquares } from "@/utils/gamesTree";
+import { boardMoves, playLine, sanToSquares, squaresToSan } from "@/utils/gamesTree";
 import { hasLichessToken, lichessMoveCounts } from "@/utils/repertoireExplorer";
 import { positionKey } from "@/utils/repertoireTree";
 
@@ -42,8 +42,19 @@ function Arrow({ color }: { color: string }) {
   );
 }
 
+// Where the line on the small board is, compared with the repertoire: on one of its lines, at a
+// position it reaches by another move order, or outside it.
+export type LineStatus = "in" | "transposition" | "out";
+
+const STATUS_COLOR: Record<LineStatus, string> = {
+  in: "var(--mantine-color-green-6)",
+  transposition: "var(--mantine-color-violet-5)",
+  out: "var(--mantine-color-orange-6)",
+};
+
 // A small board in the corner of the tree that shows the move you clicked, with the line
-// that leads there. White moves are light chips, black moves dark ones.
+// that leads there. White moves are light chips, black moves dark ones. With `onMove` you can
+// play on it, and the tree follows.
 export default function BoardPreview({
   rootFen,
   rootHalfMoves,
@@ -52,6 +63,11 @@ export default function BoardPreview({
   weights,
   onOpen,
   onClose,
+  onMove,
+  onBack,
+  status,
+  onAdd,
+  known,
 }: {
   rootFen: string;
   rootHalfMoves: number;
@@ -61,9 +77,24 @@ export default function BoardPreview({
   weights: Map<string, Map<string, number>>;
   onOpen?: () => void;
   onClose: () => void;
+  // A move played on the board, as SAN
+  onMove?: (san: string) => void;
+  // Takes the last move back
+  onBack?: () => void;
+  status?: LineStatus;
+  // Adds the line to the repertoire, offered when it leaves it
+  onAdd?: () => void;
+  // How many moves of `line` are on a repertoire line; the rest get an orange frame
+  known?: number;
 }) {
   const { t } = useTranslation();
   const { fen, lastMove } = useMemo(() => playLine(rootFen, line), [rootFen, line]);
+  const { turn, dests } = useMemo(() => boardMoves(fen), [fen]);
+  // The newest move stays in sight when the line gets long
+  const movesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    movesRef.current?.scrollTo({ top: movesRef.current.scrollHeight });
+  }, [line]);
   // Most lines first
   const repertoireMoves = useMemo(
     () =>
@@ -163,20 +194,77 @@ export default function BoardPreview({
             {t("Repertoire.Preview.Title")}
           </Text>
         </Group>
-        <ActionIcon size="sm" variant="subtle" color="gray" onClick={onClose}>
-          <IconX size="0.9rem" />
-        </ActionIcon>
+        <Group gap={2} wrap="nowrap">
+          {onBack && line.length > 0 && (
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              title={t("Repertoire.Preview.Back")}
+              onClick={onBack}
+            >
+              <IconArrowBackUp size="0.9rem" />
+            </ActionIcon>
+          )}
+          <ActionIcon size="sm" variant="subtle" color="gray" onClick={onClose}>
+            <IconX size="0.9rem" />
+          </ActionIcon>
+        </Group>
       </Group>
-      <Box w={size} h={size}>
+      <Box w={size} h={size} title={onMove ? t("Repertoire.Preview.PlayHint") : undefined}>
         <Chessground
           coordinates={false}
-          viewOnly
+          viewOnly={!onMove}
+          turnColor={turn}
+          movable={{
+            free: false,
+            color: onMove ? turn : undefined,
+            dests: dests as never,
+            showDests: true,
+            events: {
+              after: (orig, dest) => {
+                const san = squaresToSan(fen, orig, dest);
+                if (san) onMove?.(san);
+              },
+            },
+          }}
           fen={fen}
           orientation={orientation}
           lastMove={lastMove ? (lastMove as Key[]) : undefined}
           drawable={{ enabled: false, visible: true, autoShapes: shapes, brushes: BRUSHES }}
         />
       </Box>
+      {status && (
+        <Box mt={6}>
+          <Group gap={6} wrap="nowrap">
+            <Box
+              w={8}
+              h={8}
+              style={{ borderRadius: 4, background: STATUS_COLOR[status], flexShrink: 0 }}
+            />
+            <Text size="xs" fw={600} c={STATUS_COLOR[status]}>
+              {status === "in"
+                ? t("Repertoire.Preview.InRepertoire")
+                : status === "transposition"
+                  ? t("Repertoire.Preview.Transposition")
+                  : t("Repertoire.Preview.OutOfRepertoire")}
+            </Text>
+          </Group>
+          {status === "out" && onAdd && (
+            <Button
+              size="compact-xs"
+              variant="light"
+              color="orange"
+              fullWidth
+              mt={4}
+              leftSection={<IconPlus size="0.8rem" />}
+              onClick={onAdd}
+            >
+              {t("Repertoire.Preview.AddLine")}
+            </Button>
+          )}
+        </Box>
+      )}
       <Box mt={6}>
         <Group gap={6} wrap="nowrap" align="flex-start">
           <Arrow color={REPERTOIRE_ARROW} />
@@ -213,7 +301,19 @@ export default function BoardPreview({
           </Group>
         )}
       </Box>
-      <Box mt={6} mah={88} style={{ overflowY: "auto", lineHeight: 1.9 }}>
+      <Box
+        ref={movesRef}
+        mt={6}
+        mah={88}
+        style={{
+          overflowY: "auto",
+          lineHeight: 1.9,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          rowGap: 2,
+        }}
+      >
         {line.map((san, i) => {
           const half = rootHalfMoves + i + 1;
           const white = half % 2 === 1;
@@ -235,7 +335,10 @@ export default function BoardPreview({
                   borderRadius: 4,
                   background: white ? "#f8f9fa" : "#1f2023",
                   color: white ? "#1a1b1e" : "#f1f3f5",
-                  border: "1px solid var(--mantine-color-default-border)",
+                  border:
+                    known !== undefined && i >= known
+                      ? "1px dashed var(--mantine-color-orange-6)"
+                      : "1px solid var(--mantine-color-default-border)",
                 }}
               >
                 {san}
