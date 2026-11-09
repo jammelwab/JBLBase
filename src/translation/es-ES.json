@@ -794,6 +794,8 @@
     "Settings.Repertoire.Depth.Desc": "",
     "Settings.Repertoire.Desc": "",
     "Settings.Repertoire.Essential": "",
+    "Settings.Repertoire.MainOwner": "",
+    "Settings.Repertoire.MainOwner.Desc": "",
     "Settings.Repertoire.Standard": "",
     "Settings.ScrollThroughMoves": "Desplazarse por los movimientos",
     "Settings.ScrollThroughMoves.Desc": "Habilitar o deshabilitar el desplazamiento por los movimientos con el ratón en el tablero",

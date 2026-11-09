@@ -117,7 +117,7 @@ export function AccountCard({
     info(`converting ${filepath} ${timestamp}`);
     const filename = title + (type === "lichess" ? " Lichess" : " Chess.com");
     // Keep adding to the existing database, even when its file name is
-    // spelled differently ("Ragingforlife" vs. "ragingforlife").
+    // spelled differently ("Beispielkonto" vs. "beispielkonto").
     const dbPath =
       database?.file ??
       (await resolve(

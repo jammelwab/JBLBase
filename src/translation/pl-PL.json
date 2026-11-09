@@ -814,6 +814,8 @@
     "Settings.Repertoire.Depth.Desc": "",
     "Settings.Repertoire.Desc": "",
     "Settings.Repertoire.Essential": "",
+    "Settings.Repertoire.MainOwner": "",
+    "Settings.Repertoire.MainOwner.Desc": "",
     "Settings.Repertoire.Standard": "",
     "Settings.ScrollThroughMoves": "Przewijaj ruchy",
     "Settings.ScrollThroughMoves.Desc": "Włącz lub wyłącz przewijanie ruchów na szachownicy",

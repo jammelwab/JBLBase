@@ -16,7 +16,7 @@ import {
   ownMoveCounts,
 } from "@/utils/repertoireExplorer";
 import { type MoveCount, moveShares, nodesOnPath, positionKey } from "@/utils/repertoireTree";
-import { MAIN_OWNER, type Repertoire } from "@/utils/repertoires";
+import { type Repertoire, useMainOwner } from "@/utils/repertoires";
 import type { TreeNode, TreeState } from "@/utils/treeReducer";
 import { ColorDot } from "./RepertoireLabel";
 import TreeDiagram, { type DiagramLink, type DiagramNode } from "./TreeDiagram";
@@ -105,7 +105,8 @@ export default function RepertoireTreeView({
   const { data: ownAvailable } = useSWR("own-games-available", hasOwnGames);
 
   const showLichess = hasLichessToken();
-  const showOwn = repertoire.owner === MAIN_OWNER && !!ownAvailable;
+  const isOwn = repertoire.owner === useMainOwner();
+  const showOwn = isOwn && !!ownAvailable;
   const { root, color } = repertoire;
 
   const fens = useMemo(() => openPositions(root, expanded), [root, expanded]);
@@ -339,7 +340,7 @@ export default function RepertoireTreeView({
           <Text size="sm">{t("Repertoire.Tree.NoLichess")}</Text>
         </Alert>
       )}
-      {repertoire.owner === MAIN_OWNER && ownAvailable === false && (
+      {isOwn && ownAvailable === false && (
         <Alert color="gray" py="xs">
           <Text size="sm">{t("Repertoire.Tree.NoOwnGames")}</Text>
         </Alert>

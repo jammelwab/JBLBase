@@ -27,7 +27,7 @@ test("own games show up once an account is added, without restarting the app", a
     store.set(sessionsAtom, []);
     expect(await hasOwnGames()).toBe(false);
 
-    databases.push({ filename: "Ragingforlife_chesscom.duckdb", file: "/db/x.duckdb" });
-    store.set(sessionsAtom, [{ chessCom: { username: "ragingforlife", stats: {} }, updatedAt: 0 }]);
+    databases.push({ filename: "Beispielkonto_chesscom.duckdb", file: "/db/x.duckdb" });
+    store.set(sessionsAtom, [{ chessCom: { username: "beispielkonto", stats: {} }, updatedAt: 0 }]);
     expect(await hasOwnGames()).toBe(true);
 });

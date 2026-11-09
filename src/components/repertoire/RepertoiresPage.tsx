@@ -30,11 +30,11 @@ import { activeTabAtom, tabsAtom } from "@/state/atoms";
 import { openFile } from "@/utils/files";
 import {
   createRepertoire,
-  DEFAULT_REPERTOIRES,
-  MAIN_OWNER,
+  defaultRepertoires,
   type Repertoire,
   type RepertoireColor,
   repertoireViewAtom,
+  useMainOwner,
   useRepertoires,
 } from "@/utils/repertoires";
 import ImportCourseModal from "./ImportCourseModal";
@@ -63,6 +63,7 @@ function RepertoireCard({
   const setActiveTab = useSetAtom(activeTabAtom);
   const navigate = useNavigate();
   const { stats } = repertoire;
+  const mainOwner = useMainOwner();
 
   return (
     <Card withBorder padding="md">
@@ -110,7 +111,7 @@ function RepertoireCard({
             {t("Common.Open")}
           </Button>
         </Group>
-        {repertoire.owner === MAIN_OWNER && (
+        {repertoire.owner === mainOwner && (
           <Button
             variant="subtle"
             size="xs"
@@ -137,7 +138,8 @@ function NewRepertoireModal({
   const { t } = useTranslation();
   const { documentDir } = useLoaderData({ from: "/repertoires" });
   const [name, setName] = useState("");
-  const [owner, setOwner] = useState(MAIN_OWNER);
+  const mainOwner = useMainOwner();
+  const [owner, setOwner] = useState(mainOwner);
   const [color, setColor] = useState<RepertoireColor>("white");
   const [error, setError] = useState("");
 
@@ -148,10 +150,10 @@ function NewRepertoireModal({
     }
     const result = await createRepertoire({
       name: name.trim(),
-      // "aaron" joins the existing "Aaron" instead of starting a second group
+      // a name typed in lowercase joins the existing group instead of starting a second one
       owner:
         owners.find((o) => o.toLowerCase() === owner.trim().toLowerCase()) ??
-        (owner.trim() || MAIN_OWNER),
+        (owner.trim() || mainOwner),
       color,
       dir: documentDir,
     });
@@ -210,13 +212,14 @@ export default function RepertoiresPage() {
   const colorName = useColorName();
   const { documentDir } = useLoaderData({ from: "/repertoires" });
   const { data: repertoires, isLoading } = useRepertoires(documentDir);
+  const mainOwner = useMainOwner();
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useAtom(repertoireViewAtom);
   const viewRepertoire = view
     ? (repertoires ?? []).find((r) =>
-        view.path ? r.file.path === view.path : r.owner === MAIN_OWNER && r.color === view.color,
+        view.path ? r.file.path === view.path : r.owner === mainOwner && r.color === view.color,
       )
     : undefined;
 
@@ -228,10 +231,11 @@ export default function RepertoiresPage() {
     return groups;
   }, [repertoires]);
 
-  const missing = DEFAULT_REPERTOIRES.filter(
+  const defaults = defaultRepertoires(mainOwner);
+  const missing = defaults.filter(
     (d) => !(repertoires ?? []).some((r) => r.owner === d.owner && r.color === d.color),
   );
-  const owners = [...new Set([...DEFAULT_REPERTOIRES.map((d) => d.owner), ...byOwner.keys()])];
+  const owners = [...new Set([...defaults.map((d) => d.owner), ...byOwner.keys()])];
 
   async function createDefaults() {
     setBusy(true);
@@ -312,7 +316,7 @@ export default function RepertoiresPage() {
         {view && !viewRepertoire && !isLoading && (
           <Alert color="blue" withCloseButton onClose={() => setView(null)}>
             {t("Repertoire.Compare.NoRepertoire", {
-              name: `${MAIN_OWNER} ${colorName(view.color ?? "white")}`,
+              name: `${mainOwner} ${colorName(view.color ?? "white")}`,
             })}
           </Alert>
         )}

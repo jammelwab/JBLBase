@@ -1562,12 +1562,12 @@ mod tests {
         db.execute_batch(include_str!("init-database.sql")).unwrap();
         db.execute_batch(
             "INSERT INTO games (white, black, result, site, movedata, utc_timestamp) VALUES
-                ('RagingForLife', 'someone', '1-0', 'Chess.com', '\\x00'::BLOB, '2026-01-01 10:00:00'),
-                ('other', 'ragingforlife', '0-1', 'Chess.com', '\\x00'::BLOB, '2026-01-02 10:00:00'),
+                ('BeispielKonto', 'someone', '1-0', 'Chess.com', '\\x00'::BLOB, '2026-01-01 10:00:00'),
+                ('other', 'beispielkonto', '0-1', 'Chess.com', '\\x00'::BLOB, '2026-01-02 10:00:00'),
                 ('other', 'third', '1-0', 'Chess.com', '\\x00'::BLOB, '2026-01-03 10:00:00');",
         )
         .unwrap();
-        let info = read_player_game_info(&db, "Ragingforlife", |_| {}).unwrap();
+        let info = read_player_game_info(&db, "Beispielkonto", |_| {}).unwrap();
         let games: usize = info.site_stats_data.iter().map(|s| s.data.len()).sum();
         assert_eq!(games, 2);
         assert!(info
@@ -1583,7 +1583,7 @@ mod tests {
 [Site "Chess.com"]
 [Date "2025.03.14"]
 [Round "-"]
-[White "RagingForLife"]
+[White "BeispielKonto"]
 [Black "opponent1"]
 [Result "1-0"]
 [CurrentPosition "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -"]
@@ -1595,7 +1595,7 @@ mod tests {
 [WhiteElo "1234"]
 [BlackElo "1200"]
 [TimeControl "600"]
-[Termination "RagingForLife won on time"]
+[Termination "BeispielKonto won on time"]
 [StartTime "18:02:11"]
 [EndDate "2025.03.14"]
 [EndTime "18:12:11"]
@@ -1608,7 +1608,7 @@ mod tests {
 [Date "2025.04.01"]
 [Round "-"]
 [White "opponent2"]
-[Black "RagingForLife"]
+[Black "BeispielKonto"]
 [Result "1/2-1/2"]
 [UTCDate "2025.04.01"]
 [UTCTime "09:00:00"]
@@ -1619,7 +1619,7 @@ mod tests {
 1. d4 {[%clk 0:02:59]} 1... d5 {[%clk 0:02:58]} 2. c4 {[%clk 0:02:57]} 1/2-1/2
 "#;
         let db = Connection::open_in_memory().unwrap();
-        prepare_pgn_import(&db, false, "ragingforlife Chess.com", None).unwrap();
+        prepare_pgn_import(&db, false, "beispielkonto Chess.com", None).unwrap();
         {
             let appender = game_appender(&db).unwrap();
             let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, None);
@@ -1632,7 +1632,7 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM games", [], |r| r.get(0))
             .unwrap();
         assert_eq!(stored, 2, "both games must be imported");
-        let info = read_player_game_info(&db, "ragingforlife", |_| {}).unwrap();
+        let info = read_player_game_info(&db, "beispielkonto", |_| {}).unwrap();
         let games: usize = info.site_stats_data.iter().map(|s| s.data.len()).sum();
         assert_eq!(
             games,

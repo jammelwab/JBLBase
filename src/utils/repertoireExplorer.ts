@@ -52,7 +52,7 @@ type OwnAccount = { path: string; player: string };
 
 let accountsPromise: Promise<OwnAccount[]> | null = null;
 
-// The account name as the games spell it: "ragingforlife" can be "RagingForLife" there.
+// The account name as the games spell it: "beispielkonto" can be "BeispielKonto" there.
 async function playerName(path: string, username: string): Promise<string> {
     const res = await commands.getPlayers(path, {
         options: { skipCount: true, pageSize: 50, sort: "name", direction: "asc" },
