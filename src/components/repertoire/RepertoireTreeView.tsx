@@ -1,4 +1,15 @@
-import { ActionIcon, Alert, Box, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Group,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 import { IconArrowLeft, IconArrowsExchange } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
@@ -22,6 +33,7 @@ import type { TreeNode, TreeState } from "@/utils/treeReducer";
 import BoardPreview from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
 import TreeDiagram, { type DiagramLink, type DiagramNode } from "./TreeDiagram";
+import { useOpenLine } from "./useOpenLine";
 import { usePositionData } from "./usePositionData";
 
 const LICHESS_COLOR = "var(--mantine-color-blue-5)";
@@ -141,13 +153,19 @@ export default function RepertoireTreeView({
     });
   }, []);
 
+  const openLine = useOpenLine(repertoire.root.fen, repertoire.root.halfMoves, repertoire.color);
   const open = useCallback(
     async (path: number[]) => {
+      // A folder looked at as a whole has no file to open, so the line opens on its own
+      if (repertoire.parts) {
+        await openLine(nodesOnPath(repertoire.root, path).map((n) => n.san!));
+        return;
+      }
       const id = await openFile(repertoire.file, setTabs, setActiveTab);
       updatePersistedState<TreeState>(id, (state) => ({ ...state, position: path }));
       navigate({ to: "/" });
     },
-    [repertoire.file, setTabs, setActiveTab, navigate],
+    [repertoire, openLine, setTabs, setActiveTab, navigate],
   );
 
   // Opens everything above `path` and moves the view there
@@ -308,6 +326,11 @@ export default function RepertoireTreeView({
           </ActionIcon>
           <ColorDot color={repertoire.color} />
           <Title order={3}>{repertoire.name}</Title>
+          {repertoire.parts && (
+            <Badge variant="light" color="gray">
+              {t("Repertoire.Folder.Combined", { count: repertoire.parts.length })}
+            </Badge>
+          )}
         </Group>
         <Group gap="xs">
           <Button

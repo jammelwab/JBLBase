@@ -24,6 +24,11 @@ export function RepertoireLabel({ repertoire }: { repertoire: Repertoire }) {
     <Group gap={6} wrap="nowrap">
       <ColorDot color={repertoire.color} />
       <Text size="sm" fw={500}>
+        {repertoire.folder && (
+          <Text span size="sm" c="dimmed">
+            {repertoire.folder.replaceAll("/", " › ")} ›{" "}
+          </Text>
+        )}
         {repertoire.name}
       </Text>
       <Badge size="xs" variant="light" color="gray">

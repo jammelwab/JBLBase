@@ -15,12 +15,9 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
-import { useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useSWR from "swr";
-import { activeTabAtom, tabsAtom } from "@/state/atoms";
 import {
   childNodes,
   collectIssues,
@@ -39,11 +36,10 @@ import {
 } from "@/utils/repertoireExplorer";
 import type { MoveCount } from "@/utils/repertoireTree";
 import type { Repertoire } from "@/utils/repertoires";
-import { createTab } from "@/utils/tabs";
-import { defaultTree } from "@/utils/treeReducer";
 import BoardPreview from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
 import TreeDiagram, { type DiagramNode } from "./TreeDiagram";
+import { useOpenLine } from "./useOpenLine";
 import { usePositionData } from "./usePositionData";
 
 const LICHESS_COLOR = "var(--mantine-color-blue-5)";
@@ -142,9 +138,6 @@ export default function RepertoireCompareView({
   onBack: () => void;
 }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const setTabs = useSetAtom(tabsAtom);
-  const setActiveTab = useSetAtom(activeTabAtom);
   const [minGames, setMinGames] = useState(2);
   const [expanded, setExpanded] = useState(() => new Set<string>());
   const { data: ownAvailable } = useSWR(ownGamesKey(repertoire.owner), () =>
@@ -181,21 +174,7 @@ export default function RepertoireCompareView({
     });
   }, []);
 
-  const openLine = useCallback(
-    async (line: string[]) => {
-      const tree = defaultTree(root.fen);
-      await createTab({
-        tab: { name: lineText(line, root.halfMoves), type: "analysis" },
-        setTabs,
-        setActiveTab,
-        pgn: `${lineText(line, root.halfMoves, "...")} *`,
-        headers: { ...tree.headers, orientation: repertoire.color },
-        position: line.map(() => 0),
-      });
-      navigate({ to: "/" });
-    },
-    [root, repertoire.color, setTabs, setActiveTab, navigate],
-  );
+  const openLine = useOpenLine(root.fen, root.halfMoves, repertoire.color);
 
   const loadStats = useCallback(
     (fen: string) => ownMoveCounts(fen, repertoire.color, repertoire.owner),
@@ -313,6 +292,11 @@ export default function RepertoireCompareView({
             </ActionIcon>
             <ColorDot color={repertoire.color} />
             <Title order={3}>{t("Repertoire.Compare.Title", { name: repertoire.name })}</Title>
+            {repertoire.parts && (
+              <Badge variant="light" color="gray">
+                {t("Repertoire.Folder.Combined", { count: repertoire.parts.length })}
+              </Badge>
+            )}
           </Group>
           <NumberInput
             size="xs"
