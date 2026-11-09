@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { createFile } from "@/utils/files";
 import GenericCard from "../common/GenericCard";
 import type { Directory, FileMetadata, FileType } from "./file";
+import { moveHistory } from "@/utils/repertoireHistory";
 
 const FILE_TYPES = [
   { label: "Game", value: "game" },
@@ -147,9 +148,11 @@ export function EditModal({
 
   async function editFile() {
     const metadataPath = metadata.path.replace(".pgn", ".info");
+    // Keep the rest (a repertoire's color, owner and folder)
     const newMetadata = {
+      ...metadata.metadata,
       type: filetype,
-      tags: [],
+      tags: metadata.metadata.tags ?? [],
     };
     await writeTextFile(metadataPath, JSON.stringify(newMetadata));
 
@@ -157,6 +160,7 @@ export function EditModal({
 
     await rename(metadata.path, newPGNPath);
     await rename(metadataPath.replace(".pgn", ".info"), newPGNPath.replace(".pgn", ".info"));
+    if (newPGNPath !== metadata.path) await moveHistory(metadata.path, newPGNPath);
 
     mutate();
     setSelected((selected) =>

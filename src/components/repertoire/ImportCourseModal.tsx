@@ -222,7 +222,16 @@ export default function ImportCourseModal({
     if (!repertoire) return;
     setSaving(true);
     try {
-      const result = await importCourseIntoRepertoire(repertoire.file, chapters, choices, "");
+      const result = await importCourseIntoRepertoire(
+        repertoire.file,
+        chapters,
+        choices,
+        "",
+        courses
+          .filter((c) => c.selected.size > 0)
+          .map((c) => c.course.name)
+          .join(", "),
+      );
       notifications.show({
         color: result.added > 0 ? "green" : "gray",
         title: repertoire.name,

@@ -39,6 +39,7 @@ import {
   processEntriesRecursively,
 } from "./file";
 import { CreateDirectoryModal, CreateModal, EditModal } from "./Modals";
+import { removeHistory } from "@/utils/repertoireHistory";
 
 const FILE_TYPES: FileType[] = ["game", "repertoire", "tournament", "puzzle", "other"];
 type Entry = FileMetadata | Directory;
@@ -204,6 +205,7 @@ function FilesPage() {
     } else {
       await remove(selected.path);
       await remove(selected.path.replace(".pgn", ".info")).catch(() => {});
+      await removeHistory(selected.path);
     }
 
     await mutate();

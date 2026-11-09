@@ -30,6 +30,7 @@ import classes from "./DirectoryTree.module.css";
 import type { Directory, FileMetadata } from "./file";
 import { getStats } from "./opening";
 import { FileIcon } from "./FileIcon";
+import { moveHistory } from "@/utils/repertoireHistory";
 
 type DragContextType = {
   draggingPath: string | null;
@@ -372,6 +373,7 @@ function DirectoryNode({
             sourcePath.replace(".pgn", ".info"),
             targetPath.replace(".pgn", ".info"),
           ).catch(() => {});
+          await moveHistory(sourcePath, targetPath);
         }
         await refreshDirectory();
         setExpandedIds((prev) => (prev.includes(targetId!) ? prev : [...prev, targetId!]));

@@ -26,6 +26,13 @@ import {
 import type { GameHeaders, TreeNode, TreeState } from "./treeReducer";
 import { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName } from "./mainOwner";
 import { combineTrees, normalizeFolder } from "./repertoireFolders";
+import {
+    type ImportEntry,
+    readHistory,
+    recordImport,
+    undoPlan,
+    writeHistory,
+} from "./repertoireHistory";
 import { unwrap } from "./unwrap";
 
 export type RepertoireColor = "white" | "black";
@@ -234,20 +241,33 @@ function serialize(root: TreeNode, headers: GameHeaders) {
     })}\n\n`;
 }
 
+// The repertoire file as it is on disk, for the import history
+async function readRaw(file: FileMetadata): Promise<string> {
+    const [pgn] = unwrap(await commands.readGames(file.path, 0, 0));
+    return pgn ?? "";
+}
+
 // Adds a line (optionally with its side variations) to a repertoire file. The file is read
 // fresh from disk, and a tab that has the repertoire open in the background gets the same
-// moves, so neither overwrites the other later.
+// moves, so neither overwrites the other later. `label` names the import in the history.
 export async function addLineToRepertoire(
     file: FileMetadata,
     source: TreeNode,
     path: number[],
-    options: { withVariations: boolean },
+    options: { withVariations: boolean; label?: string },
 ): Promise<MergeResult> {
+    const before = await readRaw(file);
     const repertoire = await loadRepertoire(file);
     const result = mergeLine(repertoire.root, source, path, options);
     if (!result.ok) return result;
 
     if (result.added > 0) {
+        await recordImport(file.path, {
+            kind: "line",
+            source: options.label ?? "",
+            added: result.added,
+            before,
+        });
         unwrap(
             await commands.writeGame(file.path, 0, serialize(repertoire.root, repertoire.headers)),
         );
@@ -310,10 +330,18 @@ export async function importCourseIntoRepertoire(
     chapters: CourseChapter[],
     choices: Map<string, ConflictChoice>,
     note: string,
+    label = "",
 ): Promise<CourseMergeResult> {
+    const before = await readRaw(file);
     const repertoire = await loadRepertoire(file);
     const result = mergeCourse(repertoire.root, chapters, repertoire.color, choices, note);
     if (result.added > 0) {
+        await recordImport(file.path, {
+            kind: "course",
+            source: label,
+            added: result.added,
+            before,
+        });
         unwrap(
             await commands.writeGame(file.path, 0, serialize(repertoire.root, repertoire.headers)),
         );
@@ -335,4 +363,38 @@ export async function importCourseIntoRepertoire(
 
     bumpRepertoires();
     return result;
+}
+
+export type { ImportEntry };
+
+export function getImportHistory(file: FileMetadata): Promise<ImportEntry[]> {
+    return readHistory(file.path);
+}
+
+// Puts the repertoire back to how it was before the import `id` (and every later import).
+// A tab that has the repertoire open gets the old moves too.
+export async function undoImport(file: FileMetadata, id: string): Promise<ImportEntry[] | null> {
+    const plan = undoPlan(await readHistory(file.path), id);
+    if (!plan) return null;
+    unwrap(await commands.writeGame(file.path, 0, plan.restore));
+    await writeHistory(file.path, plan.remaining);
+
+    const tree = await parsePGN(plan.restore);
+    const store = getDefaultStore();
+    for (const tab of store.get(tabsAtom)) {
+        const origin = tab.gameOrigin;
+        if (
+            (origin.kind === "file" || origin.kind === "temp_file") &&
+            origin.file.path === file.path
+        ) {
+            updatePersistedState<TreeState>(tab.value, (state) => ({
+                ...state,
+                root: structuredClone(tree.root),
+                position: [],
+            }));
+        }
+    }
+
+    bumpRepertoires();
+    return plan.undone;
 }
