@@ -26,19 +26,10 @@ Projekteinstellungen, z. B. `jblbase-1a2b3`).
    **`budget-alerts`**.
 6. Speichern.
 
-## 3. Rechte für die Kostenbremse
+## 3. Cloud Billing API
 
-Die Kostenbremse läuft als Standard-Dienstkonto
-`<PROJEKTNUMMER>-compute@developer.gserviceaccount.com` (die Projektnummer
-steht in den Projekteinstellungen).
-
-1. Cloud Billing API einschalten:
-   <https://console.cloud.google.com/apis/library/cloudbilling.googleapis.com>
-   → _Aktivieren_.
-2. <https://console.cloud.google.com/billing> → Rechnungskonto →
-   _Kontoverwaltung_ → _Hauptkonto hinzufügen_: das Dienstkonto oben, Rolle
-   **Rechnungskontoadministrator**. Nur damit darf es die Abrechnung vom
-   Projekt trennen.
+<https://console.cloud.google.com/apis/library/cloudbilling.googleapis.com?project=jblbase>
+→ _Aktivieren_.
 
 ## 4. Firestore
 
@@ -62,22 +53,28 @@ _Jetzt starten_ → **E-Mail/Passwort** aktivieren. Lichess folgt in Phase 2
    ins Repository. **Keine Dienstkonto-Schlüssel** in den Chat oder ins
    Repository.
 
-## 7. Deploy von Regeln und Kostenbremse
+## 7. Deploy und Rechte für die Kostenbremse
 
-Am eigenen Rechner, im Repository-Ordner (Node.js 22 nötig,
-<https://nodejs.org>):
+Ohne lokale Installation in der Cloud Shell
+(<https://shell.cloud.google.com/?project=jblbase&show=terminal>). Dort ist
+man bereits angemeldet, `firebase login` ist nicht nötig.
 
 ```sh
-cd firebase
-npm install
+git clone https://github.com/jammelwab/JBLBase.git && cd JBLBase/firebase
 npm --prefix functions install
-npx firebase login
-npx firebase use default       # Projekt jblbase
-npx firebase deploy --only firestore,functions
+npx -y firebase-tools@15 deploy --only firestore,functions --project jblbase
 ```
 
-Fragt der Deploy nach dem Aktivieren von APIs (Cloud Functions, Cloud
-Build, Artifact Registry, Eventarc, Pub/Sub), jeweils mit **Ja** bestätigen.
+Fragen zum Aktivieren von APIs mit `y` beantworten, Aufbewahrung der
+Container-Images: `1` Tag.
+
+Einmalig danach: Die Function darf die Abrechnung vom Projekt trennen. Die
+Rolle „Projekt-Abrechnungsmanager“ gilt nur für dieses Projekt.
+
+```sh
+SA=$(gcloud functions describe budgetGuard --region=europe-west3 --format='value(serviceConfig.serviceAccountEmail)')
+gcloud projects add-iam-policy-binding jblbase --member="serviceAccount:$SA" --role=roles/billing.projectManager --condition=None
+```
 
 ## 8. Kostenbremse prüfen (optional)
 
