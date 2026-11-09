@@ -515,6 +515,30 @@ async getCachedEvals(fen: string) : Promise<Result<CachedEvalJs[], string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async trainingLoadDeck(deck: string) : Promise<Result<TrainingDeck | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("training_load_deck", { deck }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async trainingSaveCards(deck: string, cards: TrainingCard[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("training_save_cards", { deck, cards }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async trainingAppendReviews(deck: string, reviews: TrainingReview[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("training_append_reviews", { deck, reviews }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -615,6 +639,17 @@ export type TimeControl = { initialTime: bigint; increment: bigint }
 export type Token = { type: "ParenOpen" } | { type: "ParenClose" } | { type: "Comment"; value: string } | { type: "San"; value: string } | { type: "Header"; value: { tag: string; value: string } } | { type: "Nag"; value: string } | { type: "Outcome"; value: string }
 export type TournamentQuery = { options: QueryOptions<TournamentSort>; name: string | null }
 export type TournamentSort = "name" | "games_count"
+export type TrainingCard = { fen: string; answer: string; 
+/**
+ * FSRS card state as JSON.
+ */
+card: string }
+export type TrainingDeck = { cards: TrainingCard[]; reviews: TrainingReview[] }
+export type TrainingReview = { fen: string; 
+/**
+ * FSRS review log as JSON.
+ */
+log: string }
 /**
  * Represents a UCI option definition.
  */

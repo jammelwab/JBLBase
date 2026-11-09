@@ -98,6 +98,9 @@ pub enum Error {
 
     #[error("Evaluation cache is not available")]
     EvalCacheUnavailable,
+
+    #[error("Training store is not available")]
+    TrainingStoreUnavailable,
 }
 
 impl From<rusqlite::Error> for Error {

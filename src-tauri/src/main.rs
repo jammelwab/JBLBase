@@ -8,6 +8,7 @@ mod db;
 mod engine;
 mod error;
 mod eval_cache;
+mod training;
 mod game;
 mod vision;
 
@@ -90,6 +91,7 @@ pub struct AppState {
     game_manager: GameManager,
     progress_state: ProgressStore,
     eval_cache: eval_cache::EvalCache,
+    training: training::TrainingStore,
 }
 
 #[tauri::command]
@@ -192,7 +194,10 @@ fn main() {
             get_sound_server_port,
             eval_cache::get_eval_cache_stats,
             eval_cache::clear_eval_cache,
-            eval_cache::get_cached_evals
+            eval_cache::get_cached_evals,
+            training::training_load_deck,
+            training::training_save_cards,
+            training::training_append_reviews
         ))
         .events(tauri_specta::collect_events!(
             BestMovesPayload,
@@ -269,8 +274,9 @@ fn main() {
                         log::warn!("Failed to create app data dir: {err}");
                     }
                     state.eval_cache.open(dir.join(eval_cache::CACHE_FILE_NAME));
+                    state.training.open(dir.join(training::TRAINING_FILE_NAME));
                 }
-                Err(err) => log::warn!("No app data dir, evaluation cache disabled: {err}"),
+                Err(err) => log::warn!("No app data dir, evaluation cache and training store disabled: {err}"),
             }
 
             *state

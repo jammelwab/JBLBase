@@ -55,6 +55,7 @@ import { getMoveDestination, getVariationLine } from "@/utils/chess";
 import { classificationSvg } from "@/utils/moveClassification";
 import { chessopsError, forceEnPassant, positionFromFen } from "@/utils/chessops";
 import { getTabFile, getTabGameNumber } from "@/utils/tabs";
+import { samePosition } from "@/utils/training";
 import ShowMaterial from "../common/ShowMaterial";
 import { TreeStateContext } from "../common/TreeStateContext";
 import FideInfo from "../databases/FideInfo";
@@ -190,7 +191,7 @@ function Board({
       return;
     }
     if (practicing) {
-      const c = deck.positions.find((c) => c.fen === currentNode.fen);
+      const c = deck.positions.find((c) => samePosition(c.fen, currentNode.fen));
       if (!c) {
         return;
       }
@@ -343,7 +344,7 @@ function Board({
     !!headers.black_time_control;
 
   const practiceLock =
-    (!!practicing && !deck.positions.find((c) => c.fen === currentNode.fen)) ||
+    (!!practicing && !deck.positions.find((c) => samePosition(c.fen, currentNode.fen))) ||
     (lineTrainer.active && !lineTrainer.onMove);
 
   const movableColor: "white" | "black" | "both" | undefined = useMemo(() => {

@@ -37,6 +37,7 @@ import {
   type SessionItem,
 } from "@/utils/lineTrainer";
 import { getTabFile, getTabGameNumber } from "@/utils/tabs";
+import { samePosition } from "@/utils/training";
 import type { TreeNode } from "@/utils/treeReducer";
 
 const OPPONENT_DELAY = 600;
@@ -97,7 +98,7 @@ export default function LineTrainer() {
       const time = Date.now();
       return nodes.slice(start.length, -1).some((node) => {
         if (!isUserTurn(node, color)) return false;
-        const card = deck.positions.find((p) => p.fen === node.fen)?.card;
+        const card = deck.positions.find((p) => samePosition(p.fen, node.fen))?.card;
         return !card || card.reps === 0 || new Date(card.due).getTime() <= time;
       });
     },
@@ -118,7 +119,7 @@ export default function LineTrainer() {
 
   const grade = useCallback(
     (node: TreeNode, value: 1 | 3) => {
-      const i = deck.positions.findIndex((p) => p.fen === node.fen);
+      const i = deck.positions.findIndex((p) => samePosition(p.fen, node.fen));
       if (i >= 0) updateCardPerformance(setDeck, i, deck.positions[i].card, value);
     },
     [deck.positions, setDeck],
