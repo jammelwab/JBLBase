@@ -430,6 +430,7 @@ export default function RepertoireCompareView({
                       rootHalfMoves={root.halfMoves}
                       line={selected.line}
                       orientation={repertoire.color}
+                      index={repertoire.index}
                       onOpen={() => openLine(selected.line)}
                       onClose={() => setSelected(null)}
                     />

@@ -84,7 +84,9 @@ Baumdiagramm, das sich von links („Start“) nach rechts verzweigt. Weiße Zü
 sind helle Kästchen, schwarze Züge dunkle, deine eigenen Züge haben einen
 blauen Rahmen. Ein Klick auf einen Zug zeigt die Stellung unten rechts auf
 einem kleinen Brett, darunter die Zugfolge (weiße Züge hell, schwarze dunkel)
-und den Knopf **Auf dem Brett öffnen**. Mit gedrückter Maus verschiebst du
+und den Knopf **Auf dem Brett öffnen**. Auf dem kleinen Brett zeigen grüne
+Pfeile die Züge deines Repertoires aus dieser Stellung und ein blauer Pfeil
+den meistgespielten Lichess-Zug (mit Anteil darunter). Mit gedrückter Maus verschiebst du
 den Baum, das Mausrad zoomt, die Knöpfe oben rechts zoomen oder zeigen alles.
 Der Kreis mit + oder − rechts an einem Zug klappt die Folgezüge auf und zu
 (die Zahl daneben sagt, wie viele Züge darunter liegen). Ein Klick auf einen
