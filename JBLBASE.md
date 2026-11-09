@@ -270,6 +270,13 @@ deshalb zusammen nicht mehr als etwa 12 Threads vergeben.
 
 Die GTX 1080 hilft hier nicht: Stockfish und Patricia rechnen auf der CPU.
 
+## Cloud (im Aufbau)
+
+Der Sync über Firebase liegt im Ordner `firebase/`: Sicherheitsregeln,
+Kostenbremse und Rollen. Beschreibung in `firebase/README.md`, die Schritte
+in der Konsole in `firebase/SETUP.md`. Ohne Anmeldung ändert sich an der App
+nichts.
+
 ## Bauen
 
 Voraussetzungen: Node 22, pnpm, Rust (stable), unter Windows zusätzlich die

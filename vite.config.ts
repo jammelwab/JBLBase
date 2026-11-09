@@ -43,6 +43,7 @@ export default defineConfig({
     },
     test: {
         environment: "jsdom",
+        exclude: ["**/node_modules/**", "firebase/**"],
     },
     define: {
         "import.meta.env.VITE_PLATFORM": JSON.stringify(os.platform()),
