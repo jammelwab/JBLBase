@@ -143,3 +143,22 @@ export function playLine(
     }
     return { fen: makeFen(pos.toSetup()), lastMove };
 }
+
+// From- and to-square of a SAN move in a position, for drawing an arrow.
+export function sanToSquares(fen: string, san: string): [string, string] | null {
+    const [pos] = positionFromFen(fen);
+    if (!pos) return null;
+    const move = parseSan(pos, san);
+    if (!move || !("from" in move)) return null;
+    // chessops writes castling as king takes rook; the arrow should end on the king's square
+    if (
+        pos.board.get(move.from)?.role === "king" &&
+        Math.abs(move.to - move.from) !== 1 &&
+        pos.board.get(move.to)?.role === "rook" &&
+        pos.board.get(move.to)?.color === pos.turn
+    ) {
+        const kingTo = move.to > move.from ? move.from + 2 : move.from - 2;
+        return [makeSquare(move.from), makeSquare(kingTo)];
+    }
+    return [makeSquare(move.from), makeSquare(move.to)];
+}

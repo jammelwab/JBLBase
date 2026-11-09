@@ -372,6 +372,7 @@ export default function RepertoireTreeView({
             rootHalfMoves={root.halfMoves}
             line={selected.line}
             orientation={color}
+            index={repertoire.index}
             onOpen={() => open(selected.path)}
             onClose={() => {
               setSelected(null);

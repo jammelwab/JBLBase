@@ -345,3 +345,12 @@ test("a line is played out for the board preview", async () => {
     expect(result.fen).toBe("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2");
     expect(result.lastMove).toEqual(["g1", "f3"]);
 });
+
+test("arrows for the board preview go from square to square", async () => {
+    const { sanToSquares } = await import("../gamesTree");
+    expect(sanToSquares(INITIAL_FEN, "Nf3")).toEqual(["g1", "f3"]);
+    const castle = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+    expect(sanToSquares(castle, "O-O")).toEqual(["e1", "g1"]);
+    expect(sanToSquares(castle, "O-O-O")).toEqual(["e1", "c1"]);
+    expect(sanToSquares(INITIAL_FEN, "Nf6")).toBeNull();
+});
