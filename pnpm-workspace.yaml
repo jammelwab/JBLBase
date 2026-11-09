@@ -1,4 +1,6 @@
 allowBuilds:
+  # Its postinstall only prepares auto-init for Firebase Hosting; not needed.
+  "@firebase/util": false
   "@parcel/watcher": true
   "@swc/core": true
   core-js: true
