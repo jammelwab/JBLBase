@@ -1,0 +1,123 @@
+rules_version = '2';
+
+// JBLBase security rules.
+//
+// - Every user reads and writes only below users/{uid}.
+// - The role "admin" is a custom claim on the Firebase account. It is set
+//   only by scripts/set-role.mjs (Admin SDK), never by the app.
+// - Users store their own evaluations up to depth 28. Proven mates are
+//   always allowed, because engines report them with an artificial depth.
+//   Admins have no limit.
+// - The shared position store evals/{id} can be read by every signed-in
+//   user, but only admins may write to it.
+//
+// Keep USER_MAX_DEPTH in sync with USER_MAX_STORE_DEPTH in
+// src-tauri/src/eval_cache.rs.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.get('admin', false) == true;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userMaxDepth() {
+      return 28;
+    }
+
+    // One engine line as stored by the local position store (StoredLine).
+    function validLine(line) {
+      return line is map
+        && line.keys().hasAll(['multipv', 'depth', 'uci'])
+        && line.multipv is int && line.multipv >= 1
+        && line.depth is int && line.depth >= 1
+        && line.uci is list && line.uci.size() <= 64
+        && (!('cp' in line) || line.cp is int)
+        && (!('mate' in line) || line.mate is int);
+    }
+
+    // Evaluation document. The id is built by the app from engine and
+    // position; the fields are checked here so nobody can store garbage.
+    function validEval(d) {
+      return d.keys().hasOnly(['position', 'engine', 'depth', 'multipv', 'lines', 'updatedAt'])
+        && d.keys().hasAll(['position', 'engine', 'depth', 'multipv', 'lines', 'updatedAt'])
+        && d.position is string && d.position.size() > 0 && d.position.size() <= 100
+        && d.engine is string && d.engine.size() > 0 && d.engine.size() <= 64
+        && d.depth is int && d.depth >= 1 && d.depth <= 255
+        && d.multipv is int && d.multipv >= 1 && d.multipv <= 5
+        && d.lines is list && d.lines.size() >= 1 && d.lines.size() <= 5
+        && validLine(d.lines[0])
+        && (d.lines.size() < 2 || validLine(d.lines[1]))
+        && (d.lines.size() < 3 || validLine(d.lines[2]))
+        && (d.lines.size() < 4 || validLine(d.lines[3]))
+        && (d.lines.size() < 5 || validLine(d.lines[4]))
+        && d.updatedAt == request.time;
+    }
+
+    // The best line (multipv 1) is a mate. If any line mates, the best one
+    // does too, so checking the first line is enough.
+    function isMate(d) {
+      return 'mate' in d.lines[0];
+    }
+
+    // Depth limit for normal users; admins and mates are exempt.
+    function withinUserLimit(d) {
+      return isAdmin()
+        || isMate(d)
+        || (d.depth <= userMaxDepth() && d.lines[0].depth <= userMaxDepth());
+    }
+
+    // Profile: linked accounts (Lichess, Chess.com username), settings.
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['lichess', 'chesscom', 'settings', 'updatedAt'])
+        && (!('lichess' in request.resource.data) || request.resource.data.lichess is string)
+        && (!('chesscom' in request.resource.data) || request.resource.data.chesscom is string)
+        && (!('settings' in request.resource.data) || request.resource.data.settings is map);
+
+      // Repertoires and their moves (phase 3).
+      match /repertoires/{repId} {
+        allow read, write: if isOwner(uid);
+        match /moves/{moveId} {
+          allow read, write: if isOwner(uid);
+        }
+      }
+
+      // Training cards and the append-only review log (phase 1/3).
+      match /cards/{cardId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /reviews/{reviewId} {
+        allow read, create: if isOwner(uid);
+        allow update: if false;
+        allow delete: if isOwner(uid);
+      }
+
+      // Own evaluations, limited to depth 28 for normal users.
+      match /evals/{evalId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && validEval(request.resource.data)
+          && withinUserLimit(request.resource.data);
+      }
+    }
+
+    // Shared position store: everyone signed in reads, only admins write.
+    match /evals/{evalId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() && validEval(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Everything else is closed.
+  }
+}

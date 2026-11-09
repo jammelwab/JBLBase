@@ -1,0 +1,36 @@
+name: Firebase
+on:
+  push:
+    paths:
+      - "firebase/**"
+      - ".github/workflows/firebase.yml"
+  pull_request:
+    paths:
+      - "firebase/**"
+      - ".github/workflows/firebase.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firebase
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cost brake tests
+        run: npm ci && npm test
+        working-directory: firebase/functions
+
+      - name: Security rule tests
+        run: npm ci && npm run test:rules

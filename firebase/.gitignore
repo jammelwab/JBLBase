@@ -1,0 +1,8 @@
+node_modules/
+functions/lib/
+*-debug.log
+.firebase/
+# Service account keys never go into the repository.
+*serviceAccount*.json
+*-key.json
+functions/.env
