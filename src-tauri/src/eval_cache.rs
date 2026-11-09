@@ -131,9 +131,28 @@ pub fn position_key<P: Position>(pos: &P) -> String {
     fen.split_whitespace().take(4).collect::<Vec<_>>().join(" ")
 }
 
+/// How deep results may be stored. Admins store without limit; normal users
+/// (once accounts exist) store up to a fixed depth. Proven mates are always
+/// stored as they are, because engines report them with an artificial depth
+/// (Stockfish uses its maximum of 245) and they are the most certain results.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StoreLimit {
+    #[default]
+    Unlimited,
+    MaxDepth(u32),
+}
+
+/// Depth limit planned for normal user accounts.
+pub const USER_MAX_STORE_DEPTH: u32 = 28;
+
+/// Upper bound for the write-ahead log after a checkpoint. Without it the
+/// `-wal` file keeps its largest size (about 4 MB) forever.
+const WAL_SIZE_LIMIT_BYTES: i64 = 1024 * 1024;
+
 #[derive(Default)]
 pub struct EvalCache {
     inner: Mutex<Option<CacheInner>>,
+    limit: Mutex<StoreLimit>,
 }
 
 struct CacheInner {
@@ -170,6 +189,11 @@ fn open_connection(path: &Path) -> Result<Connection, rusqlite::Error> {
          );
          INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1');",
     )?;
+    conn.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT_BYTES)?;
+    // Fold what an earlier session left in the log back into the main file.
+    if let Err(e) = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())) {
+        warn!("Evaluation cache checkpoint failed: {e}");
+    }
     Ok(conn)
 }
 
@@ -195,6 +219,16 @@ impl EvalCache {
             path: PathBuf::from(":memory:"),
         });
         cache
+    }
+
+    pub fn set_limit(&self, limit: StoreLimit) {
+        if let Ok(mut l) = self.limit.lock() {
+            *l = limit;
+        }
+    }
+
+    pub fn limit(&self) -> StoreLimit {
+        self.limit.lock().map(|l| *l).unwrap_or_default()
     }
 
     /// Best stored result for `engine` with at least `min_multipv` lines.
@@ -247,6 +281,20 @@ impl EvalCache {
         if depth == 0 {
             return;
         }
+        let capped;
+        let (lines, depth) = match self.limit() {
+            StoreLimit::MaxDepth(max) if depth > max && !is_mate(lines) => {
+                capped = lines
+                    .iter()
+                    .map(|l| StoredLine {
+                        depth: l.depth.min(max),
+                        ..l.clone()
+                    })
+                    .collect::<Vec<_>>();
+                (capped.as_slice(), max)
+            }
+            _ => (lines, depth),
+        };
         let multipv = lines.len() as u16;
         let nodes = lines.iter().map(|l| l.nodes).max().unwrap_or(0);
         let Ok(json) = serde_json::to_string(lines) else {
@@ -322,7 +370,11 @@ impl EvalCache {
             })?;
         let entries: u32 = conn.query_row("SELECT COUNT(*) FROM evals", [], |r| r.get(0))?;
         let mut stmt = conn.prepare(
-            "SELECT engine, COUNT(*), MAX(depth) FROM evals GROUP BY engine ORDER BY COUNT(*) DESC",
+            // Mates carry an artificial depth (245 for Stockfish), so the
+            // deepest real search is taken from the other entries.
+            "SELECT engine, COUNT(*),
+                    COALESCE(MAX(CASE WHEN lines NOT LIKE '%\"mate\":%' THEN depth END), 0)
+             FROM evals GROUP BY engine ORDER BY COUNT(*) DESC",
         )?;
         let engines = stmt
             .query_map([], |r| {
@@ -353,6 +405,11 @@ impl EvalCache {
         inner.conn.execute_batch("DELETE FROM evals; VACUUM;")?;
         Ok(())
     }
+}
+
+/// True when any line is a proven mate.
+fn is_mate(lines: &[StoredLine]) -> bool {
+    lines.iter().any(|l| l.mate.is_some())
 }
 
 #[tauri::command]
@@ -484,6 +541,83 @@ mod tests {
         assert_eq!(stats.entries, 3);
         cache.clear().unwrap();
         assert!(cache.lookup(k, "SF", 1).is_none());
+    }
+
+    fn mate_line(depth: u32, mate: i32) -> StoredLine {
+        StoredLine {
+            cp: None,
+            mate: Some(mate),
+            ..line(1, depth, 0, "d8f8")
+        }
+    }
+
+    #[test]
+    fn user_limit_caps_depth_but_keeps_result() {
+        let cache = EvalCache::open_in_memory();
+        cache.set_limit(StoreLimit::MaxDepth(USER_MAX_STORE_DEPTH));
+        cache.store("pos", "SF", &[line(1, 40, 25, "e2e4")]);
+        let got = cache.lookup("pos", "SF", 1).unwrap();
+        assert_eq!(got.depth, 28);
+        assert_eq!(got.lines[0].depth, 28);
+        assert_eq!(got.lines[0].cp, Some(25));
+
+        // Shallower than the limit: stored unchanged.
+        cache.store("other", "SF", &[line(1, 20, 5, "d2d4")]);
+        assert_eq!(cache.lookup("other", "SF", 1).unwrap().depth, 20);
+    }
+
+    #[test]
+    fn mates_are_never_capped() {
+        let cache = EvalCache::open_in_memory();
+        cache.set_limit(StoreLimit::MaxDepth(USER_MAX_STORE_DEPTH));
+        cache.store("pos", "SF", &[mate_line(245, 2)]);
+        assert_eq!(cache.lookup("pos", "SF", 1).unwrap().depth, 245);
+    }
+
+    #[test]
+    fn unlimited_by_default() {
+        let cache = EvalCache::open_in_memory();
+        assert_eq!(cache.limit(), StoreLimit::Unlimited);
+        cache.store("pos", "SF", &[line(1, 47, 25, "e2e4")]);
+        assert_eq!(cache.lookup("pos", "SF", 1).unwrap().depth, 47);
+    }
+
+    #[test]
+    fn stats_ignore_mate_depth() {
+        let cache = EvalCache::open_in_memory();
+        cache.store("a", "SF", &[line(1, 42, 25, "e2e4")]);
+        cache.store("b", "SF", &[mate_line(245, 3)]);
+        cache.store("c", "Patricia", &[mate_line(127, 1)]);
+        let stats = cache.stats().unwrap();
+        let sf = stats.engines.iter().find(|e| e.engine == "SF").unwrap();
+        assert_eq!(sf.max_depth, 42);
+        assert_eq!(sf.entries, 2);
+        let pat = stats
+            .engines
+            .iter()
+            .find(|e| e.engine == "Patricia")
+            .unwrap();
+        assert_eq!(pat.max_depth, 0);
+    }
+
+    #[test]
+    fn wal_is_truncated_on_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(CACHE_FILE_NAME);
+        {
+            let cache = EvalCache::default();
+            cache.open(path.clone());
+            for i in 0..2000 {
+                cache.store(&format!("pos{i}"), "SF", &[line(1, 20, i, "e2e4")]);
+            }
+        }
+        let cache = EvalCache::default();
+        cache.open(path.clone());
+        let wal = std::fs::metadata(path.with_extension("sqlite3-wal"))
+            .map(|m| m.len())
+            .unwrap_or(0);
+        assert!(wal <= WAL_SIZE_LIMIT_BYTES as u64, "wal is {wal} bytes");
+        assert_eq!(cache.stats().unwrap().entries, 2000);
     }
 
     #[test]

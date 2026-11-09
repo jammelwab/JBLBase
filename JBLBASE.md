@@ -25,6 +25,13 @@ So wird der Speicher genutzt:
 3. **Getrennt pro Linienanzahl.** Eine Suche mit 3 Linien kann eine Anfrage mit
    1, 2 oder 3 Linien bedienen, aber nicht eine mit 5.
 4. **Nur tiefer überschreibt.** Ein flacheres Ergebnis ersetzt nie ein tieferes.
+5. **Matts zählen extra.** Hat eine Engine ein Matt sicher, meldet sie eine
+   künstliche Höchsttiefe (Stockfish 245). Solche Einträge bleiben immer
+   erhalten, zählen in der Statistik aber nicht als „maximale Tiefe“.
+6. **Speichergrenze für Nutzer (vorbereitet).** Für die geplanten Nutzerkonten
+   kann der Speicher auf eine Tiefe begrenzt werden (vorgesehen: 28). Tiefere
+   Ergebnisse werden dann als Tiefe 28 gespeichert, Matts nie begrenzt. Ohne
+   Konto und für Admins gilt keine Grenze, so wie bisher.
 
 Beim Analysieren:
 
@@ -44,6 +51,10 @@ gerechnet werden müssen.
 
 Unter **Einstellungen → Positionsspeicher** siehst du Anzahl Stellungen,
 Dateigröße und maximale Tiefe pro Engine und kannst den Speicher leeren.
+
+Das Schreibprotokoll (`eval_cache.sqlite3-wal`) wird beim Start in die
+Hauptdatei übernommen und danach auf höchstens 1 MB begrenzt. Vorher blieb es
+dauerhaft bei etwa 4 MB stehen.
 
 Für spätere Phasen (Repertoire, Vergleich der Eröffnungsbäume) gibt es schon
 den Befehl `getCachedEvals(fen)`, der alle gespeicherten Bewertungen einer
