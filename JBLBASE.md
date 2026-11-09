@@ -270,6 +270,22 @@ deshalb zusammen nicht mehr als etwa 12 Threads vergeben.
 
 Die GTX 1080 hilft hier nicht: Stockfish und Patricia rechnen auf der CPU.
 
+## Trainingsfortschritt
+
+Der Fortschritt beim Training (FSRS-Karten und alle Wiederholungen) liegt in
+`training.sqlite3` im App-Datenordner, neben dem Positionsspeicher.
+
+- Jedes Repertoire bekommt beim ersten Training eine feste ID in seiner
+  `.info`-Datei. Der Fortschritt hängt an dieser ID, nicht am Dateipfad. Er
+  übersteht deshalb Umbenennen und Verschieben.
+- Eine Karte gehört zu einer Stellung (FEN ohne Zugzähler). Dieselbe
+  Stellung über eine andere Zugfolge ist dieselbe Karte.
+- Wiederholungen werden nur angehängt, nie geändert. „Zurücksetzen“ setzt
+  die Karten neu auf, das Protokoll bleibt.
+- Beim ersten Öffnen nach dem Update wird der alte Fortschritt aus dem
+  Browser-Speicher übernommen. Eine Kopie bleibt dort unter
+  `deck-backup-…` liegen.
+
 ## Cloud (im Aufbau)
 
 Der Sync über Firebase liegt im Ordner `firebase/`: Sicherheitsregeln,

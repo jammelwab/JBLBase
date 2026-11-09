@@ -5,7 +5,7 @@ import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-f
 import { parseUci } from "chessops";
 import { INITIAL_FEN, makeFen } from "chessops/fen";
 import equal from "fast-deep-equal";
-import { atom, type PrimitiveAtom } from "jotai";
+import { atom, type PrimitiveAtom, type SetStateAction } from "jotai";
 import {
     atomFamily,
     atomWithDefault,
@@ -14,16 +14,12 @@ import {
     unwrap,
 } from "jotai/utils";
 import type { AtomFamily } from "jotai/vanilla/utils/atomFamily";
-import type {
-    AsyncStorage,
-    AsyncStringStorage,
-    SyncStorage,
-} from "jotai/vanilla/utils/atomWithStorage";
+import type { AsyncStorage, AsyncStringStorage } from "jotai/vanilla/utils/atomWithStorage";
 import type { ReviewLog } from "ts-fsrs";
 import { z } from "zod";
 import type { BestMoves, GoMode } from "@/bindings";
 import { DEFAULT_TIME_CONTROL, type OpponentSettings } from "@/components/boards/OpponentForm";
-import { type Position, positionSchema } from "@/components/files/opening";
+import type { Position } from "@/components/files/opening";
 import type { LocalOptions } from "@/components/panels/database/DatabasePanel";
 import { positionFromFen, swapMove } from "@/utils/chessops";
 import type { SuccessDatabaseInfo } from "@/utils/db";
@@ -35,6 +31,7 @@ import {
     masterOptionsSchema,
 } from "@/utils/lichess/explorer";
 import { getWinChance, normalizeScore } from "@/utils/score";
+import { loadDeck, saveDeck, tauriTrainingBackend } from "@/utils/training";
 import { genID, type Tab, tabSchema } from "@/utils/tabs";
 import { getEnginesDir } from "../utils/directories";
 import type { Session } from "../utils/session";
@@ -532,34 +529,80 @@ export const currentGameIdAtom = tabValue(gameIdFamily);
 
 // Practice
 
-const reviewLogSchema = z
-    .object({
-        fen: z.string(),
-    })
-    .passthrough();
-
-const practiceDataSchema = z.object({
-    positions: positionSchema.array(),
-    logs: reviewLogSchema.array(),
-});
-
 export type PracticeData = {
     positions: Position[];
     logs: (ReviewLog & { fen: string })[];
 };
 
-export const deckAtomFamily = atomFamily(
-    ({ file, game }: { file: string; game: number }) =>
-        atomWithStorage<PracticeData>(
-            `deck-${file}-${game}`,
-            {
-                positions: [],
-                logs: [],
-            },
-            createZodStorage(practiceDataSchema, localStorage) as any as SyncStorage<PracticeData>, // TODO: fix types
-        ),
+type DeckKey = { file: string; game: number };
+const sameDeck = (a: DeckKey, b: DeckKey) => a.file === b.file && a.game === b.game;
+const emptyDeck = (): PracticeData => ({ positions: [], logs: [] });
 
-    (a, b) => a.file === b.file && a.game === b.game,
+type DeckState = { data: PracticeData; loaded: boolean };
+
+// Saves of one deck run one after another, so the review log stays in order.
+const deckSaveQueues = new Map<string, Promise<number>>();
+
+const deckStateFamily = atomFamily(({ file, game }: DeckKey) => {
+    const state = atom<DeckState>({ data: emptyDeck(), loaded: !file });
+    state.onMount = (set) => {
+        if (!file) return;
+        let active = true;
+        const key = `${file}\u0000${game}`;
+        const loading = loadDeck(tauriTrainingBackend, file, game)
+            .catch((e) => {
+                console.error("Loading training deck failed", e);
+                return null;
+            })
+            .then((data) => {
+                if (active)
+                    set((prev) => (prev.loaded ? prev : { data: data ?? prev.data, loaded: true }));
+                return data?.logs.length ?? 0;
+            });
+        if (!deckSaveQueues.has(key)) deckSaveQueues.set(key, loading);
+        return () => {
+            active = false;
+        };
+    };
+    return state;
+}, sameDeck);
+
+/** True once the saved deck has been loaded (or there is none). */
+export const deckLoadedFamily = atomFamily(
+    (key: DeckKey) => atom((get) => get(deckStateFamily(key)).loaded),
+    sameDeck,
+);
+
+export const deckAtomFamily = atomFamily(
+    (key: DeckKey) =>
+        atom(
+            (get) => get(deckStateFamily(key)).data,
+            (get, set, update: SetStateAction<PracticeData>) => {
+                const prev = get(deckStateFamily(key));
+                const next = typeof update === "function" ? update(prev.data) : update;
+                set(deckStateFamily(key), { data: next, loaded: true });
+                if (!key.file) return;
+                const queueKey = `${key.file}\u0000${key.game}`;
+                const queue = deckSaveQueues.get(queueKey) ?? Promise.resolve(0);
+                deckSaveQueues.set(
+                    queueKey,
+                    queue.then((persisted) =>
+                        saveDeck(
+                            tauriTrainingBackend,
+                            key.file,
+                            key.game,
+                            prev.data,
+                            next,
+                            persisted,
+                        ).catch((e) => {
+                            console.error("Saving training deck failed", e);
+                            return persisted;
+                        }),
+                    ),
+                );
+            },
+        ),
+    sameDeck,
 );
 
 export type PracticePhase =

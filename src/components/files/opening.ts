@@ -3,6 +3,7 @@ import { type Card, createEmptyCard, fsrs, type Grade, generatorParameters } fro
 import { z } from "zod";
 import type { PracticeData } from "@/state/atoms";
 import { isPrefix } from "@/utils/misc";
+import { positionKey } from "@/utils/training";
 import { type TreeNode, treeIterator } from "@/utils/treeReducer";
 
 const params = generatorParameters({ enable_fuzz: true });
@@ -23,13 +24,15 @@ export type Position = {
 
 export function buildFromTree(tree: TreeNode, color: "white" | "black", start: number[]) {
     const cards: Position[] = [];
+    // One card per position: move counters do not matter (transpositions).
+    const seen = new Set<string>();
     const iterator = treeIterator(tree);
     for (const item of iterator) {
         if (
             item.node.children.length === 0 ||
             isPrefix(item.position, start) ||
             !item.node.children[0].san ||
-            cards.find((c) => c.fen === item.node.fen)
+            seen.has(positionKey(item.node.fen))
         ) {
             continue;
         }
@@ -37,6 +40,7 @@ export function buildFromTree(tree: TreeNode, color: "white" | "black", start: n
             (color === "white" && item.node.halfMoves % 2 === 0) ||
             (color === "black" && item.node.halfMoves % 2 === 1)
         ) {
+            seen.add(positionKey(item.node.fen));
             cards.push({
                 fen: item.node.fen,
                 answer: item.node.children[0].san,
@@ -104,14 +108,10 @@ export function updateCardPerformance(
 
     const { card: newCard, log } = schedulingCards[grade];
 
-    setPositions((data) => {
-        data.positions[i].card = newCard;
-        data.logs.push({ ...log, fen: data.positions[i].fen });
-        return {
-            positions: data.positions,
-            logs: data.logs,
-        };
-    });
+    setPositions((data) => ({
+        positions: data.positions.map((p, j) => (j === i ? { ...p, card: newCard } : p)),
+        logs: [...data.logs, { ...log, fen: data.positions[i].fen }],
+    }));
 }
 
 export function syncDeck(
@@ -124,13 +124,13 @@ export function syncDeck(
 
     const existingByFen = new Map<string, Position>();
     for (const pos of existing) {
-        existingByFen.set(pos.fen, pos);
+        existingByFen.set(positionKey(pos.fen), pos);
     }
 
     let added = 0;
     const merged: Position[] = [];
     for (const pos of freshPositions) {
-        const prev = existingByFen.get(pos.fen);
+        const prev = existingByFen.get(positionKey(pos.fen));
         if (prev) {
             merged.push({ ...prev, answer: pos.answer });
         } else {
@@ -139,8 +139,8 @@ export function syncDeck(
         }
     }
 
-    const freshFens = new Set(freshPositions.map((p) => p.fen));
-    const removed = existing.filter((p) => !freshFens.has(p.fen)).length;
+    const freshKeys = new Set(freshPositions.map((p) => positionKey(p.fen)));
+    const removed = existing.filter((p) => !freshKeys.has(positionKey(p.fen))).length;
 
     return { positions: merged, added, removed };
 }

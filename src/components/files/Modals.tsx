@@ -1,7 +1,7 @@
 import { Button, Modal, SimpleGrid, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useLoaderData } from "@tanstack/react-router";
 import { resolve, dirname } from "@tauri-apps/api/path";
-import { exists, mkdir, rename, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createFile } from "@/utils/files";
@@ -148,8 +148,13 @@ export function EditModal({
 
   async function editFile() {
     const metadataPath = metadata.path.replace(".pgn", ".info");
-    // Keep the rest (a repertoire's color, owner and folder)
+    // Keep the rest (a repertoire's color, owner, folder and id). Read the
+    // file again: the id may have been added after the list was loaded.
+    const onDisk = await readTextFile(metadataPath)
+      .then((text) => JSON.parse(text) as Record<string, unknown>)
+      .catch(() => ({}));
     const newMetadata = {
+      ...onDisk,
       ...metadata.metadata,
       type: filetype,
       tags: metadata.metadata.tags ?? [],

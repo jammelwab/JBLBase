@@ -14,6 +14,8 @@ const fileInfoMetadataSchema = z.object({
     // Repertoires only: whose repertoire it is and which side it is for.
     owner: z.string().optional(),
     color: z.enum(["white", "black"]).optional(),
+    // Stable id; training progress is saved under it (see utils/training.ts).
+    id: z.string().optional(),
 });
 
 export type FileInfoMetadata = z.infer<typeof fileInfoMetadataSchema>;

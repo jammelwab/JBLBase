@@ -53,6 +53,7 @@ import {
   currentShowCommentsAtom,
   currentTabAtom,
   deckAtomFamily,
+  deckLoadedFamily,
   type PracticeData,
   type PracticeSessionStats,
   practiceCardStartTimeAtom,
@@ -79,12 +80,11 @@ function PracticePanel() {
   const tabFile = getTabFile(currentTab);
   const [resetModal, toggleResetModal] = useToggle();
 
-  const [deck, setDeck] = useAtom(
-    deckAtomFamily({
-      file: tabFile?.path || "",
-      game: getTabGameNumber(currentTab),
-    }),
-  );
+  const deckKey = { file: tabFile?.path || "", game: getTabGameNumber(currentTab) };
+  const [deck, setDeck] = useAtom(deckAtomFamily(deckKey));
+  // The saved deck loads asynchronously; building or syncing before that
+  // would overwrite the saved progress with a fresh deck.
+  const deckLoaded = useAtomValue(deckLoadedFamily(deckKey));
 
   const [syncMessage, setSyncMessage] = useState<{
     added: number;
@@ -95,6 +95,7 @@ function PracticePanel() {
   const lastSyncedTreeRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!deckLoaded) return;
     const treeFingerprint = JSON.stringify(root);
     if (lastSyncedTreeRef.current === treeFingerprint) return;
 
@@ -104,7 +105,7 @@ function PracticePanel() {
     if (deckPositionsRef.current.length === 0) {
       const newDeck = buildFromTree(root, orientation, start);
       if (newDeck.length > 0) {
-        setDeck({ positions: newDeck, logs: [] });
+        setDeck((prev) => ({ positions: newDeck, logs: prev.logs }));
       }
     } else {
       // Sync existing deck with tree changes
@@ -121,7 +122,7 @@ function PracticePanel() {
       }
     }
     lastSyncedTreeRef.current = treeFingerprint;
-  }, [root, headers, setDeck]);
+  }, [root, headers, setDeck, deckLoaded]);
 
   const stats = getStats(deck.positions);
 
@@ -644,7 +645,8 @@ function PracticePanel() {
         onClose={toggleResetModal}
         onConfirm={() => {
           const cards = buildFromTree(root, headers.orientation || "white", headers.start || []);
-          setDeck({ positions: cards, logs: [] });
+          // The review history stays; only the cards start over.
+          setDeck((prev) => ({ positions: cards, logs: prev.logs }));
           setPracticeState({ phase: "idle" });
           setPracticePath(null);
           setInvisible(false);
