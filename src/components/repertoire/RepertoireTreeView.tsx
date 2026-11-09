@@ -13,13 +13,14 @@ import {
 import { IconArrowLeft, IconArrowsExchange } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { useCallback, useMemo, useState } from "react";
+import { notifications } from "@mantine/notifications";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useSWR from "swr";
 import { activeTabAtom, tabsAtom } from "@/state/atoms";
 import { updatePersistedState } from "@/state/store/debouncedStorage";
 import { openFile } from "@/utils/files";
-import { lineText } from "@/utils/gamesTree";
+import { lineText, lineTree, playLine } from "@/utils/gamesTree";
 import {
   hasLichessToken,
   hasOwnGames,
@@ -28,17 +29,19 @@ import {
   ownMoveCounts,
 } from "@/utils/repertoireExplorer";
 import {
+  findPosition,
   type MoveCount,
   moveShares,
   nodesOnPath,
+  pathForLine,
   orderBy,
   positionKey,
   repertoireSizes,
   repertoireWeights,
 } from "@/utils/repertoireTree";
-import type { Repertoire } from "@/utils/repertoires";
+import { addLineToRepertoire, type Repertoire } from "@/utils/repertoires";
 import type { TreeNode, TreeState } from "@/utils/treeReducer";
-import BoardPreview from "./BoardPreview";
+import BoardPreview, { type LineStatus } from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
 import TreeDiagram, { type DiagramLink, type DiagramNode } from "./TreeDiagram";
 import { useOpenLine } from "./useOpenLine";
@@ -125,12 +128,23 @@ export default function RepertoireTreeView({
   const setActiveTab = useSetAtom(activeTabAtom);
   const [expanded, setExpanded] = useState(() => new Set(initialKeys(repertoire.root)));
   const [highlight, setHighlight] = useState<string | null>(null);
-  // The move shown on the small board: its line and the position to open on the big board
-  const [selected, setSelected] = useState<{ line: string[]; path: number[] } | null>(null);
+  // The line on the small board, the repertoire node it is at (`known` of its moves are on a
+  // repertoire line) and whether it is in the repertoire
+  const [selected, setSelected] = useState<{
+    line: string[];
+    path: number[];
+    known: number;
+    status: LineStatus;
+  } | null>(null);
   const select = useCallback(
     (id: string, path: number[], extra?: string) => {
       const line = nodesOnPath(repertoire.root, path).map((n) => n.san!);
-      setSelected({ line: extra ? [...line, extra] : line, path });
+      setSelected({
+        line: extra ? [...line, extra] : line,
+        path,
+        known: path.length,
+        status: extra ? "out" : "in",
+      });
       setHighlight(id);
     },
     [repertoire.root],
@@ -190,6 +204,64 @@ export default function RepertoireTreeView({
     setHighlight(idOf(path));
     setFocus({ id: idOf(path) });
   }, []);
+
+  // Puts a line on the small board and moves the tree along: to the move if the repertoire
+  // has it, to the same position reached by another move order, or to where the line left it.
+  const follow = useCallback(
+    (line: string[], focusView = true) => {
+      const path = pathForLine(root, line);
+      let target = path;
+      let status: LineStatus = "in";
+      if (path.length < line.length) {
+        const elsewhere = findPosition(root, playLine(root.fen, line).fen);
+        if (elsewhere) {
+          target = elsewhere;
+          status = "transposition";
+        } else {
+          status = "out";
+        }
+      }
+      setSelected({ line, path: target, known: path.length, status });
+      if (focusView) reveal(target);
+      else setHighlight(idOf(target));
+    },
+    [root, reveal],
+  );
+
+  // After the repertoire changed (a line was added), the board's line is checked again
+  const selectedRef = useRef(selected);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  useEffect(() => {
+    if (selectedRef.current) follow(selectedRef.current.line, false);
+  }, [follow]);
+
+  const addLine = useCallback(
+    async (line: string[]) => {
+      try {
+        const result = await addLineToRepertoire(
+          repertoire.file,
+          lineTree(root.fen, root.halfMoves, line),
+          line.map(() => 0),
+          { withVariations: false, label: lineText(line, root.halfMoves) },
+        );
+        if (!result.ok) throw new Error(t("Repertoire.Add.DifferentStart"));
+        notifications.show({
+          color: "green",
+          title: repertoire.name,
+          message: t("Repertoire.Add.Added", { count: result.added }),
+        });
+      } catch (e) {
+        notifications.show({
+          color: "red",
+          title: t("Repertoire.Add.Failed"),
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+    [repertoire.file, repertoire.name, root.fen, root.halfMoves, t],
+  );
 
   const { diagram, links } = useMemo(() => {
     // Moves that are not in the repertoire (ghost, "other") get an empty repertoire bar
@@ -457,7 +529,14 @@ export default function RepertoireTreeView({
             line={selected.line}
             orientation={color}
             weights={weights}
-            onOpen={() => open(selected.path)}
+            onOpen={() =>
+              selected.status === "in" ? open(selected.path) : openLine(selected.line)
+            }
+            onMove={(san) => follow([...selected.line, san])}
+            onBack={() => follow(selected.line.slice(0, -1))}
+            status={selected.status}
+            known={selected.known}
+            onAdd={repertoire.parts ? undefined : () => addLine(selected.line)}
             onClose={() => {
               setSelected(null);
               setHighlight(null);

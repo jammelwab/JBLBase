@@ -391,3 +391,29 @@ export function orderBy<T>(items: T[], score: (item: T) => number[]): number[] {
             return a - b;
         });
 }
+
+// How far `line` (SAN moves from the root) follows the repertoire: the path of the moves
+// that are in it, stopping at the first one that is not.
+export function pathForLine(root: TreeNode, line: string[]): number[] {
+    const path: number[] = [];
+    let cur = root;
+    for (const san of line) {
+        const index = cur.children.findIndex((c) => c.san === san);
+        if (index < 0) break;
+        path.push(index);
+        cur = cur.children[index];
+    }
+    return path;
+}
+
+// The shortest path to a position in the tree, reached by any move order, or null.
+export function findPosition(root: TreeNode, fen: string): number[] | null {
+    const key = positionKey(fen);
+    const queue: { node: TreeNode; path: number[] }[] = [{ node: root, path: [] }];
+    while (queue.length > 0) {
+        const { node, path } = queue.shift()!;
+        if (positionKey(node.fen) === key) return path;
+        node.children.forEach((child, i) => queue.push({ node: child, path: [...path, i] }));
+    }
+    return null;
+}
