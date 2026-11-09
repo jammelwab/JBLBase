@@ -9,8 +9,11 @@ import {
     mergeCourse,
     mergeLine,
     moveShares,
+    orderBy,
     positionKey,
+    repertoireSizes,
     repertoireStats,
+    repertoireWeights,
     splitPgnGames,
 } from "../repertoireTree";
 import { childNodes, collectIssues, lineText } from "../gamesTree";
@@ -388,4 +391,49 @@ test("repertoires are sorted into folders and can be looked at together", async 
     expect(combined.children[0].children.map((c) => c.san)).toEqual(["d5", "Nf6"]);
     // the originals stay as they were
     expect(a.children[0].children.map((c) => c.san)).toEqual(["d5"]);
+});
+
+test("repertoire sizes count the lines and moves behind every move", () => {
+    const rep = tree(
+        ["d4", "Nf6", "c4", "e6"],
+        ["d4", "Nf6", "Bf4", "c5"],
+        ["d4", "Nf6", "Nf3", "d5"],
+        ["d4", "c5", "d5"],
+    );
+    const sizes = repertoireSizes(rep);
+    const d4 = rep.children[0];
+    expect(sizes.get(rep)).toEqual({ lines: 4, moves: 10 });
+    expect(sizes.get(d4)).toEqual({ lines: 4, moves: 10 });
+    expect(sizes.get(d4.children[0])).toEqual({ lines: 3, moves: 7 });
+    expect(sizes.get(d4.children[1])).toEqual({ lines: 1, moves: 2 });
+});
+
+test("repertoire weights add up over transpositions", () => {
+    const rep = tree(
+        ["d4", "Nf6", "c4", "e6"],
+        ["d4", "Nf6", "c4", "g6"],
+        ["c4", "Nf6", "d4", "e6"],
+        ["d4", "c5"],
+    );
+    const afterD4 = rep.children[0].fen;
+    expect(repertoireWeights(rep).get(positionKey(afterD4))).toEqual(
+        new Map([
+            ["Nf6", 2],
+            ["c5", 1],
+        ]),
+    );
+    // 1.d4 Nf6 2.c4 and 1.c4 Nf6 2.d4 are the same position: e6 twice, g6 once
+    const both = rep.children[0].children[0].children[0].fen;
+    expect(repertoireWeights(rep).get(positionKey(both))).toEqual(
+        new Map([
+            ["e6", 2],
+            ["g6", 1],
+        ]),
+    );
+});
+
+test("orderBy sorts by the scores, most first, and keeps ties in file order", () => {
+    const items = ["a", "b", "c", "d"];
+    const score: Record<string, number[]> = { a: [1, 5], b: [3, 0], c: [1, 9], d: [3, 0] };
+    expect(orderBy(items, (i) => score[i])).toEqual([1, 3, 2, 0]);
 });
