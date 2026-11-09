@@ -794,6 +794,7 @@
     "Settings.AutoSave.Desc": "Автоматично зберігати після кожного ходу",
     "Settings.Board": "Дошка",
     "Settings.Board.Desc": "Налаштувати дошку аналізу та елементи керування грою",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Послідовні стрілки",
     "Settings.ConsecutiveArrows.Desc": "Показувати кілька стрілок для найкращої лінії, якщо вона складається з декількох ходів однією і тією ж фігурою",
     "Settings.Coordinates": "Координати",

@@ -3,13 +3,13 @@
 Backend für den Cloud-Sync. Die App bleibt ohne Anmeldung voll nutzbar,
 die Cloud schaltet nur den Sync ein.
 
-| Datei                  | Inhalt                                                  |
-| ---------------------- | ------------------------------------------------------- |
-| `firebase.json`        | Firestore in `europe-west3` (Frankfurt), Functions      |
-| `firestore.rules`      | Sicherheitsregeln (Bereiche, Rollen, Tiefengrenze)      |
-| `functions/`           | Cloud Functions, derzeit die Kostenbremse `budgetGuard` |
-| `scripts/set-role.mjs` | Admin-Rolle vergeben oder entziehen                     |
-| `tests/rules.test.mjs` | Tests der Sicherheitsregeln gegen den Emulator          |
+| Datei                  | Inhalt                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| `firebase.json`        | Firestore in `europe-west3` (Frankfurt), Functions                            |
+| `firestore.rules`      | Sicherheitsregeln (Bereiche, Rollen, Tiefengrenze)                            |
+| `functions/`           | Cloud Functions: Kostenbremse `budgetGuard`, Lichess-Anmeldung `lichessLogin` |
+| `scripts/set-role.mjs` | Admin-Rolle vergeben oder entziehen                                           |
+| `tests/rules.test.mjs` | Tests der Sicherheitsregeln gegen den Emulator                                |
 
 ## Datenmodell
 

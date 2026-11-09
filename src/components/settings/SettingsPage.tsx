@@ -18,6 +18,7 @@ import {
   IconBook,
   IconBrush,
   IconChess,
+  IconCloud,
   IconDatabase,
   IconDownload,
   IconFlag,
@@ -70,6 +71,7 @@ import { keyMapAtom } from "@/state/keybinds";
 import { checkForAppUpdate } from "@/utils/updater";
 import FileInput from "../common/FileInput";
 import BoardSelect from "./BoardSelect";
+import CloudAccountSettings from "./CloudAccountSettings";
 import ColorControl from "./ColorControl";
 import DimensionToggle from "./DimensionToggle";
 import EvalCacheSettings from "./EvalCacheSettings";
@@ -915,6 +917,9 @@ export default function Page() {
             <Tabs.Tab value="repertoire" leftSection={<IconBook size="1rem" />}>
               {t("Settings.Repertoire")}
             </Tabs.Tab>
+            <Tabs.Tab value="cloud" leftSection={<IconCloud size="1rem" />}>
+              {t("Settings.Cloud")}
+            </Tabs.Tab>
             <Tabs.Tab value="evalcache" leftSection={<IconDatabase size="1rem" />}>
               {t("Settings.EvalCache")}
             </Tabs.Tab>
@@ -1033,6 +1038,16 @@ export default function Page() {
                     {t("Settings.Repertoire.Desc")}
                   </Text>
                   {renderCategorySettings("repertoire")}
+                </Tabs.Panel>
+
+                <Tabs.Panel value="cloud">
+                  <Text size="lg" fw={500} className={classes.title}>
+                    {t("Settings.Cloud")}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={3} mb="lg">
+                    {t("Settings.Cloud.Desc")}
+                  </Text>
+                  <CloudAccountSettings />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="evalcache">

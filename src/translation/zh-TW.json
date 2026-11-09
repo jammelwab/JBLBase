@@ -727,6 +727,7 @@
     "Settings.AutoSave.Desc": "每步棋後自動儲存檔案",
     "Settings.Board": "棋盤",
     "Settings.Board.Desc": "自訂分析棋盤與對局控制",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "連續箭頭",
     "Settings.ConsecutiveArrows.Desc": "如果最佳路線包含重複移動同一棋子，則顯示多個箭頭",
     "Settings.Coordinates": "座標",

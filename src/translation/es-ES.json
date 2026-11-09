@@ -771,6 +771,7 @@
     "Settings.AutoSave.Desc": "Guardar automáticamente después de cada movimiento",
     "Settings.Board": "Tablero",
     "Settings.Board.Desc": "Personalizar el tablero de análisis y los controles de la partida",
+    "Settings.Cloud": "",
     "Settings.ConsecutiveArrows": "Flechas consecutivas",
     "Settings.ConsecutiveArrows.Desc": "Mostrar varias flechas para la mejor línea, si implica mover la misma pieza varias veces",
     "Settings.Coordinates": "Coordenadas",
