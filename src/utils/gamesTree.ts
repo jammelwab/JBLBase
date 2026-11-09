@@ -1,4 +1,5 @@
 import { makeFen } from "chessops/fen";
+import { makeSquare } from "chessops";
 import { parseSan } from "chessops/san";
 import { positionFromFen } from "./chessops";
 import { positionKey } from "./repertoireTree";
@@ -124,4 +125,21 @@ export function lineText(line: string[], startHalfMoves = 0, ellipsis = "…"): 
             return i === 0 ? `${number}${ellipsis} ${san}` : san;
         })
         .join(" ");
+}
+
+// The position after playing `line` from `rootFen`, with the last move for highlighting.
+export function playLine(
+    rootFen: string,
+    line: string[],
+): { fen: string; lastMove: [string, string] | null } {
+    const [pos] = positionFromFen(rootFen);
+    if (!pos) return { fen: rootFen, lastMove: null };
+    let lastMove: [string, string] | null = null;
+    for (const san of line) {
+        const move = parseSan(pos, san);
+        if (!move) break;
+        if ("from" in move) lastMove = [makeSquare(move.from), makeSquare(move.to)];
+        pos.play(move);
+    }
+    return { fen: makeFen(pos.toSetup()), lastMove };
 }

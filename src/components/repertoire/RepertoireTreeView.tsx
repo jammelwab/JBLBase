@@ -19,6 +19,7 @@ import {
 import { type MoveCount, moveShares, nodesOnPath, positionKey } from "@/utils/repertoireTree";
 import type { Repertoire } from "@/utils/repertoires";
 import type { TreeNode, TreeState } from "@/utils/treeReducer";
+import BoardPreview from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
 import TreeDiagram, { type DiagramLink, type DiagramNode } from "./TreeDiagram";
 import { usePositionData } from "./usePositionData";
@@ -102,6 +103,16 @@ export default function RepertoireTreeView({
   const setActiveTab = useSetAtom(activeTabAtom);
   const [expanded, setExpanded] = useState(() => new Set(initialKeys(repertoire.root)));
   const [highlight, setHighlight] = useState<string | null>(null);
+  // The move shown on the small board: its line and the position to open on the big board
+  const [selected, setSelected] = useState<{ line: string[]; path: number[] } | null>(null);
+  const select = useCallback(
+    (id: string, path: number[], extra?: string) => {
+      const line = nodesOnPath(repertoire.root, path).map((n) => n.san!);
+      setSelected({ line: extra ? [...line, extra] : line, path });
+      setHighlight(id);
+    },
+    [repertoire.root],
+  );
   const [focus, setFocus] = useState<{ id: string } | null>(null);
   const { data: ownAvailable } = useSWR(ownGamesKey(repertoire.owner), () =>
     hasOwnGames(repertoire.owner),
@@ -214,7 +225,8 @@ export default function RepertoireTreeView({
             children: [],
             bars: bars(missing.share, ownMissing),
             title: `${t("Repertoire.Tree.Missing")}\n${barTitle(missing.share, ownMissing)}\n${t("Repertoire.Tree.MissingHint")}`,
-            onOpen: () => open(path),
+            side: node.halfMoves % 2 === 0 ? "white" : "black",
+            onClick: () => select(`${id}:missing`, path, missing.san),
           });
         }
       }
@@ -246,12 +258,13 @@ export default function RepertoireTreeView({
           ? t("Repertoire.Diagram.Start")
           : `${moveLabel(node)}${node.annotations.join("")}`,
         kind: isRoot ? "root" : mine ? "mine" : "theirs",
+        side: isRoot ? undefined : node.halfMoves % 2 === 1 ? "white" : "black",
         children,
         toggle:
           !isRoot && node.children.length > 0
             ? { open: isOpen, hidden: countMoves(node), onToggle: () => toggle(id) }
             : undefined,
-        onOpen: () => open(path),
+        onClick: () => select(id, path),
         bars: isRoot ? undefined : bars(shares.lichess, shares.own),
         marker,
         title: [isRoot ? "" : barTitle(shares.lichess, shares.own), transpositionTitle]
@@ -280,7 +293,7 @@ export default function RepertoireTreeView({
     showLichess,
     showOwn,
     transpositions,
-    open,
+    select,
     toggle,
     reveal,
     t,
@@ -351,13 +364,26 @@ export default function RepertoireTreeView({
         </Alert>
       )}
 
-      <Paper withBorder flex={1} style={{ minHeight: 0, overflow: "hidden" }}>
+      <Paper withBorder flex={1} pos="relative" style={{ minHeight: 0, overflow: "hidden" }}>
         {repertoire.root.children.length === 0 ? (
           <Text c="dimmed" size="sm" p="sm">
             {t("Repertoire.Tree.Empty")}
           </Text>
         ) : (
           <TreeDiagram root={diagram} links={links} highlight={highlight} focus={focus} />
+        )}
+        {selected && (
+          <BoardPreview
+            rootFen={root.fen}
+            rootHalfMoves={root.halfMoves}
+            line={selected.line}
+            orientation={color}
+            onOpen={() => open(selected.path)}
+            onClose={() => {
+              setSelected(null);
+              setHighlight(null);
+            }}
+          />
         )}
       </Paper>
     </Stack>
