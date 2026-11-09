@@ -17,7 +17,11 @@ export type DiagramNode = {
   children: DiagramNode[];
   // Shown when the node has moves that can be opened or closed
   toggle?: { open: boolean; hidden: number; onToggle: () => void };
-  onOpen?: () => void;
+  onClick?: () => void;
+  // Who played the move: white moves are drawn light, black moves dark
+  side?: "white" | "black";
+  // Small round flag at the top left (e.g. "not the most played move on Lichess")
+  flag?: { color: string };
   // Small share bars below the move
   bars?: { value: number | undefined; color: string }[];
   // A second line of text instead of the bars
@@ -32,7 +36,7 @@ export type DiagramNode = {
 export type DiagramLink = { from: string; to: string; color: string };
 
 export const NODE_W = 128;
-export const NODE_H = 40;
+export const NODE_H = 48;
 const COL = NODE_W + 56;
 const ROW = NODE_H + 14;
 const PAD = 24;
@@ -89,26 +93,42 @@ function NodeBox({
   highlighted: boolean;
 }) {
   const top = y - NODE_H / 2;
+  const solid = node.kind === "mine" || node.kind === "theirs";
+  const dark = solid && node.side === "black";
+  const light = solid && node.side === "white";
   const fill =
     node.kind === "root"
       ? "var(--mantine-color-dark-5)"
-      : node.kind === "mine"
-        ? "var(--mantine-primary-color-light)"
-        : node.kind === "ghost" || node.kind === "other"
-          ? "transparent"
-          : "var(--mantine-color-default)";
+      : dark
+        ? "#1f2023"
+        : light
+          ? "#f8f9fa"
+          : node.kind === "mine"
+            ? "var(--mantine-primary-color-light)"
+            : node.kind === "ghost" || node.kind === "other"
+              ? "transparent"
+              : "var(--mantine-color-default)";
+  const textColor =
+    node.kind === "root" || dark ? "#f1f3f5" : light ? "#1a1b1e" : "var(--mantine-color-text)";
+  const dimColor = dark ? "#adb5bd" : light ? "#5c5f66" : "var(--mantine-color-dimmed)";
   const stroke = highlighted
-    ? "var(--mantine-color-violet-5)"
+    ? "var(--mantine-color-orange-5)"
     : (node.accent ??
       (node.kind === "mine"
         ? "var(--mantine-primary-color-filled)"
-        : "var(--mantine-color-default-border)"));
-  const hasSecondLine = (node.bars && node.bars.length > 0) || node.note;
+        : dark
+          ? "#5c5f66"
+          : "var(--mantine-color-default-border)"));
+  const strokeWidth = highlighted ? 3.5 : node.accent || node.kind === "mine" ? 2.4 : 1.2;
+  const hasBars = !!node.bars && node.bars.length > 0;
+  const lines = 1 + (hasBars ? 1 : 0) + (node.note ? 1 : 0);
+  const labelY = lines === 1 ? y + 4.5 : lines === 2 ? top + 18 : top + 15;
   return (
     <g
       opacity={node.kind === "ghost" ? 0.55 : 1}
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ cursor: node.onOpen ? "pointer" : "default" }}
+      onClick={node.onClick}
+      style={{ cursor: node.onClick ? "pointer" : "default" }}
     >
       {node.title && <title>{node.title}</title>}
       <rect
@@ -119,37 +139,58 @@ function NodeBox({
         rx={8}
         fill={fill}
         stroke={stroke}
-        strokeWidth={highlighted ? 3 : node.accent ? 2 : 1.2}
+        strokeWidth={strokeWidth}
         strokeDasharray={node.kind === "ghost" || node.kind === "other" ? "5 4" : undefined}
-        onClick={node.onOpen}
       />
       <text
         x={x + NODE_W / 2}
-        y={hasSecondLine ? top + 16 : y + 4}
+        y={labelY}
         textAnchor="middle"
         fontSize={13}
         fontWeight={node.kind === "mine" || node.kind === "root" ? 700 : 500}
         fontStyle={node.kind === "other" ? "italic" : undefined}
-        fill={node.kind === "root" ? "white" : "var(--mantine-color-text)"}
+        fill={textColor}
         style={{ pointerEvents: "none", userSelect: "none" }}
       >
         {node.label}
       </text>
-      {node.bars && node.bars.length > 0 && <Bars bars={node.bars} x={x} y={top + 26} />}
-      {!node.bars?.length && node.note && (
+      {node.note && (
         <text
           x={x + NODE_W / 2}
-          y={top + 32}
+          y={hasBars ? top + 29 : top + 34}
           textAnchor="middle"
           fontSize={10.5}
-          fill="var(--mantine-color-dimmed)"
+          fill={dimColor}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           {node.note}
         </text>
       )}
+      {hasBars && <Bars bars={node.bars!} x={x} y={node.note ? top + 36 : top + 30} />}
+      {node.flag && (
+        <g>
+          <circle cx={x + 4} cy={top + 4} r={8} fill={node.flag.color} />
+          <text
+            x={x + 4}
+            y={top + 8}
+            textAnchor="middle"
+            fontSize={11}
+            fontWeight={700}
+            fill="white"
+            style={{ pointerEvents: "none" }}
+          >
+            L
+          </text>
+        </g>
+      )}
       {node.marker && (
-        <g onClick={node.marker.onClick} style={{ cursor: "pointer" }}>
+        <g
+          onClick={(e) => {
+            e.stopPropagation();
+            node.marker!.onClick();
+          }}
+          style={{ cursor: "pointer" }}
+        >
           <circle cx={x + NODE_W - 4} cy={top + 4} r={8} fill={node.marker.color} />
           <text
             x={x + NODE_W - 4}
@@ -164,7 +205,13 @@ function NodeBox({
         </g>
       )}
       {node.toggle && (
-        <g onClick={node.toggle.onToggle} style={{ cursor: "pointer" }}>
+        <g
+          onClick={(e) => {
+            e.stopPropagation();
+            node.toggle!.onToggle();
+          }}
+          style={{ cursor: "pointer" }}
+        >
           <circle
             cx={x + NODE_W}
             cy={y}

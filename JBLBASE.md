@@ -78,13 +78,15 @@ spielt ihn auf dem Brett.
 ### Baumdiagramm
 
 Auf der Repertoire-Seite öffnet **Baum** das Repertoire als gezeichnetes
-Baumdiagramm, das sich von links („Start“) nach rechts verzweigt. Deine Züge
-sind blau hinterlegt, die Gegnerzüge grau. Mit gedrückter Maus verschiebst du
+Baumdiagramm, das sich von links („Start“) nach rechts verzweigt. Weiße Züge
+sind helle Kästchen, schwarze Züge dunkle, deine eigenen Züge haben einen
+blauen Rahmen. Ein Klick auf einen Zug zeigt die Stellung unten rechts auf
+einem kleinen Brett, darunter die Zugfolge (weiße Züge hell, schwarze dunkel)
+und den Knopf **Auf dem Brett öffnen**. Mit gedrückter Maus verschiebst du
 den Baum, das Mausrad zoomt, die Knöpfe oben rechts zoomen oder zeigen alles.
 Der Kreis mit + oder − rechts an einem Zug klappt die Folgezüge auf und zu
 (die Zahl daneben sagt, wie viele Züge darunter liegen). Ein Klick auf einen
-Zug öffnet die Stellung auf dem Brett, mit der Maus über einem Zug siehst du
-die Prozente. Jeder Zug hat zwei kleine Leisten:
+Mit der Maus über einem Zug siehst du die Prozente. Jeder Zug hat zwei kleine Leisten:
 
 - **Blau, Lichess-Datenbank:** wie oft der Zug aus dieser Stellung auf
   Lichess gespielt wird (mit den Filtern aus Datenbank → Lichess). Dafür
@@ -120,7 +122,10 @@ Klick geht zur nächsten.
   Repertoire endet, obwohl deine Partien weitergehen. Darunter liegen deine
   Partien als gezeichneter Baum, mit Anzahl und Ergebnis an jedem Zug; der
   Rahmen ist grün (im Repertoire), orange (Überraschung), rot (Abweichung) oder
-  blau (Repertoire endet). Ein
+  blau (Repertoire endet). Wie im Repertoire-Baum zeigen die Leisten, wie oft
+  der Zug auf Lichess (blau) und in deinen Partien (grün) gespielt wird. Ein
+  oranges „L“ heißt: Dein Zug ist nicht der meistgespielte auf Lichess, der
+  Tooltip nennt den Hauptzug. Ein Klick zeigt die Stellung auf dem kleinen Brett. Ein
   Klick auf eine Variante öffnet sie in einer neuen Analyse, von dort fügst
   du sie mit dem Knopf unter „Brett drehen“ zum Repertoire hinzu.
   Zugumstellungen werden erkannt: führt eine andere Zugfolge in eine

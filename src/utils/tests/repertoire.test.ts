@@ -338,3 +338,10 @@ test("moves from a chapter with its own move numbers are numbered like the reper
     expect(c4.children[0].halfMoves).toBe(4);
     expect(c4.children[0].children[0].halfMoves).toBe(5);
 });
+
+test("a line is played out for the board preview", async () => {
+    const { playLine } = await import("../gamesTree");
+    const result = playLine(INITIAL_FEN, ["e4", "e5", "Nf3"]);
+    expect(result.fen).toBe("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2");
+    expect(result.lastMove).toEqual(["g1", "f3"]);
+});
