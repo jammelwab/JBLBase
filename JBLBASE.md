@@ -98,7 +98,15 @@ blauen Rahmen. Ein Klick auf einen Zug zeigt die Stellung unten rechts auf
 einem kleinen Brett, darunter die Zugfolge (weiße Züge hell, schwarze dunkel)
 und den Knopf **Auf dem Brett öffnen**. Auf dem kleinen Brett zeigen grüne
 Pfeile die Züge deines Repertoires aus dieser Stellung und ein blauer Pfeil
-den meistgespielten Lichess-Zug (mit Anteil darunter). Mit gedrückter Maus verschiebst du
+den meistgespielten Lichess-Zug (mit Anteil darunter). Der Zug, hinter dem die meisten
+Varianten deines Repertoires stehen, hat den kräftigsten grünen Pfeil, die anderen sind
+dünner. Die Größe des kleinen Bretts ziehst du an der Ecke oben links (Doppelklick setzt
+sie zurück), sie wird gemerkt.
+
+Unter jedem Zug zeigt eine blaue Leiste den Anteil auf Lichess und eine grüne den Anteil
+deiner Varianten, die hinter diesem Zug stehen. Deine eigenen Züge sind nach Repertoire
+sortiert (oben der mit den meisten Varianten), die Züge des Gegners nach Lichess (oben
+der meistgespielte). Mit gedrückter Maus verschiebst du
 den Baum, das Mausrad zoomt, die Knöpfe oben rechts zoomen oder zeigen alles.
 Der Kreis mit + oder − rechts an einem Zug klappt die Folgezüge auf und zu
 (die Zahl daneben sagt, wie viele Züge darunter liegen). Ein Klick auf einen

@@ -47,30 +47,43 @@ function flatten(node: DiagramNode, out: DiagramNode[] = []) {
   return out;
 }
 
-function Bars({ bars, x, y }: { bars: NonNullable<DiagramNode["bars"]>; x: number; y: number }) {
-  const width = (NODE_W - 20 - (bars.length - 1) * 6) / bars.length;
+const BAR_H = 4;
+const BAR_GAP = 3;
+
+// The share bars, one below the other, the last one ending at `bottom`
+function Bars({
+  bars,
+  x,
+  bottom,
+}: {
+  bars: NonNullable<DiagramNode["bars"]>;
+  x: number;
+  bottom: number;
+}) {
+  const width = NODE_W - 20;
+  const top = bottom - bars.length * BAR_H - (bars.length - 1) * BAR_GAP;
   return (
     <>
       {bars.map((bar, i) => {
-        const bx = x + 10 + i * (width + 6);
+        const by = top + i * (BAR_H + BAR_GAP);
         const value = bar.value ?? 0;
         return (
           <g key={i}>
             <rect
-              x={bx}
-              y={y}
+              x={x + 10}
+              y={by}
               width={width}
-              height={5}
-              rx={2.5}
+              height={BAR_H}
+              rx={BAR_H / 2}
               fill="var(--mantine-color-default-border)"
             />
             {bar.value !== undefined && value > 0 && (
               <rect
-                x={bx}
-                y={y}
+                x={x + 10}
+                y={by}
                 width={Math.max(width * value, 4)}
-                height={5}
-                rx={2.5}
+                height={BAR_H}
+                rx={BAR_H / 2}
                 fill={bar.color}
               />
             )}
@@ -122,7 +135,17 @@ function NodeBox({
   const strokeWidth = highlighted ? 3.5 : node.accent || node.kind === "mine" ? 2.4 : 1.2;
   const hasBars = !!node.bars && node.bars.length > 0;
   const lines = 1 + (hasBars ? 1 : 0) + (node.note ? 1 : 0);
-  const labelY = lines === 1 ? y + 4.5 : lines === 2 ? top + 18 : top + 15;
+  const manyBars = hasBars && node.bars!.length > 1;
+  const labelY =
+    lines === 1
+      ? y + 4.5
+      : lines === 3
+        ? manyBars
+          ? top + 13
+          : top + 15
+        : manyBars
+          ? top + 17
+          : top + 18;
   return (
     <g
       opacity={node.kind === "ghost" ? 0.55 : 1}
@@ -157,7 +180,7 @@ function NodeBox({
       {node.note && (
         <text
           x={x + NODE_W / 2}
-          y={hasBars ? top + 29 : top + 34}
+          y={hasBars ? (manyBars ? top + 26 : top + 29) : top + 34}
           textAnchor="middle"
           fontSize={10.5}
           fill={dimColor}
@@ -166,7 +189,13 @@ function NodeBox({
           {node.note}
         </text>
       )}
-      {hasBars && <Bars bars={node.bars!} x={x} y={node.note ? top + 36 : top + 30} />}
+      {hasBars && (
+        <Bars
+          bars={node.bars!}
+          x={x}
+          bottom={manyBars ? top + NODE_H - 6 : top + (node.note ? 40 : 34) + 1}
+        />
+      )}
       {node.flag && (
         <g>
           <circle cx={x + 4} cy={top + 4} r={8} fill={node.flag.color} />

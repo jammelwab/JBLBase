@@ -27,7 +27,15 @@ import {
   lichessMoveCounts,
   ownMoveCounts,
 } from "@/utils/repertoireExplorer";
-import { type MoveCount, moveShares, nodesOnPath, positionKey } from "@/utils/repertoireTree";
+import {
+  type MoveCount,
+  moveShares,
+  nodesOnPath,
+  orderBy,
+  positionKey,
+  repertoireSizes,
+  repertoireWeights,
+} from "@/utils/repertoireTree";
 import type { Repertoire } from "@/utils/repertoires";
 import type { TreeNode, TreeState } from "@/utils/treeReducer";
 import BoardPreview from "./BoardPreview";
@@ -38,6 +46,8 @@ import { usePositionData } from "./usePositionData";
 
 const LICHESS_COLOR = "var(--mantine-color-blue-5)";
 const OWN_COLOR = "var(--mantine-color-teal-5)";
+// Same green as the repertoire arrows on the small board
+export const REPERTOIRE_COLOR = "#2f9e44";
 const TRANSPOSITION_COLOR = "var(--mantine-color-violet-5)";
 
 function percent(value: number | undefined) {
@@ -143,6 +153,8 @@ export default function RepertoireTreeView({
   const own = usePositionData<MoveCount[]>(fens, loadOwn, showOwn);
 
   const transpositions = useMemo(() => findTranspositions(root), [root]);
+  const sizes = useMemo(() => repertoireSizes(root), [root]);
+  const weights = useMemo(() => repertoireWeights(root), [root]);
 
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
@@ -180,13 +192,31 @@ export default function RepertoireTreeView({
   }, []);
 
   const { diagram, links } = useMemo(() => {
-    const bars = (lichessShare: number | undefined, ownShare: number | undefined) => [
+    // Moves that are not in the repertoire (ghost, "other") get an empty repertoire bar
+    type Rep = { share: number; lines: number; moves: number } | null;
+    const bars = (
+      lichessShare: number | undefined,
+      ownShare: number | undefined,
+      rep: Rep = null,
+    ) => [
       ...(showLichess ? [{ value: lichessShare, color: LICHESS_COLOR }] : []),
+      { value: rep?.share ?? 0, color: REPERTOIRE_COLOR },
       ...(showOwn ? [{ value: ownShare, color: OWN_COLOR }] : []),
     ];
-    const barTitle = (lichessShare: number | undefined, ownShare: number | undefined) =>
+    const barTitle = (
+      lichessShare: number | undefined,
+      ownShare: number | undefined,
+      rep: Rep = null,
+    ) =>
       [
         showLichess ? `${t("Repertoire.Tree.LichessLegend")}: ${percent(lichessShare)}` : null,
+        rep
+          ? t("Repertoire.Tree.RepertoireShare", {
+              share: percent(rep.share),
+              lines: rep.lines,
+              moves: rep.moves,
+            })
+          : null,
         showOwn ? `${t("Repertoire.Tree.OwnLegend")}: ${percent(ownShare)}` : null,
       ]
         .filter(Boolean)
@@ -197,7 +227,7 @@ export default function RepertoireTreeView({
     const build = (
       node: TreeNode,
       path: number[],
-      shares: { lichess?: number; own?: number },
+      shares: { lichess?: number; own?: number; rep?: Rep },
     ): DiagramNode => {
       const id = idOf(path);
       visible.add(id);
@@ -211,16 +241,31 @@ export default function RepertoireTreeView({
         const lichessShares = lichess.get(node.fen) && moveShares(lichess.get(node.fen)!, sans);
         const ownCounts = own.get(node.fen);
         const ownShares = ownCounts && moveShares(ownCounts, sans);
-        node.children.forEach((child, i) => {
+        const opponentMoves = (node.halfMoves % 2 === 0 ? "white" : "black") !== color;
+        const lines = sizes.get(node)!.lines;
+        const lichessGames = new Map(
+          (lichess.get(node.fen) ?? []).map((m) => [m.san, m.games] as const),
+        );
+        // Your own moves: the one with the most repertoire behind it first. The opponent's
+        // moves: the most played on Lichess first, then by repertoire.
+        const order = orderBy(node.children, (child) => {
+          const size = sizes.get(child)!;
+          return opponentMoves
+            ? [lichessGames.get(child.san!) ?? 0, size.lines, size.moves]
+            : [size.lines, size.moves];
+        });
+        for (const i of order) {
+          const child = node.children[i];
+          const size = sizes.get(child)!;
           children.push(
             build(child, [...path, i], {
               lichess: lichessShares?.shares.get(child.san!),
               own: ownShares?.shares.get(child.san!),
+              rep: { share: size.lines / lines, lines: size.lines, moves: size.moves },
             }),
           );
-        });
+        }
 
-        const opponentMoves = (node.halfMoves % 2 === 0 ? "white" : "black") !== color;
         if (opponentMoves && showOwn && ownShares && ownShares.other > 0) {
           children.push({
             id: `${id}:other`,
@@ -283,9 +328,9 @@ export default function RepertoireTreeView({
             ? { open: isOpen, hidden: countMoves(node), onToggle: () => toggle(id) }
             : undefined,
         onClick: () => select(id, path),
-        bars: isRoot ? undefined : bars(shares.lichess, shares.own),
+        bars: isRoot ? undefined : bars(shares.lichess, shares.own, shares.rep),
         marker,
-        title: [isRoot ? "" : barTitle(shares.lichess, shares.own), transpositionTitle]
+        title: [isRoot ? "" : barTitle(shares.lichess, shares.own, shares.rep), transpositionTitle]
           .filter(Boolean)
           .join("\n\n"),
       };
@@ -311,6 +356,7 @@ export default function RepertoireTreeView({
     showLichess,
     showOwn,
     transpositions,
+    sizes,
     select,
     toggle,
     reveal,
@@ -355,6 +401,12 @@ export default function RepertoireTreeView({
             </Text>
           </Group>
         )}
+        <Group gap={6}>
+          <Box w={14} h={6} style={{ borderRadius: 3, background: REPERTOIRE_COLOR }} />
+          <Text size="xs" c="dimmed">
+            {t("Repertoire.Tree.RepertoireLegend")}
+          </Text>
+        </Group>
         {showOwn && (
           <Group gap={6}>
             <Box w={14} h={6} style={{ borderRadius: 3, background: OWN_COLOR }} />
@@ -371,6 +423,9 @@ export default function RepertoireTreeView({
             </Text>
           </Group>
         )}
+        <Text size="xs" c="dimmed">
+          {t("Repertoire.Tree.SortHint")}
+        </Text>
         <Text size="xs" c="dimmed">
           {t("Repertoire.Diagram.Help")}
         </Text>
@@ -401,7 +456,7 @@ export default function RepertoireTreeView({
             rootHalfMoves={root.halfMoves}
             line={selected.line}
             orientation={color}
-            index={repertoire.index}
+            weights={weights}
             onOpen={() => open(selected.path)}
             onClose={() => {
               setSelected(null);

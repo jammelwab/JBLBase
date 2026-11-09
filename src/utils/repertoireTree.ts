@@ -332,3 +332,62 @@ export function mergeCourse(
     }
     return { added, unplaced };
 }
+
+// How much repertoire is behind every move: the lines (leaves) and moves below it, the move
+// itself included. Keyed by the tree node.
+export type RepertoireSize = { lines: number; moves: number };
+
+export function repertoireSizes(root: TreeNode): Map<TreeNode, RepertoireSize> {
+    const sizes = new Map<TreeNode, RepertoireSize>();
+    const visit = (node: TreeNode): RepertoireSize => {
+        let lines = 0;
+        let moves = 0;
+        for (const child of node.children) {
+            const s = visit(child);
+            lines += s.lines;
+            moves += s.moves;
+        }
+        const size = { lines: Math.max(lines, 1), moves: moves + (node.san ? 1 : 0) };
+        sizes.set(node, size);
+        return size;
+    };
+    visit(root);
+    return sizes;
+}
+
+// Position key -> lines behind each repertoire move from there, added up over all move
+// orders that reach the position. Used to pick the main move of a position.
+export function repertoireWeights(root: TreeNode): Map<string, Map<string, number>> {
+    const sizes = repertoireSizes(root);
+    const weights = new Map<string, Map<string, number>>();
+    const stack = [root];
+    while (stack.length > 0) {
+        const node = stack.pop()!;
+        if (node.children.length === 0) continue;
+        const key = positionKey(node.fen);
+        const moves = weights.get(key) ?? new Map<string, number>();
+        for (const child of node.children) {
+            if (child.san) {
+                moves.set(child.san, (moves.get(child.san) ?? 0) + sizes.get(child)!.lines);
+            }
+            stack.push(child);
+        }
+        weights.set(key, moves);
+    }
+    return weights;
+}
+
+// The order the children of a node are shown in (indices into `children`): most first by
+// `score`, ties keep the order of the file.
+export function orderBy<T>(items: T[], score: (item: T) => number[]): number[] {
+    const scores = items.map(score);
+    return items
+        .map((_, i) => i)
+        .sort((a, b) => {
+            for (let k = 0; k < scores[a].length; k++) {
+                const d = (scores[b][k] ?? 0) - (scores[a][k] ?? 0);
+                if (d !== 0) return d;
+            }
+            return a - b;
+        });
+}

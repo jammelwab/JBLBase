@@ -34,7 +34,7 @@ import {
   ownGamesKey,
   ownMoveCounts,
 } from "@/utils/repertoireExplorer";
-import type { MoveCount } from "@/utils/repertoireTree";
+import { type MoveCount, repertoireWeights } from "@/utils/repertoireTree";
 import type { Repertoire } from "@/utils/repertoires";
 import BoardPreview from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
@@ -145,6 +145,7 @@ export default function RepertoireCompareView({
   );
 
   const { root } = repertoire;
+  const weights = useMemo(() => repertoireWeights(root), [root]);
   const rootNode = useMemo(
     () => ({ fen: root.fen, halfMoves: root.halfMoves, line: [] as string[] }),
     [root],
@@ -414,7 +415,7 @@ export default function RepertoireCompareView({
                       rootHalfMoves={root.halfMoves}
                       line={selected.line}
                       orientation={repertoire.color}
-                      index={repertoire.index}
+                      weights={weights}
                       onOpen={() => openLine(selected.line)}
                       onClose={() => setSelected(null)}
                     />
