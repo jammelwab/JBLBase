@@ -524,6 +524,18 @@ async getCachedEvals(fen: string) : Promise<Result<CachedEvalJs[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Normal user accounts keep results deeper than [`USER_MAX_STORE_DEPTH`]
+ * only in memory; admins and the app without an account store everything.
+ */
+async setEvalCacheUserLimit(limited: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_eval_cache_user_limit", { limited }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async trainingLoadDeck(deck: string) : Promise<Result<TrainingDeck | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("training_load_deck", { deck }) };
