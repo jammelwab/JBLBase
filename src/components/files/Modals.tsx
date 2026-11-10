@@ -8,6 +8,8 @@ import { createFile } from "@/utils/files";
 import GenericCard from "../common/GenericCard";
 import type { Directory, FileMetadata, FileType } from "./file";
 import { moveHistory } from "@/utils/repertoireHistory";
+import { getDefaultStore } from "jotai";
+import { moveRecentFilesAtom } from "@/state/atoms";
 
 const FILE_TYPES = [
   { label: "Game", value: "game" },
@@ -165,7 +167,10 @@ export function EditModal({
 
     await rename(metadata.path, newPGNPath);
     await rename(metadataPath.replace(".pgn", ".info"), newPGNPath.replace(".pgn", ".info"));
-    if (newPGNPath !== metadata.path) await moveHistory(metadata.path, newPGNPath);
+    if (newPGNPath !== metadata.path) {
+      await moveHistory(metadata.path, newPGNPath);
+      getDefaultStore().set(moveRecentFilesAtom, { from: metadata.path, to: newPGNPath });
+    }
 
     mutate();
     setSelected((selected) =>

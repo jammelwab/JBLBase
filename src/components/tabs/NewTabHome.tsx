@@ -15,16 +15,18 @@ import { useAtom, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 import {
   activeTabAtom,
-  addRecentFileAtom,
   deckAtomFamily,
   type RecentFile,
   recentFilesAtom,
-  tabFamily,
+  recentPathKey,
+  removeRecentFilesAtom,
   tabsAtom,
 } from "@/state/atoms";
 import type { Tab } from "@/utils/tabs";
-import { createTab } from "@/utils/tabs";
+import { openFile, readInfoFile } from "@/utils/files";
+import { isInTempDir } from "@/utils/tabs";
 import { unwrap } from "@/utils/unwrap";
+import { notifications } from "@mantine/notifications";
 import CreateRepertoireModal from "./CreateRepertoireModal";
 import ImportModal from "./ImportModal";
 import classes from "./NewTabHome.module.css";
@@ -48,6 +50,7 @@ import { FileIcon } from "@/components/files/FileIcon";
 dayjs.extend(relativeTime);
 
 function RecentFileDuePositions({ file }: { file: string }) {
+  const { t } = useTranslation();
   const [deck] = useAtom(
     deckAtomFamily({
       file,
@@ -61,7 +64,7 @@ function RecentFileDuePositions({ file }: { file: string }) {
 
   return (
     <Badge size="sm" variant="light" color="orange" leftSection={<IconTarget size="0.75rem" />}>
-      {stats.due + stats.unseen} due
+      {stats.due + stats.unseen} {t("Board.Practice.Due")}
     </Badge>
   );
 }
@@ -116,65 +119,71 @@ export default function NewTabHome({ id }: { id: string }) {
   const store = useStore();
   const navigate = useNavigate();
 
+  // Clean the list once when the home tab opens: drop files that are gone,
+  // imported temp files and rows that point at the same file twice.
   useEffect(() => {
     const checkFiles = async () => {
-      const newRecentFiles = await Promise.all(
-        recentFiles.map(async (file) => {
+      const results = await Promise.all(
+        store.get(recentFilesAtom).map(async (file) => {
           const exists = await commands.fileExists(file.path);
-          if (exists.status === "error" || !exists.data) {
-            return null;
-          }
-          return file;
+          const keep = exists.status === "ok" && exists.data && !(await isInTempDir(file.path));
+          return keep ? null : recentPathKey(file.path);
         }),
       );
-      const filtered = newRecentFiles.filter((f) => f !== null) as RecentFile[];
-      if (filtered.length !== recentFiles.length) {
-        setRecentFiles(filtered);
-      }
+      const drop = new Set(results.filter((k): k is string => k !== null));
+      // Work on the current list: a file opened meanwhile must not be lost.
+      setRecentFiles((current) => {
+        const seen = new Set<string>();
+        const next = current.filter((f) => {
+          const key = recentPathKey(f.path);
+          if (drop.has(key) || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        return next.length === current.length ? current : next;
+      });
     };
     checkFiles();
-  }, []);
+  }, [store, setRecentFiles]);
 
   const openRecentFile = useCallback(
     async (file: RecentFile) => {
-      const [pgnResult, countResult] = await Promise.all([
-        commands.readGames(file.path, 0, 0),
-        commands.countPgnGames(file.path),
-      ]);
-      const pgn = unwrap(pgnResult);
-      const numGames = unwrap(countResult);
-      const tabId = await createTab({
-        tab: {
-          name: file.name,
-          type: "analysis",
-        },
-        setTabs,
-        setActiveTab,
-        pgn: pgn[0] || "",
-        gameOrigin: {
-          kind: "file",
-          gameNumber: 0,
-          file: {
+      try {
+        const exists = await commands.fileExists(file.path);
+        if (exists.status === "error" || !exists.data) {
+          store.set(removeRecentFilesAtom, file.path);
+          notifications.show({
+            color: "orange",
+            title: file.name.replace(/\.pgn$/i, ""),
+            message: t("Home.RecentFiles.Missing"),
+          });
+          return;
+        }
+        // Read the real .info, so a repertoire keeps its colour, owner and id.
+        const info = await readInfoFile(file.path);
+        const numGames = unwrap(await commands.countPgnGames(file.path));
+        await openFile(
+          {
             type: "file",
-            name: file.name,
+            name: file.name.replace(/\.pgn$/i, ""),
             path: file.path,
             numGames,
-            metadata: { type: file.type, tags: [] },
-            lastModified: Math.floor(Date.now() / 1000),
+            metadata: info ?? { type: file.type, tags: [] },
+            lastModified: Date.now(),
           },
-        },
-      });
-      if (file.type === "repertoire") {
-        store.set(tabFamily(tabId), "practice");
+          setTabs,
+          setActiveTab,
+        );
+        navigate({ to: "/" });
+      } catch (e) {
+        notifications.show({
+          color: "red",
+          title: t("Home.RecentFiles.OpenFailed"),
+          message: e instanceof Error ? e.message : String(e),
+        });
       }
-      store.set(addRecentFileAtom, {
-        name: file.name,
-        path: file.path,
-        type: file.type,
-      });
-      navigate({ to: "/" });
     },
-    [setTabs, setActiveTab, store, navigate],
+    [setTabs, setActiveTab, store, navigate, t],
   );
 
   const cards = [

@@ -27,6 +27,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useSWR from "swr";
 import { capitalize } from "@/utils/format";
+import { getDefaultStore } from "jotai";
+import { removeRecentFilesAtom } from "@/state/atoms";
 import ConfirmModal from "../common/ConfirmModal";
 import OpenFolderButton from "../common/OpenFolderButton";
 import DirectoryTree from "./DirectoryTree";
@@ -207,6 +209,7 @@ function FilesPage() {
       await remove(selected.path.replace(".pgn", ".info")).catch(() => {});
       await removeHistory(selected.path);
     }
+    getDefaultStore().set(removeRecentFilesAtom, selected.path);
 
     await mutate();
     toggleDeleteModal();
