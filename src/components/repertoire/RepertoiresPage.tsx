@@ -479,17 +479,30 @@ function FolderSection({
         <Group
           gap={6}
           wrap="nowrap"
-          style={{ cursor: "pointer" }}
+          style={{ cursor: "pointer", flex: 1, minWidth: 0 }}
           onClick={() => setOpen((o) => !o)}
         >
-          {open ? <IconChevronDown size="1rem" /> : <IconChevronRight size="1rem" />}
-          <IconFolder size="1.1rem" color="var(--mantine-color-yellow-6)" />
-          <Text fw={600}>{node.name}</Text>
-          <Badge size="sm" variant="light" color="gray">
+          {open ? (
+            <IconChevronDown size="1rem" style={{ flexShrink: 0 }} />
+          ) : (
+            <IconChevronRight size="1rem" style={{ flexShrink: 0 }} />
+          )}
+          <IconFolder
+            size="1.1rem"
+            color="var(--mantine-color-yellow-6)"
+            style={{ flexShrink: 0 }}
+          />
+          {/* Long names (e.g. imported course folders) are cut, the full name shows on hover */}
+          <Tooltip label={node.name} openDelay={400} multiline maw={480}>
+            <Text fw={600} truncate="end" style={{ minWidth: 0 }}>
+              {node.name}
+            </Text>
+          </Tooltip>
+          <Badge size="sm" variant="light" color="gray" style={{ flexShrink: 0 }}>
             {count}
           </Badge>
         </Group>
-        <Group gap={4} wrap="nowrap">
+        <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
           <FolderButtons folder={node.path} count={count} actions={actions} />
           <Tooltip label={t("Repertoire.Folder.Rename")}>
             <ActionIcon
