@@ -1020,6 +1020,7 @@
     "TimeControl.Rapid": "Rapid",
     "TimeControl.UltraBullet": "UltraBullet",
     "Updater.Available.Message": "JBLBase {{version}} is available (installed: {{current}}). Install now? The app restarts afterwards.",
+    "Updater.Available.Short": "Download update {{version}}",
     "Updater.Available.Title": "Update available",
     "Updater.Downloading": "Downloading update",
     "Updater.Failed": "Update failed",
