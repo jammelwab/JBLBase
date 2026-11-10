@@ -2,6 +2,7 @@ import { CloudBillingClient } from "@google-cloud/billing";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { logger } from "firebase-functions/v2";
 import { createHash } from "node:crypto";
+import { createTransport } from "nodemailer";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
@@ -131,14 +132,18 @@ export const deleteAccount = onCall({ cors: true, timeoutSeconds: 120 }, async (
 // Own e-mails (confirmation, password reset) in the JBLBase design.
 //
 // Firebase does not allow changing the text of its own mails, so these are
-// sent through Brevo (https://www.brevo.com). Two secrets are needed:
-//   firebase functions:secrets:set BREVO_API_KEY   (API key from Brevo)
-//   firebase functions:secrets:set MAIL_FROM       (sender address verified in Brevo)
+// sent by SMTP from a normal mailbox (default: GMX, mail.gmx.net:587).
+// Two secrets are needed, set in the Cloud Shell, never in the repository:
+//   firebase functions:secrets:set SMTP_USER       (mailbox address)
+//   firebase functions:secrets:set SMTP_PASSWORD   (mailbox password)
 // Set both before deploying these functions. As long as they are not
 // deployed, the app falls back to Firebase's standard mails.
 
-const BREVO_API_KEY = defineSecret("BREVO_API_KEY");
-const MAIL_FROM = defineSecret("MAIL_FROM");
+const SMTP_USER = defineSecret("SMTP_USER");
+const SMTP_PASSWORD = defineSecret("SMTP_PASSWORD");
+/** Another provider: set SMTP_HOST / SMTP_PORT as environment variables. */
+const SMTP_HOST = process.env.SMTP_HOST ?? "mail.gmx.net";
+const SMTP_PORT = Number(process.env.SMTP_PORT ?? 587);
 
 /**
  * Remembers when a mail of this kind last went to this address and refuses
@@ -159,40 +164,38 @@ async function claimMailSlot(kind: MailKind, email: string) {
 }
 
 async function sendMail(kind: MailKind, data: unknown, email: string, link: string) {
-    const apiKey = BREVO_API_KEY.value();
-    const from = MAIL_FROM.value();
-    if (!apiKey || !from) throw new HttpsError("failed-precondition", "Mail sending not set up");
+    const user = SMTP_USER.value();
+    const pass = SMTP_PASSWORD.value();
+    if (!user || !pass) throw new HttpsError("failed-precondition", "Mail sending not set up");
     const mail = renderMail(kind, parseLang(data), { email, link });
-    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-            "api-key": apiKey,
-            "content-type": "application/json",
-            accept: "application/json",
-        },
-        body: JSON.stringify({
-            sender: { name: "JBLBase", email: from },
-            to: [{ email }],
-            subject: mail.subject,
-            htmlContent: mail.html,
-            textContent: mail.text,
-        }),
-        signal: AbortSignal.timeout(10_000),
+    const transport = createTransport({
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: SMTP_PORT === 465,
+        requireTLS: SMTP_PORT !== 465,
+        auth: { user, pass },
+        connectionTimeout: 10_000,
     });
-    if (!res.ok) {
-        logger.error("Brevo refused the mail", {
-            kind,
-            status: res.status,
-            body: await res.text(),
+    try {
+        await transport.sendMail({
+            from: { name: "JBLBase", address: user },
+            to: email,
+            subject: mail.subject,
+            html: mail.html,
+            text: mail.text,
         });
-        throw new HttpsError("unavailable", `Mail service answered ${res.status}`);
+    } catch (e) {
+        logger.error("SMTP refused the mail", { kind, error: String(e) });
+        throw new HttpsError("unavailable", "Mail could not be sent");
+    } finally {
+        transport.close();
     }
     logger.info("Mail sent", { kind });
 }
 
 /** Sends the caller the confirmation mail for their e-mail address. */
 export const sendVerificationMail = onCall(
-    { cors: true, timeoutSeconds: 20, secrets: [BREVO_API_KEY, MAIL_FROM] },
+    { cors: true, timeoutSeconds: 20, secrets: [SMTP_USER, SMTP_PASSWORD] },
     async (request) => {
         const uid = request.auth?.uid;
         if (!uid) throw new HttpsError("unauthenticated", "Not signed in");
@@ -211,7 +214,7 @@ export const sendVerificationMail = onCall(
  * has an account, so nobody can find out which addresses are registered.
  */
 export const sendPasswordResetMail = onCall(
-    { cors: true, timeoutSeconds: 20, secrets: [BREVO_API_KEY, MAIL_FROM] },
+    { cors: true, timeoutSeconds: 20, secrets: [SMTP_USER, SMTP_PASSWORD] },
     async (request) => {
         const email = parseEmail(request.data);
         if (!email) throw new HttpsError("invalid-argument", "Invalid e-mail address");
