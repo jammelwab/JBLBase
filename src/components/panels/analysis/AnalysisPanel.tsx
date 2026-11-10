@@ -30,7 +30,7 @@ import {
   activeTabAtom,
   allEnabledAtom,
   currentAnalysisTabAtom,
-  currentExpandedEnginesAtom,
+  currentCollapsedEnginesAtom,
   enableAllAtom,
   engineMovesFamily,
   enginesAtom,
@@ -80,7 +80,7 @@ function AnalysisPanel() {
   const allEnabled = useAtomValue(allEnabledAtom);
 
   const [tab, setTab] = useAtom(currentAnalysisTabAtom);
-  const [expanded, setExpanded] = useAtom(currentExpandedEnginesAtom);
+  const [collapsed, setCollapsed] = useAtom(currentCollapsedEnginesAtom);
 
   const [pos] = positionFromFen(currentNodeFen);
   const navigate = useNavigate();
@@ -157,9 +157,15 @@ function AnalysisPanel() {
               <Accordion
                 variant="separated"
                 multiple
-                chevronSize={0}
-                value={expanded ?? loadedEngines.map((e) => e.id)}
-                onChange={(v) => setExpanded(v)}
+                chevronPosition="left"
+                value={loadedEngines.map((e) => e.id).filter((id) => !collapsed.includes(id))}
+                onChange={(open) => {
+                  const loadedIds = loadedEngines.map((e) => e.id);
+                  setCollapsed((prev) => [
+                    ...prev.filter((id) => !loadedIds.includes(id)),
+                    ...loadedIds.filter((id) => !open.includes(id)),
+                  ]);
+                }}
                 styles={{
                   label: {
                     paddingTop: 0,

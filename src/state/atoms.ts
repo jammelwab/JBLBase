@@ -536,8 +536,10 @@ const lineTrainerBoardFamily = atomFamily((_tab: string) =>
 );
 export const currentLineTrainerBoardAtom = tabValue(lineTrainerBoardFamily);
 
-const expandedEnginesFamily = atomFamily((_tab: string) => atom<string[] | undefined>(undefined));
-export const currentExpandedEnginesAtom = tabValue(expandedEnginesFamily);
+// Engines whose lines the user folded away in this tab. Stored as the folded ones (not the
+// open ones) so an engine that loads later always starts with its lines visible.
+const collapsedEnginesFamily = atomFamily((_tab: string) => atom<string[]>([]));
+export const currentCollapsedEnginesAtom = tabValue(collapsedEnginesFamily);
 
 export const currentDetachedEngineAtom = atomWithStorage<string | null>("detached-engine", null);
 
