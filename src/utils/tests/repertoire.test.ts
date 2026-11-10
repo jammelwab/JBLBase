@@ -10,6 +10,8 @@ import {
     indexRepertoire,
     mergeCourse,
     mergeLine,
+    mergeTree,
+    missingMoves,
     moveShares,
     orderBy,
     positionKey,
@@ -503,4 +505,41 @@ test("repertoireMovesAt adds up the moves of several repertoires in one position
         { move: "d5", lines: 1, repertoires: [{ name: "A", color: "black" }] },
     ]);
     expect(repertoireMovesAt(sources, playLine(INITIAL_FEN, ["a3"]).fen)).toEqual([]);
+});
+
+test("the main repertoire gets every move of the others, once", () => {
+    const main = tree(["e4", "e5", "Nf3"]);
+    const englund = tree(["d4", "e5", "dxe5", "Nc6"], ["d4", "e5", "dxe5", "d6"]);
+    expect(missingMoves(main, englund)).toBe(5);
+    expect(missingMoves(main, tree(["e4", "e5"]))).toBe(0);
+    expect(mergeTree(main, englund)).toBe(5);
+    expect(lines(main)).toEqual(["e4 e5 Nf3", "d4 e5 dxe5 Nc6", "d4 e5 dxe5 d6"]);
+    // nothing left to add, and merging again changes nothing
+    expect(missingMoves(main, englund)).toBe(0);
+    expect(mergeTree(main, englund)).toBe(0);
+    // the source is left as it was
+    expect(lines(englund)).toEqual(["d4 e5 dxe5 Nc6", "d4 e5 dxe5 d6"]);
+});
+
+test("the main repertoire is found by its mark or by its name", async () => {
+    const { findMainRepertoire } = await import("../repertoireFolders");
+    const rep = (name: string, folder = "", extra = {}) => ({
+        name,
+        owner: "Spieler",
+        color: "white" as const,
+        folder,
+        ...extra,
+    });
+    const items = [rep("Englund"), rep("Ich Weiß"), rep("Spieler Weiß", "Kurse")];
+    // a repertoire in a folder is not the main one, even with the right name
+    expect(findMainRepertoire(items, "Spieler", "white")).toBeUndefined();
+    // the main user was called "Ich" before a name was set
+    expect(findMainRepertoire(items, "spieler", "white", ["Ich"])?.name).toBe("Ich Weiß");
+    expect(findMainRepertoire(items, "Spieler", "black", ["Ich"])).toBeUndefined();
+    // a marked repertoire wins, whatever it is called
+    const marked = [...items, rep("Alles", "Kurse", { main: true })];
+    expect(findMainRepertoire(marked, "Spieler", "white", ["Ich"])?.name).toBe("Alles");
+    expect(findMainRepertoire([rep("Spieler White")], "Spieler", "white")?.name).toBe(
+        "Spieler White",
+    );
 });

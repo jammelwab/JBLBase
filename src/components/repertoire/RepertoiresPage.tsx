@@ -20,6 +20,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
+  IconArrowMerge,
   IconBinaryTree,
   IconBooks,
   IconChevronDown,
@@ -47,12 +48,15 @@ import {
   type FolderNode,
   folderItems,
   inFolder,
+  findMainRepertoire,
   normalizeFolder,
 } from "@/utils/repertoireFolders";
+import { mergeTree, missingMoves } from "@/utils/repertoireTree";
 import {
   combineRepertoires,
   createRepertoire,
   defaultRepertoires,
+  DEFAULT_MAIN_OWNER,
   deleteFolder,
   type Repertoire,
   type RepertoireColor,
@@ -60,6 +64,7 @@ import {
   repertoireOwner,
   repertoireViewAtom,
   setRepertoireFolder,
+  syncMainRepertoire,
   useMainOwner,
   useStoredFolders,
   useRepertoires,
@@ -82,11 +87,14 @@ function RepertoireCard({
   onShowTree,
   onCompare,
   onMove,
+  main,
 }: {
   repertoire: Repertoire;
   onShowTree: () => void;
   onCompare: () => void;
   onMove: () => void;
+  // Set on the main repertoire of its player and color
+  main?: MainInfo;
 }) {
   const { t } = useTranslation();
   const colorName = useColorName();
@@ -95,6 +103,7 @@ function RepertoireCard({
   const navigate = useNavigate();
   const { stats } = repertoire;
   const [showHistory, setShowHistory] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   return (
     <Card withBorder padding="md">
@@ -124,9 +133,18 @@ function RepertoireCard({
             </ActionIcon>
           </Tooltip>
         </Group>
-        <Text size="sm" c="dimmed">
-          {colorName(repertoire.color)}
-        </Text>
+        <Group gap="xs">
+          <Text size="sm" c="dimmed">
+            {colorName(repertoire.color)}
+          </Text>
+          {main && (
+            <Tooltip label={t("Repertoire.Main.Hint")} multiline w={260}>
+              <Badge size="sm" variant="light" color="green">
+                {t("Repertoire.Main.Badge")}
+              </Badge>
+            </Tooltip>
+          )}
+        </Group>
         <Group gap="lg">
           <Stack gap={0}>
             <Text fw={600}>{stats.moves}</Text>
@@ -169,6 +187,22 @@ function RepertoireCard({
         >
           {t("Repertoire.Compare.Button")}
         </Button>
+        {main && main.missing > 0 && (
+          <Button
+            variant="light"
+            color="green"
+            size="xs"
+            leftSection={<IconArrowMerge size="1rem" />}
+            loading={syncing}
+            onClick={async () => {
+              setSyncing(true);
+              await main.onSync();
+              setSyncing(false);
+            }}
+          >
+            {t("Repertoire.Main.Sync", { count: main.missing })}
+          </Button>
+        )}
       </Stack>
     </Card>
   );
@@ -334,7 +368,10 @@ function MoveFolderModal({
   );
 }
 
+type MainInfo = { path: string; missing: number; onSync: () => Promise<void> };
+
 type FolderActions = {
+  main?: MainInfo;
   owner: string;
   color: RepertoireColor;
   onView: (view: RepertoireView) => void;
@@ -414,6 +451,7 @@ function FolderContents({
               onShowTree={() => actions.onView({ mode: "tree", path: r.file.path })}
               onCompare={() => actions.onView({ mode: "compare", path: r.file.path })}
               onMove={() => actions.onMove(r)}
+              main={actions.main?.path === r.file.path ? actions.main : undefined}
             />
           ))}
         </SimpleGrid>
@@ -503,7 +541,56 @@ function ColorGroup({
   actions: FolderActions;
 }) {
   const colorName = useColorName();
+  const { t } = useTranslation();
+  const { documentDir } = useLoaderData({ from: "/repertoires" });
   const tree = useMemo(() => buildFolderTree(list, emptyFolders), [list, emptyFolders]);
+  const { owner, color } = actions;
+  const mainOwner = useMainOwner();
+  // The main repertoire ("Ich Weiß") and how many moves of the others it is missing
+  const main = useMemo(() => {
+    const aliases = owner.toLowerCase() === mainOwner.toLowerCase() ? [DEFAULT_MAIN_OWNER] : [];
+    const found = findMainRepertoire(list, owner, color, aliases);
+    if (!found) return undefined;
+    // Counted on a copy that takes them in one by one, so moves the others share count once
+    const others = list.filter((r) => r !== found);
+    if (others.every((r) => missingMoves(found.root, r.root) === 0)) {
+      return { path: found.file.path, missing: 0 };
+    }
+    const copy = structuredClone(found.root);
+    const missing = others.reduce((sum, r) => sum + (mergeTree(copy, r.root) ?? 0), 0);
+    return { path: found.file.path, missing };
+  }, [list, owner, color, mainOwner]);
+  const groupActions: FolderActions = main
+    ? {
+        ...actions,
+        main: {
+          ...main,
+          onSync: async () => {
+            try {
+              const result = await syncMainRepertoire(
+                documentDir,
+                owner,
+                color,
+                t("Repertoire.Main.SyncSource"),
+              );
+              if (result) {
+                notifications.show({
+                  color: "green",
+                  title: result.main.name,
+                  message: t("Repertoire.Main.Synced", { count: result.added }),
+                });
+              }
+            } catch (e) {
+              notifications.show({
+                color: "red",
+                title: t("Repertoire.Main.Badge"),
+                message: e instanceof Error ? e.message : String(e),
+              });
+            }
+          },
+        },
+      }
+    : actions;
   return (
     <Stack gap="xs">
       <Group justify="space-between" wrap="nowrap">
@@ -514,9 +601,9 @@ function ColorGroup({
             {list.length}
           </Badge>
         </Group>
-        <FolderButtons folder="" count={list.length} actions={actions} />
+        <FolderButtons folder="" count={list.length} actions={groupActions} />
       </Group>
-      <FolderContents node={tree} actions={actions} />
+      <FolderContents node={tree} actions={groupActions} />
     </Stack>
   );
 }
@@ -602,6 +689,7 @@ export default function RepertoiresPage() {
         owner: d.owner,
         color: d.color,
         dir: documentDir,
+        main: true,
       });
       if (result.isErr) {
         notifications.show({ color: "red", title: d.owner, message: result.error.message });

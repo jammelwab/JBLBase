@@ -446,3 +446,30 @@ export function repertoireMovesAt(
     }
     return [...rows.values()].sort((a, b) => b.lines - a.lines || a.move.localeCompare(b.move));
 }
+
+// How many moves of `source` the repertoire `target` doesn't have yet, counted from the
+// position where `source` starts (0 if `target` never reaches it). Doesn't change anything.
+export function missingMoves(target: TreeNode, source: TreeNode): number {
+    const anchor = findAnchor(target, source.fen);
+    if (!anchor) return 0;
+    const count = (have: TreeNode | undefined, from: TreeNode): number => {
+        let missing = 0;
+        for (const child of from.children) {
+            if (!child.san) continue;
+            const match = have?.children.find((c) => c.san === child.san);
+            if (!match) missing++;
+            missing += count(match, child);
+        }
+        return missing;
+    };
+    return count(anchor, source);
+}
+
+// Adds every move of `source` to `target`, from the position where `source` starts.
+// Returns the number of new moves, or null if `target` never reaches that position.
+// Mutates `target`.
+export function mergeTree(target: TreeNode, source: TreeNode): number | null {
+    const anchor = findAnchor(target, source.fen);
+    if (!anchor) return null;
+    return mergeSubtree(anchor, source);
+}

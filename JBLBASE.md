@@ -115,6 +115,19 @@ wählst Spieler, Farbe, einen Zielordner und ob der Name des gewählten Ordners 
 oberste Ebene übernommen wird. Gibt es einen Namen schon, bekommt das neue
 Repertoire „(2)“ angehängt.
 
+### Haupt-Repertoire
+
+„Ich Weiß“ und „Ich Schwarz“ (allgemein: „Spieler Farbe“ auf oberster Ebene) sind die
+**Haupt-Repertoires**, erkennbar am grünen Abzeichen. Sie enthalten alle Linien der
+anderen Repertoires derselben Farbe: Was du als Kurs, als Ordner oder als einzelne
+Linie in ein anderes Repertoire importierst, kommt automatisch auch ins
+Haupt-Repertoire, mit eigenem Eintrag in dessen Import-Historie. Fehlen ihm Züge, etwa
+aus Importen von vor dieser Version, zeigt die Karte „N fehlende Züge übernehmen“.
+Züge, die das Haupt-Repertoire schon hat, bleiben unverändert; was du nur aus einem
+Unter-Repertoire löschst, bleibt im Haupt-Repertoire stehen. Beim ersten Abgleich wird
+es in der `.info` als Haupt-Repertoire markiert (`main`), damit es das auch nach dem
+Umbenennen bleibt.
+
 ### Repertoire im Datenbank-Bereich des Analysebretts
 
 Im Datenbank-Bereich des Analysebretts gibt es neben Lokal, Lichess Alle und Lichess

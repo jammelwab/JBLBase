@@ -205,3 +205,38 @@ export function planFolderImport(
         .filter((f, i, all) => all.findIndex((g) => sameFolder(f, g)) === i);
     return { items, folders };
 }
+
+// The main repertoire of a player and color ("Ich Weiß"): the one marked as main, otherwise
+// the one at the top level named after the player and the color, as the page creates it.
+// `aliases` are other names of the player (the main user was "Ich" before a name was set).
+const COLOR_WORDS = {
+    white: ["weiß", "weiss", "white"],
+    black: ["schwarz", "black"],
+} as const;
+
+export type MainCandidate = {
+    name: string;
+    owner: string;
+    color: "white" | "black";
+    folder: string;
+    main?: boolean;
+};
+
+export function isSameGroup(r: MainCandidate, owner: string, color: "white" | "black") {
+    return r.owner.toLowerCase() === owner.toLowerCase() && r.color === color;
+}
+
+export function findMainRepertoire<T extends MainCandidate>(
+    items: T[],
+    owner: string,
+    color: "white" | "black",
+    aliases: string[] = [],
+): T | undefined {
+    const group = items.filter((r) => isSameGroup(r, owner, color));
+    const names = [owner, ...aliases].map((n) => n.trim().toLowerCase());
+    const named = (r: T) => {
+        const name = r.name.trim().toLowerCase();
+        return names.some((o) => COLOR_WORDS[color].some((c) => name === `${o} ${c}`));
+    };
+    return group.find((r) => r.main) ?? group.find((r) => !normalizeFolder(r.folder) && named(r));
+}
