@@ -1,4 +1,4 @@
-import { Badge, Group, Progress, Select, Stack, Text, Tooltip } from "@mantine/core";
+import { Group, Progress, Select, Text, Tooltip } from "@mantine/core";
 import { useLoaderData } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { DataTable } from "mantine-datatable";
@@ -6,22 +6,28 @@ import { memo, useContext, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
-import { ColorDot } from "@/components/repertoire/RepertoireLabel";
-import { repertoireDbSourceAtom } from "@/state/atoms";
+import { moveNotationTypeAtom, repertoireDbSourceAtom } from "@/state/atoms";
 import { addPieceSymbol } from "@/utils/annotation";
-import { moveNotationTypeAtom } from "@/state/atoms";
-import { repertoireMovesAt, repertoireWeights } from "@/utils/repertoireTree";
+import { formatNumber } from "@/utils/format";
+import { combineTrees } from "@/utils/repertoireFolders";
+import {
+  positionKey,
+  type RepertoireMoveRow,
+  repertoireMovesAt,
+  repertoireWeights,
+} from "@/utils/repertoireTree";
 import { type Repertoire, useMainOwner, useRepertoires } from "@/utils/repertoires";
+import type { TreeNode } from "@/utils/treeReducer";
 
 const MINE = "mine";
 
 // Weights are worked out once per repertoire tree, not on every move
-const weightsCache = new WeakMap<object, Map<string, Map<string, number>>>();
-function weightsOf(repertoire: Repertoire) {
-  let weights = weightsCache.get(repertoire.root);
+const weightsCache = new WeakMap<TreeNode, Map<string, Map<string, number>>>();
+function weightsOf(root: TreeNode) {
+  let weights = weightsCache.get(root);
   if (!weights) {
-    weights = repertoireWeights(repertoire.root);
-    weightsCache.set(repertoire.root, weights);
+    weights = repertoireWeights(root);
+    weightsCache.set(root, weights);
   }
   return weights;
 }
@@ -60,13 +66,9 @@ export function RepertoireSourceSelect() {
   );
 }
 
-// Your repertoire as a "database": the moves it has in the current position, with the lines
-// behind each move. A click plays the move.
-function RepertoireMovesTable({ fen }: { fen: string }) {
-  const { t } = useTranslation();
-  const store = useContext(TreeStateContext)!;
-  const makeMove = useStore(store, (s) => s.makeMove);
-  const [moveNotationType] = useAtom(moveNotationTypeAtom);
+// The repertoire moves in a position, with the lines behind each. "All mine" counts every
+// line once, also when it is in several repertoires (the main repertoire has them all).
+export function useRepertoireMoves(fen: string): { rows: RepertoireMoveRow[]; loading: boolean } {
   const { documentDir } = useLoaderData({ from: "/" });
   const { data: repertoires, isLoading } = useRepertoires(documentDir);
   const mainOwner = useMainOwner();
@@ -77,98 +79,100 @@ function RepertoireMovesTable({ fen }: { fen: string }) {
     const one = all.find((r) => r.file.path === source);
     return one ? [one] : all.filter((r) => r.owner === mainOwner);
   }, [repertoires, source, mainOwner]);
-
-  const rows = useMemo(
-    () =>
-      repertoireMovesAt(
-        chosen.map((r) => ({ name: r.name, color: r.color, weights: weightsOf(r) })),
-        fen,
-      ),
-    [chosen, fen],
+  const combined = useMemo(
+    () => (chosen.length > 1 ? combineTrees(chosen.map((r) => r.root)) : chosen[0]?.root),
+    [chosen],
   );
-  const total = rows.reduce((sum, r) => sum + r.lines, 0);
 
-  if (!isLoading && chosen.length === 0) {
-    return (
-      <Text size="sm" c="dimmed" pt="sm">
-        {t("Board.Database.Repertoire.NoRepertoires")}
-      </Text>
+  const rows = useMemo(() => {
+    if (!combined) return [];
+    const key = positionKey(fen);
+    return repertoireMovesAt([{ name: "", color: "white", weights: weightsOf(combined) }], fen).map(
+      (row) => ({
+        ...row,
+        repertoires: chosen
+          .filter((r) => weightsOf(r.root).get(key)?.has(row.move))
+          .map((r) => ({ name: r.name, color: r.color })),
+      }),
     );
-  }
+  }, [combined, chosen, fen]);
+  return { rows, loading: isLoading };
+}
+
+// Your repertoire as a database, shown like the other databases: the moves in the current
+// position with their share. A click plays the move.
+function RepertoireMovesTable({ fen }: { fen: string }) {
+  const store = useContext(TreeStateContext)!;
+  const makeMove = useStore(store, (s) => s.makeMove);
+  const [moveNotationType] = useAtom(moveNotationTypeAtom);
+  const { rows, loading } = useRepertoireMoves(fen);
+
+  const grandTotal = rows.reduce((sum, r) => sum + r.lines, 0);
+  const records = rows.map((r) => ({ move: r.move, total: r.lines, repertoires: r.repertoires }));
+  if (records.length > 0) records.push({ move: "Total", total: grandTotal, repertoires: [] });
 
   return (
     <DataTable
       withTableBorder
       highlightOnHover
-      records={rows}
-      fetching={isLoading}
+      records={records}
+      fetching={loading}
       idAccessor="move"
-      noRecordsText={t("Board.Database.Repertoire.NotInRepertoire")}
-      minHeight={rows.length === 0 ? 120 : undefined}
+      rowStyle={(_, i) =>
+        i === records.length - 1
+          ? { fontWeight: 700, position: "sticky", bottom: 0, zIndex: 10 }
+          : {}
+      }
       columns={[
         {
           accessor: "move",
-          title: t("Board.Database.Repertoire.Move"),
-          width: 90,
+          width: 100,
           render: ({ move }) => (
-            <Text fz="sm" fw={600}>
-              {moveNotationType === "symbols" ? addPieceSymbol(move) : move}
+            <Text fz="sm">
+              {moveNotationType === "symbols" && move !== "Total" ? addPieceSymbol(move) : move}
             </Text>
           ),
         },
         {
-          accessor: "lines",
-          title: t("Board.Database.Repertoire.Lines"),
-          width: 170,
-          render: ({ lines }) => (
-            <Group gap="xs" wrap="nowrap">
-              <Progress
-                value={total > 0 ? (lines / total) * 100 : 0}
-                color="green"
-                size="md"
-                flex={1}
-              />
-              <Text fz="sm" w={36} ta="right">
-                {lines}
+          accessor: "total",
+          width: 180,
+          render: ({ move, total }) => (
+            <Group>
+              {move !== "Total" && (
+                <Text fz="sm">{grandTotal > 0 ? ((total / grandTotal) * 100).toFixed(0) : 0}%</Text>
+              )}
+              <Text fz="sm" flex={1} ta="right">
+                {formatNumber(total)}
               </Text>
             </Group>
           ),
         },
         {
-          accessor: "repertoires",
-          title: t("Board.Database.Repertoire.In"),
-          render: ({ repertoires: list }) => (
-            <Group gap={4}>
-              {list.map((r) => (
-                <Tooltip key={r.name} label={r.name}>
-                  <Badge
-                    variant="default"
-                    size="sm"
-                    leftSection={<ColorDot color={r.color} />}
-                    maw={180}
-                    tt="none"
-                  >
-                    {r.name}
-                  </Badge>
-                </Tooltip>
-              ))}
-            </Group>
-          ),
+          accessor: "results",
+          render: ({ move, total, repertoires }) => {
+            if (move === "Total") return null;
+            const percent = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
+            return (
+              <Tooltip
+                label={repertoires.map((r) => r.name).join(", ")}
+                disabled={repertoires.length === 0}
+                multiline
+                maw={320}
+              >
+                <Progress.Root size="xl">
+                  <Progress.Section value={percent} color="green">
+                    <Progress.Label>{percent > 10 ? `${percent.toFixed(1)}%` : ""}</Progress.Label>
+                  </Progress.Section>
+                </Progress.Root>
+              </Tooltip>
+            );
+          },
         },
       ]}
-      onRowClick={({ record }) => makeMove({ payload: record.move })}
+      onRowClick={({ record }) => {
+        if (record.move !== "Total") makeMove({ payload: record.move });
+      }}
     />
-  );
-}
-
-export function RepertoireNoGames() {
-  const { t } = useTranslation();
-  return (
-    <Stack pt="sm">
-      <Text size="sm" c="dimmed">
-        {t("Board.Database.Repertoire.NoGames")}
-      </Text>
-    </Stack>
   );
 }
 
