@@ -196,6 +196,7 @@ fn main() {
             eval_cache::get_eval_cache_stats,
             eval_cache::clear_eval_cache,
             eval_cache::get_cached_evals,
+            eval_cache::set_eval_cache_user_limit,
             training::training_load_deck,
             training::training_save_cards,
             training::training_append_reviews,

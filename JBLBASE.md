@@ -28,10 +28,13 @@ So wird der Speicher genutzt:
 5. **Matts zählen extra.** Hat eine Engine ein Matt sicher, meldet sie eine
    künstliche Höchsttiefe (Stockfish 245). Solche Einträge bleiben immer
    erhalten, zählen in der Statistik aber nicht als „maximale Tiefe“.
-6. **Speichergrenze für Nutzer (vorbereitet).** Für die geplanten Nutzerkonten
-   kann der Speicher auf eine Tiefe begrenzt werden (vorgesehen: 28). Tiefere
-   Ergebnisse werden dann als Tiefe 28 gespeichert, Matts nie begrenzt. Ohne
-   Konto und für Admins gilt keine Grenze, so wie bisher.
+6. **Speichergrenze für Nutzerkonten.** Bist du mit einem normalen Konto
+   angemeldet, rechnet die Engine so tief wie immer, dauerhaft gespeichert wird
+   aber höchstens Tiefe 28. Das tiefere Ergebnis bleibt bis zum Schließen der
+   App im Arbeitsspeicher und wird in dieser Sitzung weiter genutzt. Matts
+   werden nie begrenzt. Admins und die App ohne Konto speichern ohne Grenze;
+   meldet sich ein Admin an, werden die nur im Arbeitsspeicher gehaltenen
+   Ergebnisse vollständig gespeichert.
 
 Beim Analysieren:
 
