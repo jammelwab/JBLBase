@@ -13,6 +13,7 @@
 
 import type { FirebaseApp } from "firebase/app";
 import type { Auth, User } from "firebase/auth";
+import i18n from "i18next";
 import { FIREBASE_REGION, firebaseConfig } from "./firebaseConfig";
 
 export type CloudRole = "admin" | "user";
@@ -56,6 +57,14 @@ export function cloudAuth(): Promise<Auth> {
     return authPromise;
 }
 
+/**
+ * Firebase picks the e-mail template (verification, password reset) by this
+ * language, so the mails come in the language the app is set to.
+ */
+function setMailLanguage(auth: Auth) {
+    auth.languageCode = (i18n.language || "de").slice(0, 2);
+}
+
 export function isLichessUid(uid: string): boolean {
     return uid.startsWith("lichess:");
 }
@@ -93,18 +102,21 @@ export async function registerWithEmail(email: string, password: string) {
     const auth = await cloudAuth();
     const { createUserWithEmailAndPassword, sendEmailVerification } = await import("firebase/auth");
     const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    setMailLanguage(auth);
     await sendEmailVerification(user).catch(() => {});
 }
 
 export async function resetPassword(email: string) {
     const auth = await cloudAuth();
     const { sendPasswordResetEmail } = await import("firebase/auth");
+    setMailLanguage(auth);
     await sendPasswordResetEmail(auth, email.trim());
 }
 
 export async function resendVerification() {
     const auth = await cloudAuth();
     const { sendEmailVerification } = await import("firebase/auth");
+    setMailLanguage(auth);
     if (auth.currentUser) await sendEmailVerification(auth.currentUser);
 }
 
