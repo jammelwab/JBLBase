@@ -15,8 +15,8 @@ Nutzungsbedingungen schränken die Rechte aus dieser Lizenz nicht ein.
 
 Anbieter des Cloud-Dienstes ist:
 
-[BITTE EINTRAGEN: Vor- und Nachname]\
-E-Mail: [BITTE EINTRAGEN: Kontakt-E-Mail-Adresse]
+Jannick Schwab\
+E-Mail: <jannick.jblbase@gmx.net>
 
 (im Folgenden „ich“). JBLBase ist ein privates, nicht kommerzielles Projekt.
 Meine Postanschrift teile ich auf Anfrage per E-Mail mit.

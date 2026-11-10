@@ -7,8 +7,8 @@ verarbeitet werden, wozu und welche Rechte du hast (Art. 13 DSGVO).
 
 ## 1. Verantwortlicher
 
-[BITTE EINTRAGEN: Vor- und Nachname]\
-E-Mail: [BITTE EINTRAGEN: Kontakt-E-Mail-Adresse]
+Jannick Schwab\
+E-Mail: <jannick.jblbase@gmx.net>
 
 Meine Postanschrift teile ich auf Anfrage per E-Mail mit.
 
