@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
     escapeHtml,
+    LOGO_URL,
     maySend,
     MAIL_INTERVAL_MS,
     parseEmail,
@@ -38,6 +39,7 @@ test("renderMail escapes the address and contains the link", () => {
     assert.ok(mail.html.includes("&lt;b&gt;@example.com"));
     assert.ok(!mail.html.includes("<b>@example.com"));
     assert.ok(mail.text.includes(link));
+    assert.ok(mail.html.includes(LOGO_URL));
     assert.ok(!mail.text.includes("<strong>"));
 });
 

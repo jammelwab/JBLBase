@@ -98,6 +98,9 @@ const TEXTS: Record<MailKind, Record<MailLang, Texts>> = {
     },
 };
 
+/** The app logo, served from the public repository (mail clients block embedded images). */
+export const LOGO_URL = "https://raw.githubusercontent.com/jammelwab/JBLBase/main/public/logo.png";
+
 const FOOTER: Record<MailLang, string> = {
     de: "JBLBase ist ein Open-Source-Projekt für Schachtraining.",
     en: "JBLBase is an open-source project for chess training.",
@@ -120,7 +123,10 @@ export function renderMail(
 <body style="margin:0;padding:0;background:#1f2023;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1f2023;padding:32px 16px;font-family:${font};"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#2b2c30;border:1px solid #3a3b40;border-radius:12px;"><tr><td style="padding:32px;color:#e9ecef;">
-<p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#4dabf7;font-weight:600;">JBLBase</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr>
+<td style="padding:0 12px 0 0;vertical-align:middle;"><img src="${LOGO_URL}" width="48" height="48" alt="JBLBase" style="display:block;width:48px;height:48px;border-radius:10px;border:0;"></td>
+<td style="vertical-align:middle;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:.01em;">JBLBase</td>
+</tr></table>
 <h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;color:#ffffff;">${t.title}</h1>
 <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">${t.hello}</p>
 <p style="margin:0 0 24px;font-size:15px;line-height:1.6;">${t.intro(e)}</p>
