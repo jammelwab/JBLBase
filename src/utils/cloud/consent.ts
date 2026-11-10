@@ -21,8 +21,11 @@ export type PendingConsent = {
 };
 
 const PENDING_KEY = "cloud-consent-pending";
-/** A pending agreement only counts for a sign-in shortly after it. */
-export const PENDING_MAX_AGE_MS = 60 * 60 * 1000;
+/**
+ * A pending agreement only counts for a sign-in within a week (time to
+ * confirm the e-mail address and get on the allowlist).
+ */
+export const PENDING_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function consentDocId(terms = TERMS_VERSION, privacy = PRIVACY_VERSION): string {
     return `${terms}_${privacy}`;

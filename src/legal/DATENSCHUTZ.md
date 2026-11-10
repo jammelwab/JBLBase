@@ -8,11 +8,13 @@ verarbeitet werden, wozu und welche Rechte du hast (Art. 13 DSGVO).
 ## 1. Verantwortlicher
 
 [BITTE EINTRAGEN: Vor- und Nachname]\
-[BITTE EINTRAGEN: Straße und Hausnummer]\
-[BITTE EINTRAGEN: PLZ und Ort], Deutschland\
 E-Mail: [BITTE EINTRAGEN: Kontakt-E-Mail-Adresse]
 
-JBLBase ist ein privates, nicht kommerzielles Open-Source-Projekt. Ein
+Meine Postanschrift teile ich auf Anfrage per E-Mail mit.
+
+JBLBase ist ein privates, nicht kommerzielles Open-Source-Projekt. Der
+Cloud-Dienst ist nur für Personen freigeschaltet, die ich persönlich
+freigebe. Ein
 Datenschutzbeauftragter ist nicht benannt, weil dafür keine gesetzliche
 Pflicht besteht.
 
@@ -80,6 +82,10 @@ deinem Gerät.
   Ordnern und dem Namen der Person, für die das Repertoire ist.
 - **Trainingsfortschritt:** Lernkarten zu Stellungen und das Protokoll deiner
   Wiederholungen (Zeitpunkt, Ergebnis).
+- **Freischaltung:** Damit du die Cloud nutzen kannst, trage ich deine
+  E-Mail-Adresse oder deinen Lichess-Benutzernamen in eine Freigabeliste ein.
+  Die App kann diese Liste nicht lesen. Ein nicht freigeschaltetes Konto
+  enthält nur die Kontodaten oben; du kannst es jederzeit löschen.
 - **Zustimmung:** welche Fassung der Nutzungsbedingungen und dieser
   Datenschutzerklärung du wann bestätigt hast, auf welchem Weg und mit
   welcher App-Version, und dass du mindestens 16 Jahre alt bist bzw. deine
@@ -177,10 +183,9 @@ Du hast das Recht auf
 Schreib dafür einfach an die E-Mail-Adresse in Abschnitt 1.
 
 Du kannst dich außerdem bei einer **Datenschutz-Aufsichtsbehörde** beschweren
-(Art. 77 DSGVO), zum Beispiel bei der Behörde deines Wohnorts oder bei der für
-mich zuständigen:
-
-[BITTE EINTRAGEN: zuständige Landesdatenschutzbehörde mit Anschrift und Website]
+(Art. 77 DSGVO), zum Beispiel bei der Behörde deines Wohnorts. Eine Liste der
+Aufsichtsbehörden in Deutschland findest du bei der Datenschutzkonferenz:
+<https://www.datenschutzkonferenz-online.de/datenschutzaufsichtsbehoerden.html>
 
 ## 8. Keine automatisierten Entscheidungen
 

@@ -43,6 +43,8 @@ export type CloudSyncStatus = {
     repertoires?: RepertoireSyncResult;
     trainingUploaded?: number;
     trainingDownloaded?: number;
+    /** The cloud refused access: account not on the allowlist (or e-mail unconfirmed). */
+    notAllowed?: boolean;
 };
 
 export const cloudSyncStatusAtom = atom<CloudSyncStatus>({ state: "off" });
@@ -272,6 +274,8 @@ async function runSync(uid: string) {
             ...s,
             state: "error",
             error: e instanceof Error ? e.message : String(e),
+            notAllowed:
+                !!e && typeof e === "object" && "code" in e && e.code === "permission-denied",
         }));
     }
 }
@@ -371,8 +375,18 @@ export function startCloudSync(force = false): () => void {
             if (account) localStorage.setItem(SIGNED_IN_KEY, "1");
             else localStorage.removeItem(SIGNED_IN_KEY);
         } catch {}
+        const before = getDefaultStore().get(cloudAccountAtom);
         getDefaultStore().set(cloudAccountAtom, account);
         setSyncAccount(account?.uid ?? null);
+        // A confirmed e-mail address may open the cloud (allowlist): sync again.
+        if (
+            account?.emailVerified &&
+            before &&
+            before.uid === account.uid &&
+            !before.emailVerified
+        ) {
+            void syncNow();
+        }
     })
         .then((stop) => {
             if (stopped) stop();

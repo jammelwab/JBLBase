@@ -7,7 +7,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { budgetExceeded, parseNotification } from "./budget.js";
-import { lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
+import { lichessListed, lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
 
 // All functions run in Frankfurt with at most one instance, so a bug or an
 // attack can never scale up costs.
@@ -82,6 +82,17 @@ export const lichessLogin = onCall({ cors: true, timeoutSeconds: 15 }, async (re
 
     const uid = lichessUid(account);
     const auth = getAuth();
+
+    // Private cloud: only listed accounts (or existing admins) get an account.
+    const access = await getFirestore().doc("config/access").get();
+    if (!lichessListed(access.data(), account)) {
+        const existing = await auth.getUser(uid).catch(() => null);
+        if (existing?.customClaims?.admin !== true) {
+            logger.info("Lichess login refused, not on the allowlist");
+            throw new HttpsError("permission-denied", "Account not on the allowlist");
+        }
+    }
+
     try {
         await auth.updateUser(uid, { displayName: account.username });
     } catch {

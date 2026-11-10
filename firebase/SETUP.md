@@ -119,3 +119,19 @@ cd ~/JBLBase && git pull && cd firebase && npx -y firebase-tools@15 deploy --onl
   generieren_, außerhalb des Repositorys ablegen, dann
   `npm run set-role -- <email> admin` (siehe README).
 - **App Check:** kommt, bevor die App Daten hochlädt (Phase 3).
+
+## Freigabeliste (private Cloud)
+
+Die Cloud lässt nur Konten auf der Freigabeliste und Admins herein. Ohne Liste
+kommt niemand außer Admins hinein.
+
+1. Firebase-Konsole → **Firestore Database** → **Sammlung starten**:
+   Sammlungs-ID `config`, Dokument-ID `access`.
+2. Zwei Felder vom Typ **array** anlegen, alle Einträge **kleingeschrieben**:
+   - `emails`: E-Mail-Adressen, z. B. `aaron@example.org`
+   - `lichess`: Lichess-Benutzernamen, z. B. `aaron123`
+3. Speichern. Die Änderung wirkt sofort, ohne neues Deploy.
+
+E-Mail-Konten zählen erst, wenn die Adresse bestätigt ist. Wer sich mit
+Lichess anmeldet und nicht auf der Liste steht, bekommt gar kein Konto. Ein
+E-Mail-Konto kann technisch jeder anlegen, es kommt aber an keine Daten.

@@ -263,6 +263,9 @@ export function cloudErrorKey(error: unknown): string {
             return "Settings.Cloud.Error.Network";
         case "functions/unauthenticated":
             return "Settings.Cloud.Error.LichessRejected";
+        case "functions/permission-denied":
+        case "permission-denied":
+            return "Settings.Cloud.Error.NotAllowed";
         case "functions/not-found":
             return "Settings.Cloud.Error.NotDeployed";
         case "chesscom/invalid":

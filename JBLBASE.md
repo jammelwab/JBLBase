@@ -338,6 +338,11 @@ nichts.
 - Firebase wird erst geladen, wenn man sich auf diesem Gerät einmal
   angemeldet hat.
 
+**Private Cloud (Freigabeliste):** Nur Konten in `config/access` (Felder
+`emails` und `lichess`, kleingeschrieben) und Admins dürfen synchronisieren;
+E-Mail-Konten erst nach Bestätigung der Adresse. Nicht freigeschaltete
+Lichess-Konten werden gar nicht angelegt. Einrichten: `firebase/SETUP.md`.
+
 **Nutzungsbedingungen und Datenschutz** (`src/legal/`):
 
 - Vor dem Registrieren und vor „Mit Lichess anmelden“ erscheint ein Fenster

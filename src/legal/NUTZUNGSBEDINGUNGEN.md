@@ -16,11 +16,15 @@ Nutzungsbedingungen schränken die Rechte aus dieser Lizenz nicht ein.
 Anbieter des Cloud-Dienstes ist:
 
 [BITTE EINTRAGEN: Vor- und Nachname]\
-[BITTE EINTRAGEN: Straße und Hausnummer]\
-[BITTE EINTRAGEN: PLZ und Ort], Deutschland\
 E-Mail: [BITTE EINTRAGEN: Kontakt-E-Mail-Adresse]
 
 (im Folgenden „ich“). JBLBase ist ein privates, nicht kommerzielles Projekt.
+Meine Postanschrift teile ich auf Anfrage per E-Mail mit.
+
+**Der Cloud-Dienst ist privat.** Er ist für mich und Personen aus meinem
+persönlichen Umfeld gedacht, die ich ausdrücklich freischalte. Ein Konto kann
+technisch jeder anlegen; synchronisieren können aber nur freigeschaltete
+Konten. Ein Anspruch auf Freischaltung besteht nicht.
 
 ## 2. Zustimmung
 

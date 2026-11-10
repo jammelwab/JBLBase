@@ -28,9 +28,17 @@ after(async () => {
 
 beforeEach(async () => {
   await env.clearFirestore();
+  // The allowlist: alice and bob by e-mail, carla by Lichess name.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "config/access"), {
+      emails: ["alice@example.org", "bob@example.org"],
+      lichess: ["carla"],
+    });
+  });
 });
 
-const user = (uid = "alice") => env.authenticatedContext(uid).firestore();
+const user = (uid = "alice") =>
+  env.authenticatedContext(uid, { email: `${uid}@Example.org`, email_verified: true }).firestore();
 const admin = (uid = "boss") => env.authenticatedContext(uid, { admin: true }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
 
@@ -98,6 +106,38 @@ function consentDoc(over = {}) {
     ...over,
   };
 }
+
+describe("private cloud (allowlist)", () => {
+  test("listed and confirmed e-mail accounts get in", async () => {
+    await assertSucceeds(setDoc(doc(user("alice"), "users/alice"), { chesscom: "a" }));
+  });
+
+  test("accounts that are not listed are locked out", async () => {
+    await assertFails(setDoc(doc(user("eve"), "users/eve"), { chesscom: "e" }));
+    await assertFails(getDoc(doc(user("eve"), "users/eve")));
+    await assertFails(getDoc(doc(user("eve"), "evals/e1")));
+  });
+
+  test("an unconfirmed e-mail address does not count", async () => {
+    const db = env
+      .authenticatedContext("alice", { email: "alice@example.org", email_verified: false })
+      .firestore();
+    await assertFails(setDoc(doc(db, "users/alice"), { chesscom: "a" }));
+  });
+
+  test("listed Lichess accounts get in, case does not matter", async () => {
+    const db = env.authenticatedContext("lichess:carla", { lichess: "Carla" }).firestore();
+    await assertSucceeds(setDoc(doc(db, "users/lichess:carla"), { lichess: "Carla" }));
+    const other = env.authenticatedContext("lichess:dave", { lichess: "Dave" }).firestore();
+    await assertFails(setDoc(doc(other, "users/lichess:dave"), { lichess: "Dave" }));
+  });
+
+  test("admins need no entry, and nobody reads or writes the list", async () => {
+    await assertSucceeds(setDoc(doc(admin(), "users/boss"), { chesscom: "b" }));
+    await assertFails(getDoc(doc(user("alice"), "config/access")));
+    await assertFails(setDoc(doc(admin(), "config/access"), { emails: [] }));
+  });
+});
 
 describe("consent records", () => {
   const id = "2026-11-10_2026-11-10";

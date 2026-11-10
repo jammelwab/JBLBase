@@ -25,8 +25,34 @@ service cloud.firestore {
       return signedIn() && request.auth.token.get('admin', false) == true;
     }
 
+    // The cloud is private: only accounts on the allowlist config/access
+    // (lower-case e-mail addresses and Lichess usernames) and admins get in.
+    // The list is edited in the Firebase console; the app cannot read it.
+    // E-mail accounts count only once the address is confirmed.
+    function accessList() {
+      return get(/databases/$(database)/documents/config/access).data;
+    }
+
+    function listedEmail() {
+      return request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', null) is string
+        && accessList().get('emails', []).hasAny([request.auth.token.email.lower()]);
+    }
+
+    function listedLichess() {
+      return request.auth.token.get('lichess', null) is string
+        && accessList().get('lichess', []).hasAny([request.auth.token.lichess.lower()]);
+    }
+
+    function member() {
+      return signedIn()
+        && (isAdmin()
+          || (exists(/databases/$(database)/documents/config/access)
+            && (listedEmail() || listedLichess())));
+    }
+
     function isOwner(uid) {
-      return signedIn() && request.auth.uid == uid;
+      return member() && request.auth.uid == uid;
     }
 
     function userMaxDepth() {
@@ -177,9 +203,9 @@ service cloud.firestore {
       }
     }
 
-    // Shared position store: everyone signed in reads, only admins write.
+    // Shared position store: every member reads, only admins write.
     match /evals/{evalId} {
-      allow read: if signedIn();
+      allow read: if member();
       allow create, update: if isAdmin() && validEval(request.resource.data);
       allow delete: if isAdmin();
     }

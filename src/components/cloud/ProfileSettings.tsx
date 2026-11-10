@@ -461,11 +461,16 @@ function SyncStatus() {
           })}
         </Text>
       )}
-      {status.state === "error" && (
-        <Alert color="red" title={t("Settings.Cloud.Sync.Failed")}>
-          {status.error}
-        </Alert>
-      )}
+      {status.state === "error" &&
+        (status.notAllowed ? (
+          <Alert color="yellow" title={t("Settings.Cloud.NotAllowed")}>
+            {t("Settings.Cloud.NotAllowed.Desc")}
+          </Alert>
+        ) : (
+          <Alert color="red" title={t("Settings.Cloud.Sync.Failed")}>
+            {status.error}
+          </Alert>
+        ))}
       {rep && rep.conflicts > 0 && (
         <Alert color="yellow">{t("Settings.Cloud.Sync.Conflicts", { count: rep.conflicts })}</Alert>
       )}

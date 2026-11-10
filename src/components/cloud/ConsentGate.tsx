@@ -33,6 +33,8 @@ export default function ConsentGate() {
   const { t } = useTranslation();
   const account = useAtomValue(cloudAccountAtom);
   const uid = account?.uid ?? null;
+  // Confirming the e-mail address opens the cloud (allowlist): check again.
+  const verified = account?.emailVerified ?? false;
   const [askUid, setAskUid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export default function ConsentGate() {
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, verified]);
 
   const opened = askUid !== null && askUid === uid;
 

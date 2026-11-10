@@ -75,6 +75,11 @@ export default function CloudLoginForm() {
           { value: "register", label: t("Settings.Cloud.Register") },
         ]}
       />
+      {mode === "register" && (
+        <Text size="xs" c="dimmed">
+          {t("Login.PrivateCloud")}
+        </Text>
+      )}
       {message && (
         <Alert color={message.color} withCloseButton onClose={() => setMessage(null)}>
           {message.text}
