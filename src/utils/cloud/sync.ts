@@ -387,6 +387,9 @@ export function startCloudSync(force = false): () => void {
         ) {
             void syncNow();
         }
+        // Normal users store analyses up to depth 28 only; deeper results
+        // stay in memory for the session. Admins have no limit.
+        void commands.setEvalCacheUserLimit(account?.role === "user").catch(() => {});
     })
         .then((stop) => {
             if (stopped) stop();

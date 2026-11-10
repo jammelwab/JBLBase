@@ -12,6 +12,7 @@
 //! 1-line search and a 5-line search at the same depth are not interchangeable.
 
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
@@ -153,7 +154,15 @@ const WAL_SIZE_LIMIT_BYTES: i64 = 1024 * 1024;
 pub struct EvalCache {
     inner: Mutex<Option<CacheInner>>,
     limit: Mutex<StoreLimit>,
+    /// Results deeper than the store limit, kept only while the app runs.
+    temp: Mutex<HashMap<TempKey, CachedEval>>,
 }
+
+/// (position, engine, multipv)
+type TempKey = (String, String, u16);
+
+/// Upper bound for the in-memory results; the map is emptied when reached.
+const TEMP_MAX_ENTRIES: usize = 20_000;
 
 struct CacheInner {
     conn: Connection,
@@ -221,10 +230,61 @@ impl EvalCache {
         cache
     }
 
+    /// Sets the store limit. Lifting it (admin) writes the results that
+    /// were only held in memory to the file.
     pub fn set_limit(&self, limit: StoreLimit) {
         if let Ok(mut l) = self.limit.lock() {
             *l = limit;
         }
+        if limit == StoreLimit::Unlimited {
+            let held: Vec<(TempKey, CachedEval)> = self
+                .temp
+                .lock()
+                .map(|mut t| t.drain().collect())
+                .unwrap_or_default();
+            for ((position, engine, _), eval) in held {
+                self.store(&position, &engine, &eval.lines);
+            }
+        }
+    }
+
+    /// Deepest in-memory result for `engine` with at least `min_multipv` lines.
+    fn lookup_temp(&self, position: &str, engine: &str, min_multipv: u16) -> Option<CachedEval> {
+        let temp = self.temp.lock().ok()?;
+        temp.iter()
+            .filter(|((p, e, m), _)| p == position && e == engine && *m >= min_multipv)
+            .map(|(_, v)| v)
+            .max_by_key(|v| (v.depth, std::cmp::Reverse(v.multipv)))
+            .map(|v| {
+                let mut v = v.clone();
+                v.lines.truncate(min_multipv as usize);
+                v
+            })
+    }
+
+    fn hold_in_memory(&self, position: &str, engine: &str, lines: &[StoredLine], depth: u32) {
+        let Ok(mut temp) = self.temp.lock() else {
+            return;
+        };
+        let multipv = lines.len() as u16;
+        let key = (position.to_string(), engine.to_string(), multipv);
+        if temp.get(&key).is_some_and(|old| old.depth >= depth) {
+            return;
+        }
+        if temp.len() >= TEMP_MAX_ENTRIES {
+            temp.clear();
+        }
+        let mut lines = lines.to_vec();
+        lines.sort_by_key(|l| l.multipv);
+        temp.insert(
+            key,
+            CachedEval {
+                engine: engine.to_string(),
+                depth,
+                multipv,
+                lines,
+            },
+        );
     }
 
     pub fn limit(&self) -> StoreLimit {
@@ -234,6 +294,15 @@ impl EvalCache {
     /// Best stored result for `engine` with at least `min_multipv` lines.
     /// The returned lines are trimmed to `min_multipv`.
     pub fn lookup(&self, position: &str, engine: &str, min_multipv: u16) -> Option<CachedEval> {
+        let stored = self.lookup_stored(position, engine, min_multipv);
+        let held = self.lookup_temp(position, engine, min_multipv);
+        match (stored, held) {
+            (Some(s), Some(h)) => Some(if h.depth > s.depth { h } else { s }),
+            (s, h) => s.or(h),
+        }
+    }
+
+    fn lookup_stored(&self, position: &str, engine: &str, min_multipv: u16) -> Option<CachedEval> {
         let guard = self.inner.lock().ok()?;
         let inner = guard.as_ref()?;
         let row: Option<(u32, u16, String)> = inner
@@ -284,6 +353,9 @@ impl EvalCache {
         let capped;
         let (lines, depth) = match self.limit() {
             StoreLimit::MaxDepth(max) if depth > max && !is_mate(lines) => {
+                // The full result is used for the rest of this session; the
+                // file only gets it as a depth-`max` result.
+                self.hold_in_memory(position, engine, lines, depth);
                 capped = lines
                     .iter()
                     .map(|l| StoredLine {
@@ -343,6 +415,19 @@ impl EvalCache {
             return vec![];
         };
         let mut out: Vec<CachedEval> = Vec::new();
+        if let Ok(temp) = self.temp.lock() {
+            let mut held: Vec<&CachedEval> = temp
+                .iter()
+                .filter(|((p, _, _), _)| p == position)
+                .map(|(_, v)| v)
+                .collect();
+            held.sort_by(|a, b| b.depth.cmp(&a.depth).then(b.multipv.cmp(&a.multipv)));
+            for v in held {
+                if !out.iter().any(|e| e.engine == v.engine) {
+                    out.push(v.clone());
+                }
+            }
+        }
         for (engine, depth, multipv, lines) in rows.flatten() {
             if out.iter().any(|e| e.engine == engine) {
                 continue;
@@ -403,6 +488,9 @@ impl EvalCache {
         let guard = self.inner.lock().map_err(|_| Error::EvalCacheUnavailable)?;
         let inner = guard.as_ref().ok_or(Error::EvalCacheUnavailable)?;
         inner.conn.execute_batch("DELETE FROM evals; VACUUM;")?;
+        if let Ok(mut temp) = self.temp.lock() {
+            temp.clear();
+        }
         Ok(())
     }
 }
@@ -424,6 +512,22 @@ pub async fn get_eval_cache_stats(
 #[specta::specta]
 pub async fn clear_eval_cache(state: tauri::State<'_, AppState>) -> Result<(), Error> {
     state.eval_cache.clear()
+}
+
+/// Normal user accounts keep results deeper than [`USER_MAX_STORE_DEPTH`]
+/// only in memory; admins and the app without an account store everything.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_eval_cache_user_limit(
+    limited: bool,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), Error> {
+    state.eval_cache.set_limit(if limited {
+        StoreLimit::MaxDepth(USER_MAX_STORE_DEPTH)
+    } else {
+        StoreLimit::Unlimited
+    });
+    Ok(())
 }
 
 /// Every stored evaluation of the position given by `fen`, one per engine.
@@ -556,7 +660,7 @@ mod tests {
         let cache = EvalCache::open_in_memory();
         cache.set_limit(StoreLimit::MaxDepth(USER_MAX_STORE_DEPTH));
         cache.store("pos", "SF", &[line(1, 40, 25, "e2e4")]);
-        let got = cache.lookup("pos", "SF", 1).unwrap();
+        let got = cache.lookup_stored("pos", "SF", 1).unwrap();
         assert_eq!(got.depth, 28);
         assert_eq!(got.lines[0].depth, 28);
         assert_eq!(got.lines[0].cp, Some(25));
@@ -564,6 +668,22 @@ mod tests {
         // Shallower than the limit: stored unchanged.
         cache.store("other", "SF", &[line(1, 20, 5, "d2d4")]);
         assert_eq!(cache.lookup("other", "SF", 1).unwrap().depth, 20);
+    }
+
+    #[test]
+    fn deeper_result_stays_in_memory_for_the_session() {
+        let cache = EvalCache::open_in_memory();
+        cache.set_limit(StoreLimit::MaxDepth(USER_MAX_STORE_DEPTH));
+        cache.store("pos", "SF", &[line(1, 40, 25, "e2e4")]);
+        // This session sees the full depth, the file only 28.
+        assert_eq!(cache.lookup("pos", "SF", 1).unwrap().depth, 40);
+        assert_eq!(cache.lookup_stored("pos", "SF", 1).unwrap().depth, 28);
+        assert_eq!(cache.lookup_all("pos")[0].depth, 40);
+
+        // Admin signs in: the held result is written in full.
+        cache.set_limit(StoreLimit::Unlimited);
+        assert_eq!(cache.lookup_stored("pos", "SF", 1).unwrap().depth, 40);
+        assert!(cache.temp.lock().unwrap().is_empty());
     }
 
     #[test]
