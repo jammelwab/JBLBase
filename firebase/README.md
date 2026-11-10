@@ -3,13 +3,13 @@
 Backend für den Cloud-Sync. Die App bleibt ohne Anmeldung voll nutzbar,
 die Cloud schaltet nur den Sync ein.
 
-| Datei                  | Inhalt                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------- |
-| `firebase.json`        | Firestore in `europe-west3` (Frankfurt), Functions                            |
-| `firestore.rules`      | Sicherheitsregeln (Bereiche, Rollen, Tiefengrenze)                            |
+| Datei                  | Inhalt                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `firebase.json`        | Firestore in `europe-west3` (Frankfurt), Functions                                                           |
+| `firestore.rules`      | Sicherheitsregeln (Bereiche, Rollen, Tiefengrenze)                                                           |
 | `functions/`           | Cloud Functions: Kostenbremse `budgetGuard`, Lichess-Anmeldung `lichessLogin`, Konto löschen `deleteAccount` |
-| `scripts/set-role.mjs` | Admin-Rolle vergeben oder entziehen                                           |
-| `tests/rules.test.mjs` | Tests der Sicherheitsregeln gegen den Emulator                                |
+| `scripts/set-role.mjs` | Admin-Rolle vergeben oder entziehen                                                                          |
+| `tests/rules.test.mjs` | Tests der Sicherheitsregeln gegen den Emulator                                                               |
 
 ## Datenmodell
 
@@ -19,7 +19,7 @@ die Cloud schaltet nur den Sync ein.
 | `users/{uid}/repertoires/{repId}` (ganze PGN-Datei) | Besitzer          | Besitzer, feste Felder, PGN bis 900 KB                        |
 | `users/{uid}/cards/{cardId}`                        | Besitzer          | Besitzer, feste Felder                                        |
 | `users/{uid}/reviews/{id}`                          | Besitzer          | Besitzer, nur anhängen                                        |
-| `users/{uid}/consents/{terms}_{privacy}`           | Besitzer          | Besitzer, nur anlegen (Zustimmung zu AGB/Datenschutz)         |
+| `users/{uid}/consents/{terms}_{privacy}`            | Besitzer          | Besitzer, nur anlegen (Zustimmung zu AGB/Datenschutz)         |
 | `users/{uid}/evals/{evalId}`                        | Besitzer          | Besitzer, Nutzer bis Tiefe 28, Matts immer                    |
 | `evals/{evalId}` (gemeinsamer Positionsspeicher)    | alle Angemeldeten | nur Admins                                                    |
 
