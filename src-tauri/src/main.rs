@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+mod brilliance;
 mod chess;
 mod db;
 mod engine;
@@ -134,6 +135,7 @@ fn main() {
             get_best_moves,
             analyze_game,
             cancel_analysis,
+            brilliance::find_brilliancies,
             stop_engine,
             kill_engine,
             kill_engines,
@@ -284,7 +286,9 @@ fn main() {
                     state.eval_cache.open(dir.join(eval_cache::CACHE_FILE_NAME));
                     state.training.open(dir.join(training::TRAINING_FILE_NAME));
                 }
-                Err(err) => log::warn!("No app data dir, evaluation cache and training store disabled: {err}"),
+                Err(err) => log::warn!(
+                    "No app data dir, evaluation cache and training store disabled: {err}"
+                ),
             }
 
             *state

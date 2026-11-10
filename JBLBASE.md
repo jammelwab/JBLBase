@@ -258,6 +258,42 @@ pro Farbe (ein Klick springt zum nächsten solchen Zug) und mit dem Hinweis,
 welcher Zug besser gewesen wäre. Die Bewertungen werden nicht in die PGN
 geschrieben, die klassischen Zeichen (!!, ?, ?? …) schon.
 
+## Brillante Züge suchen
+
+Im Analysebrett gibt es neben **Engines**, **Bericht** und **Protokolle** den
+Tab **Brillant**. Er sucht ab der aktuellen Stellung nach Zügen, die ein „!!“
+verdienen würden. Voreingestellt ist Patricia, jede andere lokale Engine geht
+auch.
+
+So wird gesucht:
+
+1. Die Engine rechnet einen kleinen Variantenbaum (Einstellung **Halbzüge
+   voraus**, höchstens **Stellungen** viele Stellungen).
+2. **Auf deiner Seite** (Seite am Zug, Weiß, Schwarz oder beide) wird jede
+   Engine-Linie geprüft:
+   - **Opfer:** Der Zug gibt Material her (Bauer 0,9, Qualität 2, Leichtfigur 3,
+     Turm 5; die Grenze für „!!“ stellst du unter _Weitere Einstellungen_ ein)
+     und ist trotzdem korrekt, also höchstens 0,4 schlechter als der beste Zug
+     und nicht klar schlechter für dich.
+   - **Versteckt:** Eine flache Suche auf **Club-Niveau** (Standard Tiefe 8)
+     findet den Zug nicht.
+   - **Einziger Zug:** Alles andere ist mindestens 1,5 schlechter.
+     „!!“ gibt es für ein korrektes Opfer ab der Grenze, das die Engine als
+     besten Zug sieht oder das versteckt ist, und für einen versteckten ruhigen
+     einzigen Zug. Kleinere Funde bekommen „!“.
+3. **Beim Gegner** folgt die Suche nicht nur dem Engine-Zug, sondern auch
+   realistischen Club-Antworten: den Lieblingszügen der flachen Suche, Zügen
+   bis **Realistisch bis** Centipawns hinter dem besten und dem Annehmen eines
+   gerade angebotenen Opfers. Funde nach so einer Antwort tragen die Plakette
+   „Nach Club-Antwort“.
+
+Jeder Fund zeigt Zug, Bewertung, die Variante dorthin und die Fortsetzung.
+**Aufs Brett** fügt die Variante mit „!!“ bzw. „!“ in die Partie ein und
+springt zum Zug.
+
+Die tiefen Rechnungen landen im Positionsspeicher (mit der Grenze Tiefe 28
+für normale Konten), die flachen Club-Rechnungen nicht.
+
 ## Engines einrichten
 
 Engines sind eigenständige Programme und werden nicht mitgeliefert.
