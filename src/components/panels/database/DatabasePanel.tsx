@@ -38,9 +38,22 @@ import GamesTable from "./GamesTable";
 import NoDatabaseWarning from "./NoDatabaseWarning";
 import OpeningsTable from "./OpeningsTable";
 import RepertoireMovesTable, {
-  RepertoireNoGames,
   RepertoireSourceSelect,
+  useRepertoireMoves,
 } from "./RepertoireMovesTable";
+
+// The match count of the repertoire, like the other databases show theirs
+function RepertoireMatches({ fen }: { fen: string }) {
+  const { t } = useTranslation();
+  const { rows } = useRepertoireMoves(fen);
+  return (
+    <Text style={{ whiteSpace: "nowrap" }}>
+      {t("Board.Database.Matches", {
+        matches: formatNumber(rows.reduce((sum, r) => sum + r.lines, 0)),
+      })}
+    </Text>
+  );
+}
 import LichessOptionsPanel from "./options/LichessOptionsPanel";
 import LocalOptionsPanel from "./options/LocalOptionsPanel";
 import MasterOptionsPanel from "./options/MastersOptionsPanel";
@@ -239,6 +252,7 @@ function DatabasePanel() {
           )}
         </Group>
 
+        {tabType !== "options" && isRep && <RepertoireMatches fen={fen} />}
         {tabType !== "options" && !isRep && (
           <Text style={{ whiteSpace: "nowrap" }}>
             {t("Board.Database.Matches", {
@@ -294,7 +308,7 @@ function DatabasePanel() {
           missingExplorerToken={missingExplorerToken}
         >
           {isRep ? (
-            <RepertoireNoGames />
+            <GamesTable games={[]} loading={false} databasePath={null} />
           ) : (
             <GamesTable
               games={db === "local" ? localGames?.data || [] : openingData?.games || []}
@@ -324,11 +338,7 @@ function DatabasePanel() {
               .with("local", () => <LocalOptionsPanel />)
               .with("lch_all", () => <LichessOptionsPanel />)
               .with("lch_master", () => <MasterOptionsPanel />)
-              .with("rep", () => (
-                <Text size="sm" c="dimmed">
-                  {t("Board.Database.Repertoire.NoOptions")}
-                </Text>
-              ))
+              .with("rep", () => null)
               .exhaustive()}
           </ScrollArea>
         </PanelWithError>

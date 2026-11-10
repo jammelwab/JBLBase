@@ -131,9 +131,11 @@ Umbenennen bleibt.
 ### Repertoire im Datenbank-Bereich des Analysebretts
 
 Im Datenbank-Bereich des Analysebretts gibt es neben Lokal, Lichess Alle und Lichess
-Meister die Quelle **Repertoire**. Sie zeigt die Züge deines Repertoires in der
-aktuellen Stellung: wie viele Varianten hinter jedem Zug stehen und in welchen
-Repertoires er vorkommt. Ein Klick auf eine Zeile spielt den Zug. Oben wählst du
+Meister die Quelle **Repertoire**. Sie sieht aus wie die anderen Datenbanken: die Züge deines
+Repertoires in der aktuellen Stellung mit Anteil und Anzahl der Varianten dahinter,
+jede Variante einmal gezählt, auch wenn sie in mehreren Repertoires steht (etwa im
+Haupt-Repertoire und im Unter-Repertoire). Fährst du über den Balken, siehst du, in
+welchen Repertoires der Zug vorkommt. Ein Klick auf eine Zeile spielt den Zug. Oben wählst du
 „Alle meine Repertoires“ oder ein bestimmtes Repertoire (auch das eines anderen
 Spielers).
 
