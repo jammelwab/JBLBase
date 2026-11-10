@@ -179,7 +179,14 @@ export function ImportFolderModal({
             ? t("Repertoire.FolderImport.Failed", {
                 names: result.failed.map((f) => f.name).join(", "),
               })
-            : t("Repertoire.Add.Added", { count: result.moves }),
+            : [
+                t("Repertoire.Add.Added", { count: result.moves }),
+                result.mainAdded > 0
+                  ? t("Repertoire.Main.Synced", { count: result.mainAdded })
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · "),
       });
       onClose();
     } catch (e) {

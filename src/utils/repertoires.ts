@@ -11,6 +11,7 @@ import {
 import { updatePersistedState } from "@/state/store/debouncedStorage";
 import { mainOwnerAtom, tabsAtom } from "@/state/atoms";
 import { getPGN, headersToPGN, parsePGN } from "./chess";
+import { getDocumentDir } from "./directories";
 import { createFile } from "./files";
 import {
     type ConflictChoice,
@@ -20,6 +21,7 @@ import {
     mergeCourse,
     mergeLine,
     type MergeResult,
+    mergeTree,
     repertoireStats,
     splitPgnGames,
 } from "./repertoireTree";
@@ -28,7 +30,9 @@ import { DEFAULT_MAIN_OWNER, getMainOwner, mainOwnerName } from "./mainOwner";
 import {
     addStoredFolder,
     combineTrees,
+    findMainRepertoire,
     inFolder,
+    isSameGroup,
     normalizeFolder,
     parseStoredFolders,
     planFolderImport,
@@ -61,6 +65,9 @@ export type Repertoire = {
     headers: GameHeaders;
     index: Map<string, string[]>;
     stats: ReturnType<typeof repertoireStats>;
+    // The main repertoire of its player and color ("Ich Weiß"), which gets every line of the
+    // others too (see syncMainRepertoire)
+    main?: boolean;
     // Set when this is several repertoires (a folder) looked at together; it has no file of
     // its own then, `file` is the first part's
     parts?: Repertoire[];
@@ -140,6 +147,7 @@ async function loadRepertoire(
         color,
         owner,
         folder: normalizeFolder(info.folder),
+        main: info.main === true,
         root: tree.root,
         headers: tree.headers,
         index: indexRepertoire(tree.root),
@@ -189,12 +197,14 @@ export async function createRepertoire({
     owner,
     dir,
     folder = "",
+    main = false,
 }: {
     name: string;
     color: RepertoireColor;
     owner: string;
     dir: string;
     folder?: string;
+    main?: boolean;
 }) {
     const pgn = headersToPGN({
         id: 0,
@@ -213,6 +223,7 @@ export async function createRepertoire({
             color,
             owner,
             folder: normalizeFolder(folder),
+            ...(main ? { main: true } : {}),
         };
         await writeTextFile(result.value.path.replace(/\.pgn$/, ".info"), JSON.stringify(metadata));
         bumpRepertoires();
@@ -268,7 +279,7 @@ export async function addLineToRepertoire(
     file: FileMetadata,
     source: TreeNode,
     path: number[],
-    options: { withVariations: boolean; label?: string },
+    options: { withVariations: boolean; label?: string; syncMain?: boolean },
 ): Promise<MergeResult> {
     const before = await readRaw(file);
     const repertoire = await loadRepertoire(file);
@@ -301,6 +312,9 @@ export async function addLineToRepertoire(
         }
     }
 
+    if (result.added > 0 && options.syncMain !== false && !repertoire.main) {
+        await syncAfterImport(repertoire, options.label ?? "");
+    }
     bumpRepertoires();
     return result;
 }
@@ -345,6 +359,7 @@ export async function importCourseIntoRepertoire(
     choices: Map<string, ConflictChoice>,
     note: string,
     label = "",
+    syncMain = true,
 ): Promise<CourseMergeResult> {
     const before = await readRaw(file);
     const repertoire = await loadRepertoire(file);
@@ -375,8 +390,76 @@ export async function importCourseIntoRepertoire(
         }
     }
 
+    if (result.added > 0 && syncMain && !repertoire.main) {
+        await syncAfterImport(repertoire, label);
+    }
     bumpRepertoires();
     return result;
+}
+
+// The main repertoire of a player and color ("Ich Weiß") holds every line of their other
+// repertoires of that color as well, so training it or comparing it covers everything.
+// Merges all of them into it; moves it already has are kept as they are. Recorded in the
+// main repertoire's import history, so it can be undone there. Null if there is no main
+// repertoire for that player and color.
+export async function syncMainRepertoire(
+    documentDir: string,
+    owner: string,
+    color: RepertoireColor,
+    label: string,
+): Promise<{ main: Repertoire; added: number } | null> {
+    const mainOwner = getMainOwner();
+    const all = await listRepertoires(documentDir, mainOwner);
+    const aliases = owner.toLowerCase() === mainOwner.toLowerCase() ? [DEFAULT_MAIN_OWNER] : [];
+    const main = findMainRepertoire(all, owner, color, aliases);
+    if (!main) return null;
+    const parts = all.filter((r) => r !== main && isSameGroup(r, owner, color));
+
+    const before = await readRaw(main.file);
+    let added = 0;
+    for (const part of parts) added += mergeTree(main.root, part.root) ?? 0;
+    if (added > 0) {
+        await recordImport(main.file.path, { kind: "course", source: label, added, before });
+        unwrap(await commands.writeGame(main.file.path, 0, serialize(main.root, main.headers)));
+        const store = getDefaultStore();
+        for (const tab of store.get(tabsAtom)) {
+            const origin = tab.gameOrigin;
+            if (
+                (origin.kind === "file" || origin.kind === "temp_file") &&
+                origin.file.path === main.file.path
+            ) {
+                updatePersistedState<TreeState>(tab.value, (state) => {
+                    for (const part of parts) mergeTree(state.root, part.root);
+                    return state;
+                });
+            }
+        }
+    }
+    // Found by its name: mark it, so it stays the main repertoire when renamed or moved
+    if (!main.main) {
+        const info = await readInfo(main.file);
+        await writeTextFile(
+            main.file.path.replace(/\.pgn$/, ".info"),
+            JSON.stringify({ ...info, main: true }),
+        );
+    }
+    bumpRepertoires();
+    return { main, added };
+}
+
+// After an import into a repertoire that isn't the main one. A failure here must not look
+// like the import failed, the button on the main repertoire can repeat it.
+async function syncAfterImport(repertoire: Repertoire, label: string) {
+    try {
+        await syncMainRepertoire(
+            await getDocumentDir(),
+            repertoire.owner,
+            repertoire.color,
+            label || repertoire.name,
+        );
+    } catch (e) {
+        console.error("Could not update the main repertoire", e);
+    }
 }
 
 export type { ImportEntry };
@@ -536,7 +619,13 @@ export async function importPgnFolder({
     target: string;
     keepRootName: boolean;
     onProgress?: (p: FolderImportProgress) => void;
-}): Promise<{ created: number; moves: number; failed: { name: string; error: string }[] }> {
+}): Promise<{
+    created: number;
+    moves: number;
+    failed: { name: string; error: string }[];
+    // New moves in the main repertoire of that player and color
+    mainAdded: number;
+}> {
     const scan = await scanPgnFolder(dir);
     const rootName = keepRootName ? (dir.split(/[\\/]/).filter(Boolean).pop() ?? null) : null;
     const plan = planFolderImport(scan.files, scan.dirs, target, rootName);
@@ -586,6 +675,7 @@ export async function importPgnFolder({
                 new Map(),
                 "",
                 label,
+                false,
             );
             moves += merged.added;
         } catch (e) {
@@ -593,6 +683,16 @@ export async function importPgnFolder({
         }
     }
     onProgress?.({ done: plan.items.length, total: plan.items.length, current: "" });
+    let mainAdded = 0;
+    if (moves > 0) {
+        try {
+            const label = rootName ?? dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
+            const sync = await syncMainRepertoire(documentDir, owner, color, label);
+            mainAdded = sync?.added ?? 0;
+        } catch (e) {
+            console.error("Could not update the main repertoire", e);
+        }
+    }
     bumpRepertoires();
-    return { created, moves, failed };
+    return { created, moves, failed, mainAdded };
 }
