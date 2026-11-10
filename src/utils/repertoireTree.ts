@@ -473,3 +473,26 @@ export function mergeTree(target: TreeNode, source: TreeNode): number | null {
     if (!anchor) return null;
     return mergeSubtree(anchor, source);
 }
+
+// The most played move of an explorer (Lichess, masters), if it has games
+export function topMove(counts: MoveCount[] | undefined): string | undefined {
+    let best: MoveCount | undefined;
+    for (const c of counts ?? []) if (c.games > 0 && (!best || c.games > best.games)) best = c;
+    return best?.san;
+}
+
+// Which moves of the repertoire table get a dot: the explorers' most played moves, but only
+// where they differ from the repertoire move with the most lines (`moves[0]`). Explorer moves
+// the repertoire doesn't have at all come back in `missing`, to be listed after the others.
+export function explorerHints(
+    moves: string[],
+    tops: { lichess?: string; master?: string },
+): { lichess?: string; master?: string; missing: string[] } {
+    const differs = (move?: string) => (move && move !== moves[0] ? move : undefined);
+    const lichess = differs(tops.lichess);
+    const master = differs(tops.master);
+    const missing = [...new Set([lichess, master].filter((m): m is string => !!m))].filter(
+        (m) => !moves.includes(m),
+    );
+    return { lichess, master, missing };
+}

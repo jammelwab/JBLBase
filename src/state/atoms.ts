@@ -464,6 +464,15 @@ export type DbType = "local" | "lch_all" | "lch_master" | "rep";
 const dbTypeFamily = atomFamily((_tab: string) => atom<DbType>("local"));
 export const currentDbTypeAtom = tabValue(dbTypeFamily);
 
+// Arrows on the analysis board for the most played Lichess moves (blue) and the repertoire
+// moves with the most lines (green), top 3 each
+export const explorerArrowsAtom = atomWithStorage<{ lichess: boolean; repertoire: boolean }>(
+    "explorer-arrows",
+    { lichess: false, repertoire: false },
+    createJSONStorage(() => localStorage),
+    { getOnInit: true },
+);
+
 // Which repertoire the database panel shows with "rep": "mine" (all of your own) or a file path
 export const repertoireDbSourceAtom = atomWithStorage<string>(
     "repertoire-db-source",
