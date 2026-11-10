@@ -1,4 +1,4 @@
-import { Alert, Button, Checkbox, Group, Modal, Radio, Stack, Text } from "@mantine/core";
+import { Alert, Button, Checkbox, Group, Modal, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
@@ -8,10 +8,15 @@ import { useStore } from "zustand";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { currentTabAtom } from "@/state/atoms";
 import { nodesOnPath } from "@/utils/repertoireTree";
-import { addLineToRepertoire, type Repertoire, useRepertoires } from "@/utils/repertoires";
+import { findMainRepertoire } from "@/utils/repertoireFolders";
+import {
+  addLineToRepertoire,
+  DEFAULT_MAIN_OWNER,
+  useMainOwner,
+  useRepertoires,
+} from "@/utils/repertoires";
 import { getTabFile } from "@/utils/tabs";
 import { getNodeAtPath } from "@/utils/treeReducer";
-import { RepertoireLabel } from "./RepertoireLabel";
 
 function lineText(nodes: { san: string | null; halfMoves: number }[]) {
   return nodes
@@ -44,6 +49,7 @@ export default function AddToRepertoireModal({
   const ownPath = getTabFile(currentTab)?.path;
 
   const { data: repertoires } = useRepertoires(documentDir);
+  const mainOwner = useMainOwner();
   const targets = useMemo(
     () => (repertoires ?? []).filter((r) => r.file.path !== ownPath),
     [repertoires, ownPath],
@@ -71,9 +77,25 @@ export default function AddToRepertoireModal({
   useEffect(() => {
     if (!opened || targets.length === 0) return;
     if (selected && targets.some((r) => r.file.path === selected)) return;
-    const preferred = targets.find((r) => r.color === orientation) ?? targets[0];
+    const color = orientation === "black" ? "black" : "white";
+    const preferred =
+      findMainRepertoire(targets, mainOwner, color, [DEFAULT_MAIN_OWNER]) ??
+      targets.find((r) => r.color === orientation) ??
+      targets[0];
     setSelected(preferred.file.path);
-  }, [opened, targets, orientation, selected]);
+  }, [opened, targets, orientation, selected, mainOwner]);
+
+  // One searchable list, grouped by player and color; folders shown as a path
+  const options = useMemo(() => {
+    const groups = new Map<string, { value: string; label: string }[]>();
+    for (const r of targets) {
+      const color = r.color === "white" ? t("Repertoire.White") : t("Repertoire.Black");
+      const group = r.owner === mainOwner ? color : `${r.owner} · ${color}`;
+      const label = [r.folder.replaceAll("/", " › "), r.name].filter(Boolean).join(" › ");
+      groups.set(group, [...(groups.get(group) ?? []), { value: r.file.path, label }]);
+    }
+    return [...groups].map(([group, items]) => ({ group, items }));
+  }, [targets, mainOwner, t]);
 
   async function add() {
     const target = targets.find((r) => r.file.path === selected);
@@ -147,17 +169,16 @@ export default function AddToRepertoireModal({
             </Stack>
           </Alert>
         ) : (
-          <Radio.Group label={t("Repertoire.Add.Target")} value={selected} onChange={setSelected}>
-            <Stack gap="xs" mt="xs">
-              {targets.map((r: Repertoire) => (
-                <Radio
-                  key={r.file.path}
-                  value={r.file.path}
-                  label={<RepertoireLabel repertoire={r} />}
-                />
-              ))}
-            </Stack>
-          </Radio.Group>
+          <Select
+            label={t("Repertoire.Add.Target")}
+            data={options}
+            value={selected}
+            onChange={setSelected}
+            searchable
+            allowDeselect={false}
+            maxDropdownHeight={320}
+            comboboxProps={{ withinPortal: true }}
+          />
         )}
 
         {hasVariations && (

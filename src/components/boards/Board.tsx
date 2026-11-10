@@ -86,6 +86,8 @@ interface ChessboardProps {
   onMove?: (uci: string) => void;
   cgRef?: React.Ref<ChessgroundRef>;
   enablePremoves?: boolean;
+  // Drawn on top of the engine and variation arrows (e.g. explorer arrows)
+  extraShapes?: DrawShape[];
 }
 
 function Board({
@@ -101,6 +103,7 @@ function Board({
   onMove,
   cgRef,
   enablePremoves = false,
+  extraShapes,
 }: ChessboardProps) {
   const { t } = useTranslation();
 
@@ -329,6 +332,9 @@ function Board({
     }
   }
 
+  if (extraShapes?.length && !practicing && !lineTrainer.active && !editingMode) {
+    shapes = shapes.concat(extraShapes);
+  }
   if (currentNode.shapes.length > 0) {
     shapes = shapes.concat(currentNode.shapes);
   }

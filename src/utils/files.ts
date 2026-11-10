@@ -1,12 +1,12 @@
 import { Result } from "@badrap/result";
 import { resolve } from "@tauri-apps/api/path";
-import { exists, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { platform } from "@tauri-apps/plugin-os";
 import { defaultGame, makePgn } from "chessops/pgn";
 import { getDefaultStore } from "jotai";
 import useSWR from "swr";
 import { commands } from "@/bindings";
-import type { FileMetadata } from "@/components/files/file";
+import type { FileInfoMetadata, FileMetadata } from "@/components/files/file";
 import { addRecentFileAtom, tabFamily } from "@/state/atoms";
 import { unwrap } from "@/utils/unwrap";
 import { parsePGN } from "./chess";
@@ -18,6 +18,19 @@ export function usePlatform() {
         return platform();
     });
     return { os: r.data, ...r };
+}
+
+/** The .info next to a PGN, or null when there is none (nothing is written). */
+export async function readInfoFile(pgnPath: string): Promise<FileInfoMetadata | null> {
+    if (!/\.pgn$/i.test(pgnPath)) return null;
+    const infoPath = pgnPath.replace(/\.pgn$/i, ".info");
+    try {
+        if (!(await exists(infoPath))) return null;
+        const info = JSON.parse(await readTextFile(infoPath)) as FileInfoMetadata;
+        return { ...info, tags: info.tags ?? [] };
+    } catch {
+        return null;
+    }
 }
 
 export async function openFile(
@@ -35,34 +48,34 @@ export async function openFile(
     let isTempOrigin = false;
     let pgn = options?.pgn;
     let tabName = "Untitled";
-    let recentName = "Untitled";
 
     if (typeof file === "string") {
-        const count = unwrap(await commands.countPgnGames(file));
         isTempOrigin = await isInTempDir(file);
+        // Read the file's .info so a repertoire opened by path is still a repertoire.
+        const info = isTempOrigin ? null : await readInfoFile(file);
+        const fileName = file.split(/[\\/]/).pop() ?? file;
+        fileInfo = {
+            type: "file" as const,
+            metadata: info ?? {
+                tags: [],
+                type: "game" as const,
+            },
+            name: fileName.replace(/\.pgn$/i, ""),
+            path: file,
+            numGames: unwrap(await commands.countPgnGames(file)),
+            lastModified: Date.now(),
+        };
         if (pgn === undefined) {
             pgn = unwrap(await commands.readGames(file, gameNumber, gameNumber))[0];
         }
 
-        fileInfo = {
-            type: "file" as const,
-            metadata: {
-                tags: [],
-                type: "game" as const,
-            },
-            name: file,
-            path: file,
-            numGames: count,
-            lastModified: Date.now(),
-        };
-
-        if (pgn) {
+        if (fileInfo.metadata.type === "repertoire") {
+            tabName = fileInfo.name;
+        } else if (pgn) {
             const tree = await parsePGN(pgn);
             tabName = getGameName(tree.headers);
-            recentName = tabName;
         } else {
-            tabName = file;
-            recentName = file;
+            tabName = fileInfo.name;
         }
     } else {
         fileInfo = file;
@@ -71,7 +84,6 @@ export async function openFile(
             pgn = unwrap(await commands.readGames(file.path, gameNumber, gameNumber))[0];
         }
         tabName = file.name || "Untitled";
-        recentName = tabName;
     }
 
     const id = await createTab({
@@ -93,11 +105,14 @@ export async function openFile(
         store.set(tabFamily(id), "practice");
     }
 
-    store.set(addRecentFileAtom, {
-        name: recentName,
-        path: fileInfo.path,
-        type: fileInfo.metadata.type,
-    });
+    // Imported games live in a temp file that is deleted later: not worth listing.
+    if (!isTempOrigin) {
+        store.set(addRecentFileAtom, {
+            name: fileInfo.name.replace(/\.pgn$/i, ""),
+            path: fileInfo.path,
+            type: fileInfo.metadata.type,
+        });
+    }
 
     return id;
 }

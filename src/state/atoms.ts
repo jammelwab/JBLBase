@@ -272,11 +272,54 @@ const MAX_RECENT_FILES = 10;
 
 export const recentFilesAtom = atomWithStorage<RecentFile[]>("recent-files", []);
 
+// Paths can reach the list spelled differently (slashes, drive letter case).
+export function recentPathKey(path: string) {
+    return path.replace(/[\\/]+/g, "/").toLowerCase();
+}
+
+function isSameOrInside(path: string, base: string) {
+    const p = recentPathKey(path);
+    const b = recentPathKey(base);
+    return p === b || p.startsWith(b.endsWith("/") ? b : `${b}/`);
+}
+
 export const addRecentFileAtom = atom(null, (get, set, file: Omit<RecentFile, "lastOpened">) => {
     const current = get(recentFilesAtom);
-    const filtered = current.filter((f) => f.path !== file.path);
+    const key = recentPathKey(file.path);
+    const filtered = current.filter((f) => recentPathKey(f.path) !== key);
     const updated = [{ ...file, lastOpened: Date.now() }, ...filtered].slice(0, MAX_RECENT_FILES);
     set(recentFilesAtom, updated);
+});
+
+/** Keep entries pointing at a file (or a folder's files) after it was renamed or moved. */
+export const moveRecentFilesAtom = atom(null, (get, set, move: { from: string; to: string }) => {
+    const current = get(recentFilesAtom);
+    if (!current.some((f) => isSameOrInside(f.path, move.from))) return;
+    const fromLength = move.from.replace(/[\\/]+$/, "").length;
+    const updated = current.map((f) => {
+        if (!isSameOrInside(f.path, move.from)) return f;
+        const path = move.to.replace(/[\\/]+$/, "") + f.path.slice(fromLength);
+        const fileName = path.split(/[\\/]/).pop() ?? path;
+        return { ...f, path, name: fileName.replace(/\.pgn$/i, "") };
+    });
+    // A move onto a path that was already in the list must not leave two rows.
+    const seen = new Set<string>();
+    set(
+        recentFilesAtom,
+        updated.filter((f) => {
+            const key = recentPathKey(f.path);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        }),
+    );
+});
+
+/** Drop entries for a deleted file, or for every file inside a deleted folder. */
+export const removeRecentFilesAtom = atom(null, (get, set, path: string) => {
+    const current = get(recentFilesAtom);
+    const updated = current.filter((f) => !isSameOrInside(f.path, path));
+    if (updated.length !== current.length) set(recentFilesAtom, updated);
 });
 
 // Database
@@ -464,6 +507,15 @@ export type DbType = "local" | "lch_all" | "lch_master" | "rep";
 const dbTypeFamily = atomFamily((_tab: string) => atom<DbType>("local"));
 export const currentDbTypeAtom = tabValue(dbTypeFamily);
 
+// Arrows on the analysis board for the most played Lichess moves (blue) and the repertoire
+// moves with the most lines (green), top 3 each
+export const explorerArrowsAtom = atomWithStorage<{ lichess: boolean; repertoire: boolean }>(
+    "explorer-arrows",
+    { lichess: false, repertoire: false },
+    createJSONStorage(() => localStorage),
+    { getOnInit: true },
+);
+
 // Which repertoire the database panel shows with "rep": "mine" (all of your own) or a file path
 export const repertoireDbSourceAtom = atomWithStorage<string>(
     "repertoire-db-source",
@@ -493,8 +545,10 @@ const lineTrainerBoardFamily = atomFamily((_tab: string) =>
 );
 export const currentLineTrainerBoardAtom = tabValue(lineTrainerBoardFamily);
 
-const expandedEnginesFamily = atomFamily((_tab: string) => atom<string[] | undefined>(undefined));
-export const currentExpandedEnginesAtom = tabValue(expandedEnginesFamily);
+// Engines whose lines the user folded away in this tab. Stored as the folded ones (not the
+// open ones) so an engine that loads later always starts with its lines visible.
+const collapsedEnginesFamily = atomFamily((_tab: string) => atom<string[]>([]));
+export const currentCollapsedEnginesAtom = tabValue(collapsedEnginesFamily);
 
 export const currentDetachedEngineAtom = atomWithStorage<string | null>("detached-engine", null);
 

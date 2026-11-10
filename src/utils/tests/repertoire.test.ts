@@ -543,3 +543,31 @@ test("the main repertoire is found by its mark or by its name", async () => {
         "Spieler White",
     );
 });
+
+test("explorer dots mark the most played moves where they differ from the repertoire", async () => {
+    const { explorerHints, topMove } = await import("../repertoireTree");
+    expect(
+        topMove([
+            { san: "Bf4", games: 10 },
+            { san: "Nf3", games: 30 },
+        ]),
+    ).toBe("Nf3");
+    expect(topMove([{ san: "Nf3", games: 0 }])).toBeUndefined();
+    expect(topMove(undefined)).toBeUndefined();
+
+    const moves = ["Bf4", "Nf3", "e3"];
+    // the same move as the repertoire's main move gets no dot
+    expect(explorerHints(moves, { lichess: "Bf4", master: "Bf4" })).toEqual({ missing: [] });
+    expect(explorerHints(moves, { lichess: "Nf3", master: "e3" })).toEqual({
+        lichess: "Nf3",
+        master: "e3",
+        missing: [],
+    });
+    // moves the repertoire doesn't have are listed once
+    expect(explorerHints(moves, { lichess: "Nc3", master: "Nc3" })).toEqual({
+        lichess: "Nc3",
+        master: "Nc3",
+        missing: ["Nc3"],
+    });
+    expect(explorerHints([], { lichess: "e4" })).toEqual({ lichess: "e4", missing: ["e4"] });
+});

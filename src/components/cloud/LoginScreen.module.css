@@ -1,11 +1,24 @@
-.content {
-  background:
-    radial-gradient(
-      circle at 50% 0%,
-      light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5)) 0%,
-      transparent 60%
-    ),
-    light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8));
+/*
+ * Colours use the colour-scheme attribute instead of CSS light-dark():
+ * older macOS WebKit does not know light-dark() and dropped the whole
+ * background, so the start page shone through the sign-in screen.
+ */
+[data-mantine-color-scheme="light"] .content {
+  background-color: var(--mantine-color-gray-0);
+  background-image: radial-gradient(
+    circle at 50% 0%,
+    var(--mantine-color-gray-1) 0%,
+    var(--mantine-color-gray-0) 60%
+  );
+}
+
+[data-mantine-color-scheme="dark"] .content {
+  background-color: var(--mantine-color-dark-8);
+  background-image: radial-gradient(
+    circle at 50% 0%,
+    var(--mantine-color-dark-5) 0%,
+    var(--mantine-color-dark-8) 60%
+  );
 }
 
 .body {
@@ -18,6 +31,13 @@
 }
 
 .card {
-  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
   box-shadow: var(--mantine-shadow-md);
+}
+
+[data-mantine-color-scheme="light"] .card {
+  background-color: var(--mantine-color-white);
+}
+
+[data-mantine-color-scheme="dark"] .card {
+  background-color: var(--mantine-color-dark-7);
 }

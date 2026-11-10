@@ -12,7 +12,7 @@ import { basename, join, sep } from "@tauri-apps/api/path";
 import { rename } from "@tauri-apps/plugin-fs";
 import clsx from "clsx";
 import Fuse from "fuse.js";
-import { useAtom, useSetAtom } from "jotai";
+import { getDefaultStore, useAtom, useSetAtom } from "jotai";
 import { useContextMenu } from "mantine-contextmenu";
 import Draggable, { type DraggableEvent } from "react-draggable";
 import {
@@ -24,7 +24,13 @@ import {
   createContext,
   useContext,
 } from "react";
-import { activeTabAtom, deckAtomFamily, tabsAtom, expandedDirectoriesAtom } from "@/state/atoms";
+import {
+  activeTabAtom,
+  deckAtomFamily,
+  expandedDirectoriesAtom,
+  moveRecentFilesAtom,
+  tabsAtom,
+} from "@/state/atoms";
 import { openFile } from "@/utils/files";
 import classes from "./DirectoryTree.module.css";
 import type { Directory, FileMetadata } from "./file";
@@ -368,6 +374,7 @@ function DirectoryNode({
 
       try {
         await rename(sourcePath, targetPath);
+        getDefaultStore().set(moveRecentFilesAtom, { from: sourcePath, to: targetPath });
         if (node.type !== "directory" && sourcePath.endsWith(".pgn")) {
           await rename(
             sourcePath.replace(".pgn", ".info"),
