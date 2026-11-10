@@ -1,0 +1,23 @@
+.content {
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5)) 0%,
+      transparent 60%
+    ),
+    light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8));
+}
+
+.body {
+  height: 100%;
+  padding: var(--mantine-spacing-md);
+}
+
+.center {
+  min-height: 100%;
+}
+
+.card {
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  box-shadow: var(--mantine-shadow-md);
+}

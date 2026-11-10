@@ -41,6 +41,7 @@ export default defineConfig({
             "Errors.*",
             // Messages chosen at runtime (cloudErrorKey, status texts).
             "Settings.Cloud.*",
+            "Login.*",
         ],
         sort: true,
     },

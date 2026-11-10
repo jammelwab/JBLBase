@@ -1,0 +1,37 @@
+.panel {
+  position: fixed;
+  top: calc(var(--app-shell-header-offset, 0rem) + 0.3rem);
+  right: 0.5rem;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+[data-mantine-color-scheme="light"] .panel {
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--mantine-color-gray-3);
+}
+
+[data-mantine-color-scheme="dark"] .panel {
+  background-color: rgba(46, 46, 46, 0.85);
+  border: 1px solid var(--mantine-color-dark-4);
+}
+
+.update {
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(18, 184, 134, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(18, 184, 134, 0.25);
+  }
+}

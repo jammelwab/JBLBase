@@ -7,6 +7,8 @@
 
 .tabsHeader {
   margin-bottom: 0.5rem;
+  /* room for the corner menu (settings, update) on the right */
+  padding-right: 6rem;
   flex-shrink: 0;
 }
 
