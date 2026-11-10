@@ -137,7 +137,15 @@ export default function RepertoirePanel() {
     const mains = [main(boardColor), main(otherColor)].filter(
       (r, i): r is Repertoire => !!r && (i === 0 || r.index.has(key)),
     );
-    const others = list.filter((r) => !mains.includes(r) && r.index.has(key));
+    // Sorted: the board's color first, then by folder and name ("02_…" after "01_…")
+    const byName = (r: Repertoire) => [r.folder, r.name].filter(Boolean).join("/");
+    const others = list
+      .filter((r) => !mains.includes(r) && r.index.has(key))
+      .sort(
+        (a, b) =>
+          Number(a.color !== boardColor) - Number(b.color !== boardColor) ||
+          byName(a).localeCompare(byName(b), undefined, { numeric: true }),
+      );
     return { mains, others };
   }, [repertoires, mainOwner, orientation, key]);
 
