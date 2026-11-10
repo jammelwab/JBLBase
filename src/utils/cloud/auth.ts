@@ -13,6 +13,7 @@
 
 import type { FirebaseApp } from "firebase/app";
 import type { Auth, User } from "firebase/auth";
+import i18n from "i18next";
 import { FIREBASE_REGION, firebaseConfig } from "./firebaseConfig";
 
 export type CloudRole = "admin" | "user";
@@ -56,6 +57,14 @@ export function cloudAuth(): Promise<Auth> {
     return authPromise;
 }
 
+/**
+ * Firebase picks the e-mail template (verification, password reset) by this
+ * language, so the mails come in the language the app is set to.
+ */
+function setMailLanguage(auth: Auth) {
+    auth.languageCode = (i18n.language || "de").slice(0, 2);
+}
+
 export function isLichessUid(uid: string): boolean {
     return uid.startsWith("lichess:");
 }
@@ -78,10 +87,43 @@ export async function watchCloudAccount(
 ): Promise<() => void> {
     const auth = await cloudAuth();
     const { onIdTokenChanged } = await import("firebase/auth");
-    return onIdTokenChanged(auth, async (user) => {
+
+    // The confirmation link is opened in the browser, so the app never hears
+    // about it. While the address is unconfirmed, ask Firebase again when the
+    // window gets focus and every few seconds; a fresh token then reports the
+    // new state through onIdTokenChanged.
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const checkVerified = async () => {
+        const user = auth.currentUser;
+        if (!user || user.emailVerified || !user.email) return;
+        try {
+            await user.reload();
+            if (user.emailVerified) await user.getIdToken(true);
+        } catch {}
+    };
+    const watchVerification = (pending: boolean) => {
+        if (pending && !timer) {
+            timer = setInterval(() => void checkVerified(), VERIFY_POLL_MS);
+            window.addEventListener("focus", checkVerified);
+        } else if (!pending && timer) {
+            clearInterval(timer);
+            timer = null;
+            window.removeEventListener("focus", checkVerified);
+        }
+    };
+
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+        watchVerification(!!user && !!user.email && !user.emailVerified);
         listener(user ? await toCloudAccount(user) : null);
     });
+    return () => {
+        watchVerification(false);
+        unsubscribe();
+    };
 }
+
+/** How often an unconfirmed e-mail address is checked again. */
+const VERIFY_POLL_MS = 10_000;
 
 export async function signInWithEmail(email: string, password: string) {
     const auth = await cloudAuth();
@@ -93,18 +135,21 @@ export async function registerWithEmail(email: string, password: string) {
     const auth = await cloudAuth();
     const { createUserWithEmailAndPassword, sendEmailVerification } = await import("firebase/auth");
     const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    setMailLanguage(auth);
     await sendEmailVerification(user).catch(() => {});
 }
 
 export async function resetPassword(email: string) {
     const auth = await cloudAuth();
     const { sendPasswordResetEmail } = await import("firebase/auth");
+    setMailLanguage(auth);
     await sendPasswordResetEmail(auth, email.trim());
 }
 
 export async function resendVerification() {
     const auth = await cloudAuth();
     const { sendEmailVerification } = await import("firebase/auth");
+    setMailLanguage(auth);
     if (auth.currentUser) await sendEmailVerification(auth.currentUser);
 }
 
