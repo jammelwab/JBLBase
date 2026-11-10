@@ -18,7 +18,6 @@ import {
   IconBook,
   IconBrush,
   IconChess,
-  IconCloud,
   IconDatabase,
   IconDownload,
   IconFlag,
@@ -28,6 +27,7 @@ import {
   IconReload,
   IconSearch,
   IconShield,
+  IconUserCircle,
   IconVolume,
 } from "@tabler/icons-react";
 import { useLoaderData } from "@tanstack/react-router";
@@ -67,11 +67,12 @@ import {
   storedPuzzlesDirAtom,
   telemetryEnabledAtom,
 } from "@/state/atoms";
+import ProfileSettings from "@/components/cloud/ProfileSettings";
+import { settingsTabAtom } from "@/components/cloud/cloudUi";
 import { keyMapAtom } from "@/state/keybinds";
 import { checkForAppUpdate } from "@/utils/updater";
 import FileInput from "../common/FileInput";
 import BoardSelect from "./BoardSelect";
-import CloudAccountSettings from "./CloudAccountSettings";
 import ColorControl from "./ColorControl";
 import DimensionToggle from "./DimensionToggle";
 import EvalCacheSettings from "./EvalCacheSettings";
@@ -166,6 +167,7 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom);
   const [keyMap, setKeyMap] = useAtom(keyMapAtom);
   const [isNative, setIsNative] = useAtom(nativeBarAtom);
   const {
@@ -882,7 +884,8 @@ export default function Page() {
         </ScrollArea>
       ) : (
         <Tabs
-          defaultValue="board"
+          value={settingsTab}
+          onChange={(v) => v && setSettingsTab(v)}
           orientation="vertical"
           flex={1}
           style={{ overflow: "hidden" }}
@@ -893,6 +896,9 @@ export default function Page() {
           }}
         >
           <Tabs.List h="100%">
+            <Tabs.Tab value="profile" leftSection={<IconUserCircle size="1rem" />}>
+              {t("Settings.Cloud")}
+            </Tabs.Tab>
             <Tabs.Tab value="board" leftSection={<IconChess size="1rem" />}>
               {t("Settings.Board")}
             </Tabs.Tab>
@@ -917,9 +923,6 @@ export default function Page() {
             <Tabs.Tab value="repertoire" leftSection={<IconBook size="1rem" />}>
               {t("Settings.Repertoire")}
             </Tabs.Tab>
-            <Tabs.Tab value="cloud" leftSection={<IconCloud size="1rem" />}>
-              {t("Settings.Cloud")}
-            </Tabs.Tab>
             <Tabs.Tab value="evalcache" leftSection={<IconDatabase size="1rem" />}>
               {t("Settings.EvalCache")}
             </Tabs.Tab>
@@ -930,6 +933,16 @@ export default function Page() {
           <Stack flex={1} px="md">
             <ScrollArea>
               <Card withBorder p="lg" className={classes.card} w="100%">
+                <Tabs.Panel value="profile">
+                  <Text size="lg" fw={500} className={classes.title}>
+                    {t("Settings.Cloud")}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={3} mb="lg">
+                    {t("Settings.Cloud.Desc")}
+                  </Text>
+                  <ProfileSettings />
+                </Tabs.Panel>
+
                 <Tabs.Panel value="board">
                   <Text size="lg" fw={500} className={classes.title}>
                     {t("Settings.Board")}
@@ -1038,16 +1051,6 @@ export default function Page() {
                     {t("Settings.Repertoire.Desc")}
                   </Text>
                   {renderCategorySettings("repertoire")}
-                </Tabs.Panel>
-
-                <Tabs.Panel value="cloud">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Cloud")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Cloud.Desc")}
-                  </Text>
-                  <CloudAccountSettings />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="evalcache">

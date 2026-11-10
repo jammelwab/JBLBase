@@ -14,7 +14,7 @@ import {
 import { reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
 import { bumpRepertoires } from "@/utils/repertoires";
-import { cloudFirestore, watchCloudAccount } from "./auth";
+import { type CloudAccount, cloudFirestore, watchCloudAccount } from "./auth";
 import { setLocalChangeListener } from "./syncSignal";
 import {
     type LocalRepertoire,
@@ -313,6 +313,23 @@ export function setSyncAccount(uid: string | null) {
 
 const SIGNED_IN_KEY = "cloud-signed-in";
 
+/** Someone signed in on this device before (Firebase then loads at start). */
+export function signedInBefore(): boolean {
+    try {
+        return localStorage.getItem(SIGNED_IN_KEY) === "1";
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * The signed-in account: `undefined` while Firebase is still loading it,
+ * `null` when nobody is signed in.
+ */
+export const cloudAccountAtom = atom<CloudAccount | null | undefined>(
+    signedInBefore() ? undefined : null,
+);
+
 /**
  * Starts the sync for the signed-in account. Firebase is only loaded when
  * someone signed in on this device before, so the app starts as fast as
@@ -322,11 +339,7 @@ let active: (() => void) | null = null;
 
 export function startCloudSync(force = false): () => void {
     if (active) return () => {};
-    let signedIn = false;
-    try {
-        signedIn = localStorage.getItem(SIGNED_IN_KEY) === "1";
-    } catch {}
-    if (!signedIn && !force) return () => {};
+    if (!signedInBefore() && !force) return () => {};
 
     let stopped = false;
     let unwatch: (() => void) | null = null;
@@ -335,13 +348,17 @@ export function startCloudSync(force = false): () => void {
             if (account) localStorage.setItem(SIGNED_IN_KEY, "1");
             else localStorage.removeItem(SIGNED_IN_KEY);
         } catch {}
+        getDefaultStore().set(cloudAccountAtom, account);
         setSyncAccount(account?.uid ?? null);
     })
         .then((stop) => {
             if (stopped) stop();
             else unwatch = stop;
         })
-        .catch((e) => console.error("Cloud account unavailable", e));
+        .catch((e) => {
+            console.error("Cloud account unavailable", e);
+            getDefaultStore().set(cloudAccountAtom, null);
+        });
 
     const interval = setInterval(() => void syncNow(), SYNC_INTERVAL_MS);
     const onFocus = () => requestSync();

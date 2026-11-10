@@ -65,7 +65,7 @@ import { checkForAppUpdate } from "@/utils/updater";
 import ErrorComponent from "@/components/ErrorComponent";
 import { getDatabasesDir, getDocumentDir, getEnginesDir, getPuzzlesDir } from "@/utils/directories";
 import { initUserAgent } from "@/utils/http";
-import { startCloudSync } from "@/utils/cloud/sync";
+import CloudRoot from "@/components/cloud/CloudRoot";
 import { routeTree } from "./routeTree.gen";
 
 export type Dirs = {
@@ -216,8 +216,6 @@ export default function App() {
 
   useAppStartup();
 
-  useEffect(() => startCloudSync(), []);
-
   useEffect(() => {
     document.documentElement.style.fontSize = `${fontSize}%`;
   }, [fontSize]);
@@ -316,6 +314,7 @@ export default function App() {
         <ContextMenuProvider>
           <Notifications pauseResetOnHover="notification" />
           <RouterProvider router={router} />
+          <CloudRoot />
         </ContextMenuProvider>
       </MantineProvider>
     </DndProvider>
