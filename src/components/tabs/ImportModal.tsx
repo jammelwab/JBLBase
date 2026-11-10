@@ -156,7 +156,7 @@ export default function ImportModal({
             };
           });
 
-          if (fileInfo?.path) {
+          if (fileInfo?.path && originKind === "file") {
             store.set(addRecentFileAtom, {
               name: fileInfo.name,
               path: fileInfo.path,
