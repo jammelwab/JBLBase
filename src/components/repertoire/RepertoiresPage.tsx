@@ -26,7 +26,11 @@ import {
   IconChevronRight,
   IconFileImport,
   IconFolder,
+  IconFolderDown,
+  IconFolderPlus,
   IconFolderShare,
+  IconPencil,
+  IconTrash,
   IconHistory,
   IconGitCompare,
   IconPlus,
@@ -49,6 +53,7 @@ import {
   combineRepertoires,
   createRepertoire,
   defaultRepertoires,
+  deleteFolder,
   type Repertoire,
   type RepertoireColor,
   type RepertoireView,
@@ -56,10 +61,12 @@ import {
   repertoireViewAtom,
   setRepertoireFolder,
   useMainOwner,
+  useStoredFolders,
   useRepertoires,
 } from "@/utils/repertoires";
 import ImportCourseModal from "./ImportCourseModal";
 import ImportHistoryModal from "./ImportHistoryModal";
+import { type FolderEdit, FolderNameModal, ImportFolderModal } from "./RepertoireFolderModals";
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
 import RepertoireTreeView from "./RepertoireTreeView";
@@ -333,6 +340,8 @@ type FolderActions = {
   onView: (view: RepertoireView) => void;
   onNew: (preset: NewRepertoirePreset) => void;
   onMove: (repertoire: Repertoire) => void;
+  onEditFolder: (edit: FolderEdit) => void;
+  onDeleteFolder: (path: string) => void;
 };
 
 function FolderButtons({
@@ -345,7 +354,7 @@ function FolderButtons({
   actions: FolderActions;
 }) {
   const { t } = useTranslation();
-  const { owner, color, onView, onNew } = actions;
+  const { owner, color, onView, onNew, onEditFolder } = actions;
   return (
     <Group gap={4} wrap="nowrap">
       {count > 1 && (
@@ -368,6 +377,16 @@ function FolderButtons({
           </Button>
         </>
       )}
+      <Tooltip label={t("Repertoire.Folder.NewFolder")}>
+        <ActionIcon
+          size="sm"
+          variant="subtle"
+          color="yellow"
+          onClick={() => onEditFolder({ mode: "new", owner, color, parent: folder })}
+        >
+          <IconFolderPlus size="0.95rem" />
+        </ActionIcon>
+      </Tooltip>
       <Tooltip label={t("Repertoire.Folder.NewHere")}>
         <ActionIcon size="sm" variant="subtle" onClick={() => onNew({ owner, color, folder })}>
           <IconPlus size="0.9rem" />
@@ -413,6 +432,7 @@ function FolderSection({
   node: FolderNode<Repertoire>;
   actions: FolderActions;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const count = folderItems(node).length;
   return (
@@ -431,7 +451,38 @@ function FolderSection({
             {count}
           </Badge>
         </Group>
-        <FolderButtons folder={node.path} count={count} actions={actions} />
+        <Group gap={4} wrap="nowrap">
+          <FolderButtons folder={node.path} count={count} actions={actions} />
+          <Tooltip label={t("Repertoire.Folder.Rename")}>
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              onClick={() =>
+                actions.onEditFolder({
+                  mode: "rename",
+                  owner: actions.owner,
+                  color: actions.color,
+                  path: node.path,
+                })
+              }
+            >
+              <IconPencil size="0.9rem" />
+            </ActionIcon>
+          </Tooltip>
+          {count === 0 && node.children.length === 0 && (
+            <Tooltip label={t("Repertoire.Folder.Delete")}>
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="red"
+                onClick={() => actions.onDeleteFolder(node.path)}
+              >
+                <IconTrash size="0.9rem" />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
       </Group>
       {open && (
         <Box mt="xs" pl="md">
@@ -442,9 +493,17 @@ function FolderSection({
   );
 }
 
-function ColorGroup({ list, actions }: { list: Repertoire[]; actions: FolderActions }) {
+function ColorGroup({
+  list,
+  emptyFolders,
+  actions,
+}: {
+  list: Repertoire[];
+  emptyFolders: string[];
+  actions: FolderActions;
+}) {
   const colorName = useColorName();
-  const tree = useMemo(() => buildFolderTree(list), [list]);
+  const tree = useMemo(() => buildFolderTree(list, emptyFolders), [list, emptyFolders]);
   return (
     <Stack gap="xs">
       <Group justify="space-between" wrap="nowrap">
@@ -471,6 +530,9 @@ export default function RepertoiresPage() {
   const [creating, setCreating] = useState<NewRepertoirePreset | null>(null);
   const [moving, setMoving] = useState<Repertoire | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importingFolder, setImportingFolder] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<FolderEdit | null>(null);
+  const { data: storedFolders } = useStoredFolders(documentDir);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useAtom(repertoireViewAtom);
   // A player card asks for its player's repertoire, matched by name like the owner field
@@ -495,15 +557,36 @@ export default function RepertoiresPage() {
       ) ?? undefined
     );
   }, [view, repertoires, viewOwner, t]);
-  const folders = useMemo(() => allFolders(repertoires ?? []), [repertoires]);
+  const folders = useMemo(
+    () =>
+      allFolders([
+        ...(repertoires ?? []),
+        ...(storedFolders ?? []).map((f) => ({ folder: f.path })),
+      ]),
+    [repertoires, storedFolders],
+  );
 
+  // Folders made in the app count for their player too, also before anything is in them
   const byOwner = useMemo(() => {
     const groups = new Map<string, Repertoire[]>();
     for (const r of repertoires ?? []) {
       groups.set(r.owner, [...(groups.get(r.owner) ?? []), r]);
     }
+    for (const f of storedFolders ?? []) {
+      const owner = repertoireOwner(f.owner, mainOwner);
+      const known = [...groups.keys()].find((o) => o.toLowerCase() === owner.toLowerCase());
+      if (!known) groups.set(owner, []);
+    }
     return groups;
-  }, [repertoires]);
+  }, [repertoires, storedFolders, mainOwner]);
+  const emptyFoldersOf = (owner: string, color: RepertoireColor) =>
+    (storedFolders ?? [])
+      .filter(
+        (f) =>
+          repertoireOwner(f.owner, mainOwner).toLowerCase() === owner.toLowerCase() &&
+          f.color === color,
+      )
+      .map((f) => f.path);
 
   const defaults = defaultRepertoires(mainOwner);
   const missing = defaults.filter(
@@ -561,6 +644,22 @@ export default function RepertoiresPage() {
       {moving && (
         <MoveFolderModal repertoire={moving} folders={folders} onClose={() => setMoving(null)} />
       )}
+      {editingFolder && (
+        <FolderNameModal
+          edit={editingFolder}
+          documentDir={documentDir}
+          repertoires={repertoires ?? []}
+          onClose={() => setEditingFolder(null)}
+        />
+      )}
+      {importingFolder && (
+        <ImportFolderModal
+          documentDir={documentDir}
+          owners={owners}
+          folders={folders}
+          onClose={() => setImportingFolder(false)}
+        />
+      )}
       {importing && (
         <ImportCourseModal
           opened
@@ -590,6 +689,13 @@ export default function RepertoiresPage() {
             >
               {t("Repertoire.Course.Button")}
             </Button>
+            <Button
+              variant="light"
+              leftSection={<IconFolderDown size="1rem" />}
+              onClick={() => setImportingFolder(true)}
+            >
+              {t("Repertoire.FolderImport.Button")}
+            </Button>
             <Button leftSection={<IconPlus size="1rem" />} onClick={() => setCreating({})}>
               {t("Repertoire.Page.New")}
             </Button>
@@ -609,18 +715,28 @@ export default function RepertoiresPage() {
           <Stack key={owner} gap="sm">
             <Title order={4}>{owner}</Title>
             {(["white", "black"] as const)
-              .map((color) => ({ color, items: list.filter((r) => r.color === color) }))
-              .filter((g) => g.items.length > 0)
+              .map((color) => ({
+                color,
+                items: list.filter((r) => r.color === color),
+                empty: emptyFoldersOf(owner, color),
+              }))
+              .filter((g) => g.items.length > 0 || g.empty.length > 0)
               .map((g) => (
                 <ColorGroup
                   key={g.color}
                   list={g.items}
+                  emptyFolders={g.empty}
                   actions={{
                     owner,
                     color: g.color,
                     onView: setView,
                     onNew: setCreating,
                     onMove: setMoving,
+                    onEditFolder: setEditingFolder,
+                    onDeleteFolder: (path) =>
+                      deleteFolder(documentDir, owner, g.color, path).catch((e) =>
+                        notifications.show({ color: "red", title: path, message: String(e) }),
+                      ),
                   }}
                 />
               ))}

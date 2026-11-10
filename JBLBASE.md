@@ -100,6 +100,21 @@ deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
 vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
 spielt ihn auf dem Brett.
 
+### Ordner anlegen und Ordner importieren
+
+Ordner legst du mit dem Ordner-Plus-Symbol an, unter Weiß/Schwarz oder in einem
+anderen Ordner; sie bleiben auch leer erhalten (gespeichert in
+`repertoire-folders.json` im Dokumente-Ordner). Mit dem Stift benennst du einen Ordner
+um, alles darin wandert mit; leere Ordner löschst du mit dem Papierkorb. Repertoires
+behalten dabei ihre ID, der Trainingsfortschritt bleibt also erhalten.
+
+**Ordner importieren** nimmt einen Ordner mit PGN-Dateien von der Festplatte: Jede
+PGN wird ein Repertoire mit dem Dateinamen als Namen (ihre Partien wie ein Kurs
+importiert, mit Eintrag in der Import-Historie), Unterordner werden zu Ordnern. Du
+wählst Spieler, Farbe, einen Zielordner und ob der Name des gewählten Ordners als
+oberste Ebene übernommen wird. Gibt es einen Namen schon, bekommt das neue
+Repertoire „(2)“ angehängt.
+
 ### Repertoire im Datenbank-Bereich des Analysebretts
 
 Im Datenbank-Bereich des Analysebretts gibt es neben Lokal, Lichess Alle und Lichess
