@@ -198,7 +198,13 @@ fn main() {
             eval_cache::get_cached_evals,
             training::training_load_deck,
             training::training_save_cards,
-            training::training_append_reviews
+            training::training_append_reviews,
+            training::training_pending,
+            training::training_mark_synced,
+            training::training_apply_remote,
+            training::training_rename_repertoire,
+            training::sync_meta_get,
+            training::sync_meta_set
         ))
         .events(tauri_specta::collect_events!(
             BestMovesPayload,

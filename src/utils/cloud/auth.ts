@@ -132,6 +132,12 @@ export async function signOutCloud() {
     await signOut(auth);
 }
 
+/** Firestore (lite: no live updates, smaller) and its functions. */
+export async function cloudFirestore() {
+    const [app, firestore] = await Promise.all([firebaseApp(), import("firebase/firestore/lite")]);
+    return { db: firestore.getFirestore(app), firestore };
+}
+
 async function profileRef(uid: string) {
     const [app, { doc, getFirestore }] = await Promise.all([
         firebaseApp(),

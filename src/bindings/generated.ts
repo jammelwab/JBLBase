@@ -547,6 +547,54 @@ async trainingAppendReviews(deck: string, reviews: TrainingReview[]) : Promise<R
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async trainingPending(limit: number) : Promise<Result<TrainingPending, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("training_pending", { limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async trainingMarkSynced(cards: SyncCardKey[], reviews: string[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("training_mark_synced", { cards, reviews }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async trainingApplyRemote(cards: SyncCard[], reviews: SyncReview[]) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("training_apply_remote", { cards, reviews }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async trainingRenameRepertoire(from: string, to: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("training_rename_repertoire", { from, to }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async syncMetaGet(key: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sync_meta_get", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async syncMetaSet(key: string, value: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sync_meta_set", { key, value }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -643,6 +691,21 @@ export type Sides = "BlackWhite" | "WhiteBlack" | "Any"
 export type SiteStatsData = { site: string; player: string; data: StatsData[] }
 export type SortDirection = "asc" | "desc"
 export type StatsData = { date: string; is_player_white: boolean; player_elo: number; result: GameOutcome; time_control: string }
+export type SyncCard = { deck: string; position: string; fen: string; answer: string; card: string; ord: number; 
+/**
+ * Milliseconds since 1970.
+ */
+updatedAt: number; deleted: boolean }
+/**
+ * Identifies one uploaded card version, so only that version is marked
+ * as synced (a newer local change stays dirty).
+ */
+export type SyncCardKey = { deck: string; position: string; updatedAt: number }
+export type SyncReview = { uid: string; deck: string; fen: string; log: string; 
+/**
+ * Milliseconds since 1970.
+ */
+reviewedAt: number }
 export type TimeControl = { initialTime: bigint; increment: bigint }
 export type Token = { type: "ParenOpen" } | { type: "ParenClose" } | { type: "Comment"; value: string } | { type: "San"; value: string } | { type: "Header"; value: { tag: string; value: string } } | { type: "Nag"; value: string } | { type: "Outcome"; value: string }
 export type TournamentQuery = { options: QueryOptions<TournamentSort>; name: string | null }
@@ -653,6 +716,7 @@ export type TrainingCard = { fen: string; answer: string;
  */
 card: string }
 export type TrainingDeck = { cards: TrainingCard[]; reviews: TrainingReview[] }
+export type TrainingPending = { cards: SyncCard[]; reviews: SyncReview[] }
 export type TrainingReview = { fen: string; 
 /**
  * FSRS review log as JSON.

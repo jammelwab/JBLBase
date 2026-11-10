@@ -5,7 +5,7 @@ import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-f
 import { parseUci } from "chessops";
 import { INITIAL_FEN, makeFen } from "chessops/fen";
 import equal from "fast-deep-equal";
-import { atom, type PrimitiveAtom, type SetStateAction } from "jotai";
+import { atom, getDefaultStore, type PrimitiveAtom, type SetStateAction } from "jotai";
 import {
     atomFamily,
     atomWithDefault,
@@ -31,7 +31,8 @@ import {
     masterOptionsSchema,
 } from "@/utils/lichess/explorer";
 import { getWinChance, normalizeScore } from "@/utils/score";
-import { loadDeck, saveDeck, tauriTrainingBackend } from "@/utils/training";
+import { notifyLocalChange } from "@/utils/cloud/syncSignal";
+import { deckId, loadDeck, repertoireId, saveDeck, tauriTrainingBackend } from "@/utils/training";
 import { genID, type Tab, tabSchema } from "@/utils/tabs";
 import { getEnginesDir } from "../utils/directories";
 import type { Session } from "../utils/session";
@@ -542,6 +543,8 @@ type DeckState = { data: PracticeData; loaded: boolean };
 
 // Saves of one deck run one after another, so the review log stays in order.
 const deckSaveQueues = new Map<string, Promise<number>>();
+// Decks shown right now, so the cloud sync can reload them after a download.
+const mountedDecks = new Map<string, DeckKey>();
 
 const deckStateFamily = atomFamily(({ file, game }: DeckKey) => {
     const state = atom<DeckState>({ data: emptyDeck(), loaded: !file });
@@ -560,8 +563,10 @@ const deckStateFamily = atomFamily(({ file, game }: DeckKey) => {
                 return data?.logs.length ?? 0;
             });
         if (!deckSaveQueues.has(key)) deckSaveQueues.set(key, loading);
+        mountedDecks.set(key, { file, game });
         return () => {
             active = false;
+            mountedDecks.delete(key);
         };
     };
     return state;
@@ -594,16 +599,47 @@ export const deckAtomFamily = atomFamily(
                             prev.data,
                             next,
                             persisted,
-                        ).catch((e) => {
-                            console.error("Saving training deck failed", e);
-                            return persisted;
-                        }),
+                        ).then(
+                            (count) => {
+                                notifyLocalChange();
+                                return count;
+                            },
+                            (e) => {
+                                console.error("Saving training deck failed", e);
+                                return persisted;
+                            },
+                        ),
                     ),
                 );
             },
         ),
     sameDeck,
 );
+
+/**
+ * Loads the given decks again from the training store, after the cloud sync
+ * changed them. Runs after pending saves of the same deck.
+ */
+export async function reloadTrainingDecks(deckIds: string[]) {
+    const changed = new Set(deckIds);
+    const store = getDefaultStore();
+    for (const [queueKey, key] of mountedDecks) {
+        const id = await repertoireId(tauriTrainingBackend, key.file, false);
+        if (!id || !changed.has(deckId(id, key.game))) continue;
+        const queue = deckSaveQueues.get(queueKey) ?? Promise.resolve(0);
+        deckSaveQueues.set(
+            queueKey,
+            queue.then(async (persisted) => {
+                const data = await loadDeck(tauriTrainingBackend, key.file, key.game).catch(
+                    () => null,
+                );
+                if (!data) return persisted;
+                store.set(deckStateFamily(key), { data, loaded: true });
+                return data.logs.length;
+            }),
+        );
+    }
+}
 
 export type PracticePhase =
     | "idle" // Not practicing

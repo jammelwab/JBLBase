@@ -104,6 +104,14 @@ Die Rolle erlaubt dem Dienstkonto nur, für sich selbst Tokens zu signieren.
 Optional: <https://console.firebase.google.com/project/jblbase/authentication/emails>
 → Vorlagensprache auf Deutsch stellen (Mails zum Bestätigen und Zurücksetzen).
 
+## 10. Regeln für die Synchronisierung (Phase 3)
+
+Nach dem Merge die neuen Sicherheitsregeln in der Cloud Shell deployen:
+
+```sh
+cd ~/JBLBase && git pull && cd firebase && npx -y firebase-tools@15 deploy --only firestore --project jblbase
+```
+
 ## Später
 
 - **Admin-Rolle:** sobald das eigene Konto existiert (Phase 2). Schlüssel
