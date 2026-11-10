@@ -105,6 +105,20 @@ service cloud.firestore {
       return 'mate' in d.lines[0];
     }
 
+    // Agreement to the terms of use and the privacy policy. The id is
+    // "<terms version>_<privacy version>"; acceptedAt is the server time.
+    function validConsent(id, d) {
+      return d.keys().hasOnly(['terms', 'privacy', 'method', 'ageConfirmed', 'appVersion', 'acceptedAt'])
+        && d.keys().hasAll(['terms', 'privacy', 'method', 'ageConfirmed', 'appVersion', 'acceptedAt'])
+        && d.terms is string && d.terms.size() > 0 && d.terms.size() <= 20
+        && d.privacy is string && d.privacy.size() > 0 && d.privacy.size() <= 20
+        && id == d.terms + '_' + d.privacy
+        && d.method in ['register', 'lichess', 'update']
+        && d.ageConfirmed == true
+        && d.appVersion is string && d.appVersion.size() <= 32
+        && d.acceptedAt == request.time;
+    }
+
     // Depth limit for normal users; admins and mates are exempt.
     function withinUserLimit(d) {
       return isAdmin()
@@ -120,6 +134,13 @@ service cloud.firestore {
         && (!('lichess' in request.resource.data) || request.resource.data.lichess is string)
         && (!('chesscom' in request.resource.data) || request.resource.data.chesscom is string)
         && (!('settings' in request.resource.data) || request.resource.data.settings is map);
+
+      // Consent records: created once per version, never changed. Deleted
+      // only together with the account.
+      match /consents/{consentId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validConsent(consentId, request.resource.data);
+      }
 
       // Repertoires, synced as whole files (phase 3, see
       // src/utils/cloud/repertoireSync.ts). Deleted ones keep a mark.

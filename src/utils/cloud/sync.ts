@@ -241,6 +241,11 @@ async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
 }
 
 let currentUid: string | null = null;
+/**
+ * Held until the signed-in account has agreed to the current terms (see
+ * ConsentGate), and while the account is being deleted.
+ */
+let held = true;
 let running: Promise<void> | null = null;
 let again = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -273,7 +278,7 @@ async function runSync(uid: string) {
 
 /** Syncs now (or right after a sync that is already running). */
 export function syncNow(): Promise<void> {
-    if (!currentUid) return Promise.resolve();
+    if (!currentUid || held) return Promise.resolve();
     if (running) {
         again = true;
         return running;
@@ -291,7 +296,7 @@ export function syncNow(): Promise<void> {
 
 /** A local change: sync a little later, so several changes go up together. */
 export function requestSync() {
-    if (!currentUid) return;
+    if (!currentUid || held) return;
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
         timer = null;
@@ -305,10 +310,28 @@ setLocalChangeListener(requestSync);
 export function setSyncAccount(uid: string | null) {
     if (uid === currentUid) return;
     currentUid = uid;
+    // A new account waits for ConsentGate.
+    held = true;
     if (timer) clearTimeout(timer);
     timer = null;
     getDefaultStore().set(cloudSyncStatusAtom, { state: uid ? "idle" : "off" });
-    if (uid) void syncNow();
+}
+
+/** Resolves when no sync is running. */
+export async function syncIdle(): Promise<void> {
+    while (running) await running.catch(() => {});
+}
+
+/** Holds or releases the sync of the signed-in account. */
+export function holdSync(hold: boolean) {
+    if (held === hold) return;
+    held = hold;
+    if (hold) {
+        if (timer) clearTimeout(timer);
+        timer = null;
+    } else {
+        void syncNow();
+    }
 }
 
 const SIGNED_IN_KEY = "cloud-signed-in";

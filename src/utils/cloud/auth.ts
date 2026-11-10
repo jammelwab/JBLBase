@@ -126,6 +126,22 @@ export async function signInWithLichessToken(
     return { uid: user.uid, username: data.username };
 }
 
+/**
+ * Deletes the signed-in account and all its cloud data (Cloud Function
+ * `deleteAccount`), then signs out. Files on this device stay.
+ */
+export async function deleteCloudAccount() {
+    const [app, auth] = await Promise.all([firebaseApp(), cloudAuth()]);
+    const [{ getFunctions, httpsCallable }, { signOut }] = await Promise.all([
+        import("firebase/functions"),
+        import("firebase/auth"),
+    ]);
+    await httpsCallable(getFunctions(app, FIREBASE_REGION), "deleteAccount", {
+        timeout: 120_000,
+    })();
+    await signOut(auth);
+}
+
 export async function signOutCloud() {
     const auth = await cloudAuth();
     const { signOut } = await import("firebase/auth");
@@ -202,6 +218,8 @@ export function cloudErrorKey(error: unknown): string {
             return "Settings.Cloud.Error.Network";
         case "functions/unauthenticated":
             return "Settings.Cloud.Error.LichessRejected";
+        case "functions/not-found":
+            return "Settings.Cloud.Error.NotDeployed";
         case "chesscom/invalid":
             return "Settings.Cloud.Error.ChessComInvalid";
         default:

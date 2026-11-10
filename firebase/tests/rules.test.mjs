@@ -87,6 +87,48 @@ function reviewDoc(over = {}) {
   };
 }
 
+function consentDoc(over = {}) {
+  return {
+    terms: "2026-11-10",
+    privacy: "2026-11-10",
+    method: "register",
+    ageConfirmed: true,
+    appVersion: "1.0.14",
+    acceptedAt: serverTimestamp(),
+    ...over,
+  };
+}
+
+describe("consent records", () => {
+  const id = "2026-11-10_2026-11-10";
+
+  test("the owner records an agreement once and can read it", async () => {
+    const db = user("alice");
+    await assertSucceeds(setDoc(doc(db, `users/alice/consents/${id}`), consentDoc()));
+    await assertSucceeds(getDoc(doc(db, `users/alice/consents/${id}`)));
+    await assertFails(getDoc(doc(user("bob"), `users/alice/consents/${id}`)));
+    await assertFails(setDoc(doc(user("bob"), `users/alice/consents/${id}`), consentDoc()));
+  });
+
+  test("an agreement cannot be changed afterwards", async () => {
+    const db = user("alice");
+    await assertSucceeds(setDoc(doc(db, `users/alice/consents/${id}`), consentDoc()));
+    await assertFails(
+      setDoc(doc(db, `users/alice/consents/${id}`), consentDoc({ method: "update" })),
+    );
+  });
+
+  test("an agreement must be complete and match its id", async () => {
+    const db = user("alice");
+    const ref = doc(db, `users/alice/consents/${id}`);
+    await assertFails(setDoc(ref, consentDoc({ ageConfirmed: false })));
+    await assertFails(setDoc(ref, consentDoc({ acceptedAt: 5 })));
+    await assertFails(setDoc(ref, consentDoc({ method: "other" })));
+    await assertFails(setDoc(ref, consentDoc({ extra: 1 })));
+    await assertFails(setDoc(doc(db, "users/alice/consents/old_old"), consentDoc()));
+  });
+});
+
 describe("own area", () => {
   test("a user reads and writes only below users/{uid}", async () => {
     const db = user("alice");
