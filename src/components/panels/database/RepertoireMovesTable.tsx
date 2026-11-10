@@ -1,4 +1,5 @@
 import { Box, Group, Progress, Select, Text, Tooltip } from "@mantine/core";
+import { IconCheck, IconPinFilled } from "@tabler/icons-react";
 import { useLoaderData } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { DataTable } from "mantine-datatable";
@@ -10,7 +11,7 @@ import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { moveNotationTypeAtom, repertoireDbSourceAtom } from "@/state/atoms";
 import { addPieceSymbol } from "@/utils/annotation";
 import { formatNumber } from "@/utils/format";
-import { combineTrees } from "@/utils/repertoireFolders";
+import { combineTrees, findMainRepertoire } from "@/utils/repertoireFolders";
 import { lichessMoveCounts, masterMoveCounts } from "@/utils/repertoireExplorer";
 import {
   explorerHints,
@@ -20,7 +21,12 @@ import {
   repertoireWeights,
   topMove,
 } from "@/utils/repertoireTree";
-import { type Repertoire, useMainOwner, useRepertoires } from "@/utils/repertoires";
+import {
+  DEFAULT_MAIN_OWNER,
+  type Repertoire,
+  useMainOwner,
+  useRepertoires,
+} from "@/utils/repertoires";
 import type { TreeNode } from "@/utils/treeReducer";
 
 const MINE = "mine";
@@ -71,21 +77,58 @@ export function RepertoireSourceSelect() {
   const { data: repertoires } = useRepertoires(documentDir);
   const mainOwner = useMainOwner();
   const [source, setSource] = useAtom(repertoireDbSourceAtom);
-  const data = [
-    { value: MINE, label: t("Board.Database.Repertoire.AllMine") },
-    ...(repertoires ?? []).map((r) => ({
+  // Pinned at the top: all mine, then the main repertoires for White and Black.
+  // The rest sorted by folder and name ("02_…" after "01_…").
+  const { data, pinned } = useMemo(() => {
+    const list = repertoires ?? [];
+    const mains = (["white", "black"] as const)
+      .map((color) => findMainRepertoire(list, mainOwner, color, [DEFAULT_MAIN_OWNER]))
+      .filter((r): r is Repertoire => !!r);
+    const byName = (r: Repertoire) => [r.folder, r.name].filter(Boolean).join("/");
+    const rest = list
+      .filter((r) => !mains.includes(r))
+      .sort((a, b) => byName(a).localeCompare(byName(b), undefined, { numeric: true }));
+    const option = (r: Repertoire) => ({
       value: r.file.path,
       label: repertoireLabel(r, mainOwner),
-    })),
-  ];
+    });
+    return {
+      data: [
+        { value: MINE, label: t("Board.Database.Repertoire.AllMine") },
+        ...mains.map(option),
+        ...rest.map(option),
+      ],
+      pinned: new Set([MINE, ...mains.map((r) => r.file.path)]),
+    };
+  }, [repertoires, mainOwner, t]);
   return (
     <Select
       data={data}
+      renderOption={({ option, checked }) => (
+        <Group gap={6} wrap="nowrap">
+          {checked && <IconCheck size="0.9rem" style={{ flexShrink: 0 }} />}
+          {pinned.has(option.value) && (
+            <IconPinFilled
+              size="0.9rem"
+              color="var(--mantine-color-dimmed)"
+              style={{ flexShrink: 0 }}
+            />
+          )}
+          <Text
+            size="sm"
+            fw={pinned.has(option.value) ? 600 : undefined}
+            style={{ wordBreak: "break-word" }}
+          >
+            {option.label}
+          </Text>
+        </Group>
+      )}
       value={data.some((d) => d.value === source) ? source : MINE}
       onChange={(value) => setSource(value ?? MINE)}
       size="sm"
       flex={1}
       maw={240}
+      comboboxProps={{ width: 360, position: "bottom-start" }}
       allowDeselect={false}
       searchable
     />
