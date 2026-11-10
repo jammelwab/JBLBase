@@ -2,6 +2,7 @@ import { ActionIcon, Stack, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   IconArrowBack,
+  IconArrowUpRight,
   IconBinaryTree,
   IconBookmarkPlus,
   IconCamera,
@@ -28,6 +29,7 @@ import {
   autoSaveAtom,
   currentTabAtom,
   eraseDrawablesOnClickAtom,
+  explorerArrowsAtom,
   tabsAtom,
 } from "@/state/atoms";
 import { keyMapAtom } from "@/state/keybinds";
@@ -44,6 +46,8 @@ interface BoardControlsProps {
   onTakeBack?: () => void;
   disableVariations?: boolean;
   allowEditing?: boolean;
+  // Buttons for the Lichess and repertoire arrows (analysis board only)
+  explorerArrows?: boolean;
 }
 
 function BoardControls({
@@ -55,6 +59,7 @@ function BoardControls({
   onTakeBack,
   disableVariations,
   allowEditing,
+  explorerArrows,
 }: BoardControlsProps) {
   const { t } = useTranslation();
   const { documentDir } = useLoaderData({ from: "/" });
@@ -74,6 +79,7 @@ function BoardControls({
   const eraseDrawablesOnClick = useAtomValue(eraseDrawablesOnClickAtom);
   const creatingPlayTab = useRef(false);
   const [isCreatingPlayTab, setIsCreatingPlayTab] = useState(false);
+  const [arrowsShown, setArrowsShown] = useAtom(explorerArrowsAtom);
   const [addingToRepertoire, setAddingToRepertoire] = useState<null | "line" | "variations">(null);
   const modeActionLabel = t(
     currentTab?.type === "analysis" ? "Board.Action.PlayFromHere" : "Board.Action.AnalyzeGame",
@@ -185,6 +191,30 @@ function BoardControls({
           )}
         </ActionIcon>
       </Tooltip>
+      {explorerArrows && (
+        <>
+          <Tooltip position="right" label={t("Board.Action.LichessArrows")}>
+            <ActionIcon
+              variant={arrowsShown.lichess ? "filled" : "subtle"}
+              color="blue"
+              aria-pressed={arrowsShown.lichess}
+              onClick={() => setArrowsShown((a) => ({ ...a, lichess: !a.lichess }))}
+            >
+              <IconArrowUpRight size="1.2rem" />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip position="right" label={t("Board.Action.RepertoireArrows")}>
+            <ActionIcon
+              variant={arrowsShown.repertoire ? "filled" : "subtle"}
+              color="green"
+              aria-pressed={arrowsShown.repertoire}
+              onClick={() => setArrowsShown((a) => ({ ...a, repertoire: !a.repertoire }))}
+            >
+              <IconArrowUpRight size="1.2rem" />
+            </ActionIcon>
+          </Tooltip>
+        </>
+      )}
       {!eraseDrawablesOnClick && (
         <Tooltip position="right" label={t("Board.Action.ClearDrawings")}>
           <ActionIcon onClick={() => clearShapes()}>

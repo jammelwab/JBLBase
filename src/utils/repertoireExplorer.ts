@@ -2,12 +2,12 @@ import { resolve } from "@tauri-apps/api/path";
 import { getDefaultStore } from "jotai";
 import { mutate } from "swr";
 import { commands } from "@/bindings";
-import { lichessOptionsAtom, mainOwnerAtom, sessionsAtom } from "@/state/atoms";
+import { lichessOptionsAtom, mainOwnerAtom, masterOptionsAtom, sessionsAtom } from "@/state/atoms";
 import { type Session, sessionPlayerName } from "@/utils/session";
 import { findAccountDatabase, sameName } from "./accountDatabase";
 import { getDatabases, searchPosition } from "./db";
 import { getDatabasesDir } from "./directories";
-import { getLichessGames } from "./lichess/api";
+import { getLichessGames, getMasterGames } from "./lichess/api";
 import { getMainOwner } from "./mainOwner";
 import type { MoveStat } from "./gamesTree";
 import type { MoveCount } from "./repertoireTree";
@@ -47,6 +47,25 @@ export function lichessMoveCounts(fen: string): Promise<MoveCount[]> {
     // A failed request may succeed later (rate limit, network), so it is not kept
     promise.catch(() => lichessCache.delete(key));
     lichessCache.set(key, promise);
+    return promise;
+}
+
+const masterCache = new Map<string, Promise<MoveCount[]>>();
+
+// The same for the Lichess masters database
+export function masterMoveCounts(fen: string): Promise<MoveCount[]> {
+    const store = getDefaultStore();
+    const token = store.get(sessionsAtom).find((s) => s.lichess?.accessToken)?.lichess?.accessToken;
+    const options = store.get(masterOptionsAtom);
+    const key = `${JSON.stringify(options)} ${fen}`;
+    const cached = masterCache.get(key);
+    if (cached) return cached;
+    const promise = enqueue(async () => {
+        const data = await getMasterGames(fen, options, token);
+        return data.moves.map((m) => ({ san: m.san, games: m.white + m.draws + m.black }));
+    });
+    promise.catch(() => masterCache.delete(key));
+    masterCache.set(key, promise);
     return promise;
 }
 

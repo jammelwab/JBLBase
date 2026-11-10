@@ -16,6 +16,7 @@ import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
+import { useExplorerArrows } from "./useExplorerArrows";
 import {
   allEnabledAtom,
   autoSaveAtom,
@@ -46,6 +47,15 @@ import Board from "./Board";
 import BoardControls from "./BoardControls";
 import EditingCard from "./EditingCard";
 import EvalListener from "./EvalListener";
+
+// The board with the Lichess and repertoire arrows, kept apart so only the board re-renders
+// when the position changes
+function BoardWithExplorerArrows(props: React.ComponentProps<typeof Board>) {
+  const store = useContext(TreeStateContext)!;
+  const fen = useStore(store, (s) => s.currentNode().fen);
+  const extraShapes = useExplorerArrows(fen);
+  return <Board {...props} extraShapes={extraShapes} />;
+}
 
 function BoardAnalysis() {
   const { t } = useTranslation();
@@ -200,6 +210,7 @@ function BoardAnalysis() {
             toggleEditingMode={toggleEditingMode}
             dirty={dirty}
             saveFile={userSaveFile}
+            explorerArrows
           />
         }
       />
@@ -211,7 +222,7 @@ function BoardAnalysis() {
     <>
       <EvalListener />
       <Portal target="#left" style={{ height: "100%" }}>
-        <Board
+        <BoardWithExplorerArrows
           practicing={practicing}
           editingMode={editingMode}
           boardRef={boardRef}
