@@ -1,12 +1,15 @@
 import { CloudBillingClient } from "@google-cloud/billing";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { logger } from "firebase-functions/v2";
+import { createHash } from "node:crypto";
+import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { budgetExceeded, parseNotification } from "./budget.js";
+import { type MailKind, maySend, parseEmail, parseLang, renderMail } from "./mail.js";
 import { lichessListed, lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
 
 // All functions run in Frankfurt with at most one instance, so a bug or an
@@ -123,3 +126,102 @@ export const deleteAccount = onCall({ cors: true, timeoutSeconds: 120 }, async (
     logger.info("Account deleted", { uid });
     return { deleted: true };
 });
+
+// ---------------------------------------------------------------------------
+// Own e-mails (confirmation, password reset) in the JBLBase design.
+//
+// Firebase does not allow changing the text of its own mails, so these are
+// sent through Brevo (https://www.brevo.com). Two secrets are needed:
+//   firebase functions:secrets:set BREVO_API_KEY   (API key from Brevo)
+//   firebase functions:secrets:set MAIL_FROM       (sender address verified in Brevo)
+// Set both before deploying these functions. As long as they are not
+// deployed, the app falls back to Firebase's standard mails.
+
+const BREVO_API_KEY = defineSecret("BREVO_API_KEY");
+const MAIL_FROM = defineSecret("MAIL_FROM");
+
+/**
+ * Remembers when a mail of this kind last went to this address and refuses
+ * a new one within MAIL_INTERVAL_MS. Keyed by a hash, so the collection
+ * holds no addresses. Clients cannot read or write mailLimits (rules).
+ */
+async function claimMailSlot(kind: MailKind, email: string) {
+    const id = createHash("sha256").update(`${kind}\n${email}`).digest("hex");
+    const ref = getFirestore().doc(`mailLimits/${id}`);
+    const now = Date.now();
+    const allowed = await getFirestore().runTransaction(async (tx) => {
+        const last = (await tx.get(ref)).get("sentAt") as number | undefined;
+        if (!maySend(last, now)) return false;
+        tx.set(ref, { sentAt: now });
+        return true;
+    });
+    if (!allowed) throw new HttpsError("resource-exhausted", "Please wait a minute");
+}
+
+async function sendMail(kind: MailKind, data: unknown, email: string, link: string) {
+    const apiKey = BREVO_API_KEY.value();
+    const from = MAIL_FROM.value();
+    if (!apiKey || !from) throw new HttpsError("failed-precondition", "Mail sending not set up");
+    const mail = renderMail(kind, parseLang(data), { email, link });
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+            "api-key": apiKey,
+            "content-type": "application/json",
+            accept: "application/json",
+        },
+        body: JSON.stringify({
+            sender: { name: "JBLBase", email: from },
+            to: [{ email }],
+            subject: mail.subject,
+            htmlContent: mail.html,
+            textContent: mail.text,
+        }),
+        signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+        logger.error("Brevo refused the mail", {
+            kind,
+            status: res.status,
+            body: await res.text(),
+        });
+        throw new HttpsError("unavailable", `Mail service answered ${res.status}`);
+    }
+    logger.info("Mail sent", { kind });
+}
+
+/** Sends the caller the confirmation mail for their e-mail address. */
+export const sendVerificationMail = onCall(
+    { cors: true, timeoutSeconds: 20, secrets: [BREVO_API_KEY, MAIL_FROM] },
+    async (request) => {
+        const uid = request.auth?.uid;
+        if (!uid) throw new HttpsError("unauthenticated", "Not signed in");
+        const user = await getAuth().getUser(uid);
+        if (!user.email || user.emailVerified) return { sent: false };
+        const email = user.email.toLowerCase();
+        await claimMailSlot("verify", email);
+        const link = await getAuth().generateEmailVerificationLink(email);
+        await sendMail("verify", request.data, email, link);
+        return { sent: true };
+    },
+);
+
+/**
+ * Sends the password reset mail. Answers the same whether or not the address
+ * has an account, so nobody can find out which addresses are registered.
+ */
+export const sendPasswordResetMail = onCall(
+    { cors: true, timeoutSeconds: 20, secrets: [BREVO_API_KEY, MAIL_FROM] },
+    async (request) => {
+        const email = parseEmail(request.data);
+        if (!email) throw new HttpsError("invalid-argument", "Invalid e-mail address");
+        await claimMailSlot("reset", email);
+        const user = await getAuth()
+            .getUserByEmail(email)
+            .catch(() => null);
+        if (!user) return { sent: true };
+        const link = await getAuth().generatePasswordResetLink(email);
+        await sendMail("reset", request.data, email, link);
+        return { sent: true };
+    },
+);

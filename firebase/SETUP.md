@@ -135,3 +135,27 @@ kommt niemand außer Admins hinein.
 E-Mail-Konten zählen erst, wenn die Adresse bestätigt ist. Wer sich mit
 Lichess anmeldet und nicht auf der Liste steht, bekommt gar kein Konto. Ein
 E-Mail-Konto kann technisch jeder anlegen, es kommt aber an keine Daten.
+
+## Eigene E-Mails (Bestätigung, Passwort)
+
+Firebase erlaubt keinen eigenen Text für seine Mails. JBLBase verschickt
+Bestätigungs- und Passwort-Mails deshalb selbst über **Brevo** (EU-Anbieter,
+bis 300 Mails am Tag kostenlos). Texte und Gestaltung stehen in
+`functions/src/mail.ts` (Deutsch und Englisch, nach App-Sprache).
+
+1. Konto bei https://www.brevo.com anlegen (Free-Tarif).
+2. Brevo → **Senders, Domains & Dedicated IPs** → **Senders** → Absender-Adresse
+   hinzufügen und per Mail bestätigen.
+3. Brevo → **SMTP & API** → **API Keys** → **Generate a new API key**.
+4. In der Cloud Shell (Key und Adresse nur dort eingeben, nie ins Repository):
+   ```
+   cd ~/JBLBase/firebase
+   npx -y firebase-tools@15 functions:secrets:set BREVO_API_KEY --project jblbase
+   npx -y firebase-tools@15 functions:secrets:set MAIL_FROM --project jblbase
+   npx -y firebase-tools@15 deploy --only functions --project jblbase
+   ```
+
+Solange die Functions `sendVerificationMail` und `sendPasswordResetMail`
+nicht laufen, schickt die App die Standard-Mails von Firebase. Pro Adresse
+geht höchstens eine Mail je Art und Minute raus (`mailLimits` in Firestore,
+für die App gesperrt).
