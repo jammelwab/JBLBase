@@ -7,20 +7,25 @@ import {
   PasswordInput,
   SegmentedControl,
   Stack,
+  Text,
   TextInput,
 } from "@mantine/core";
 import { IconAt, IconLock } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import LichessLogo from "@/components/home/LichessLogo";
+import type { LegalDocument } from "@/legal/legal";
 import {
   cloudErrorKey,
   registerWithEmail,
   resetPassword,
   signInWithEmail,
 } from "@/utils/cloud/auth";
+import { type ConsentMethod, forgetPendingConsent, rememberConsent } from "@/utils/cloud/consent";
 import { startCloudSync } from "@/utils/cloud/sync";
 import { startLichessLogin } from "./cloudUi";
+import ConsentModal from "./ConsentModal";
+import { LegalTextModal } from "./LegalText";
 
 type Message = { color: "red" | "green" | "blue"; text: string };
 
@@ -32,6 +37,10 @@ export default function CloudLoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
+  // Registering and the Lichess sign-in (which creates the account the first
+  // time) wait for the agreement to the terms and the privacy policy.
+  const [consentFor, setConsentFor] = useState<ConsentMethod | null>(null);
+  const [reading, setReading] = useState<LegalDocument | null>(null);
 
   async function run(
     action: () => Promise<void>,
@@ -66,6 +75,11 @@ export default function CloudLoginForm() {
           { value: "register", label: t("Settings.Cloud.Register") },
         ]}
       />
+      {mode === "register" && (
+        <Text size="xs" c="dimmed">
+          {t("Login.PrivateCloud")}
+        </Text>
+      )}
       {message && (
         <Alert color={message.color} withCloseButton onClose={() => setMessage(null)}>
           {message.text}
@@ -74,13 +88,8 @@ export default function CloudLoginForm() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          void run(
-            () =>
-              mode === "login"
-                ? signInWithEmail(email, password)
-                : registerWithEmail(email, password),
-            mode === "register" ? "Settings.Cloud.Registered" : undefined,
-          );
+          if (mode === "register") setConsentFor("register");
+          else void run(() => signInWithEmail(email, password));
         }}
       >
         <Stack gap="sm">
@@ -128,10 +137,58 @@ export default function CloudLoginForm() {
         variant="default"
         leftSection={<LichessLogo />}
         disabled={busy}
-        onClick={() => void run(startLichessLogin, "Settings.Cloud.LichessBrowser", "blue")}
+        onClick={() => setConsentFor("lichess")}
       >
         {t("Settings.Cloud.SignInLichess")}
       </Button>
+      <Group justify="center" gap="xs">
+        <Anchor
+          component="button"
+          type="button"
+          size="xs"
+          c="dimmed"
+          onClick={() => setReading("terms")}
+        >
+          {t("Login.Consent.Terms")}
+        </Anchor>
+        <Text size="xs" c="dimmed">
+          ·
+        </Text>
+        <Anchor
+          component="button"
+          type="button"
+          size="xs"
+          c="dimmed"
+          onClick={() => setReading("privacy")}
+        >
+          {t("Login.Consent.Privacy")}
+        </Anchor>
+      </Group>
+      <LegalTextModal doc={reading} onClose={() => setReading(null)} />
+      <ConsentModal
+        opened={consentFor !== null}
+        method={consentFor ?? "register"}
+        onCancel={() => setConsentFor(null)}
+        onAccept={() => {
+          const method = consentFor;
+          setConsentFor(null);
+          if (!method) return;
+          // Written to the account by ConsentGate once it is signed in.
+          rememberConsent(method);
+          if (method === "register") {
+            void run(async () => {
+              try {
+                await registerWithEmail(email, password);
+              } catch (e) {
+                forgetPendingConsent();
+                throw e;
+              }
+            }, "Settings.Cloud.Registered");
+          } else {
+            void run(startLichessLogin, "Settings.Cloud.LichessBrowser", "blue");
+          }
+        }}
+      />
     </Stack>
   );
 }

@@ -8,27 +8,38 @@ import {
   Group,
   Image,
   Loader,
+  Modal,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
-import { IconLink, IconLogout, IconRefresh, IconUnlink } from "@tabler/icons-react";
+import { IconLink, IconLogout, IconRefresh, IconTrash, IconUnlink } from "@tabler/icons-react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import LichessLogo from "@/components/home/LichessLogo";
+import type { LegalDocument } from "@/legal/legal";
 import {
   type CloudAccount,
   type CloudProfile,
   cloudErrorKey,
+  deleteCloudAccount,
   loadProfile,
   normalizeChessComUsername,
   resendVerification,
   saveProfile,
   signOutCloud,
 } from "@/utils/cloud/auth";
-import { cloudAccountAtom, cloudSyncStatusAtom, startCloudSync, syncNow } from "@/utils/cloud/sync";
+import {
+  cloudAccountAtom,
+  cloudSyncStatusAtom,
+  holdSync,
+  startCloudSync,
+  syncIdle,
+  syncNow,
+} from "@/utils/cloud/sync";
 import { linkChessCom, loginScreenOpenAtom, startLichessLogin } from "./cloudUi";
+import { LegalTextModal } from "./LegalText";
 
 type Message = { color: "red" | "green" | "blue" | "yellow"; text: string };
 type Run = (action: () => Promise<void>, success?: string) => Promise<void>;
@@ -71,6 +82,7 @@ export default function ProfileSettings() {
         </Alert>
       )}
       {account ? <SignedIn account={account} busy={busy} run={run} /> : <SignedOut />}
+      <LegalCard account={account} busy={busy} run={run} />
     </Stack>
   );
 }
@@ -449,11 +461,16 @@ function SyncStatus() {
           })}
         </Text>
       )}
-      {status.state === "error" && (
-        <Alert color="red" title={t("Settings.Cloud.Sync.Failed")}>
-          {status.error}
-        </Alert>
-      )}
+      {status.state === "error" &&
+        (status.notAllowed ? (
+          <Alert color="yellow" title={t("Settings.Cloud.NotAllowed")}>
+            {t("Settings.Cloud.NotAllowed.Desc")}
+          </Alert>
+        ) : (
+          <Alert color="red" title={t("Settings.Cloud.Sync.Failed")}>
+            {status.error}
+          </Alert>
+        ))}
       {rep && rep.conflicts > 0 && (
         <Alert color="yellow">{t("Settings.Cloud.Sync.Conflicts", { count: rep.conflicts })}</Alert>
       )}
@@ -463,6 +480,92 @@ function SyncStatus() {
         </Alert>
       )}
       {rep?.deletionsHeld && <Alert color="yellow">{t("Settings.Cloud.Sync.DeletionsHeld")}</Alert>}
+    </Stack>
+  );
+}
+
+/** Terms of use, privacy policy and deleting the account. */
+function LegalCard({
+  account,
+  busy,
+  run,
+}: {
+  account: CloudAccount | null;
+  busy: boolean;
+  run: Run;
+}) {
+  const { t } = useTranslation();
+  const [reading, setReading] = useState<LegalDocument | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const remove = () =>
+    run(async () => {
+      setConfirmDelete(false);
+      // Nothing may be uploaded again while the data is being deleted.
+      holdSync(true);
+      try {
+        await syncIdle();
+        await deleteCloudAccount();
+      } catch (e) {
+        holdSync(false);
+        throw e;
+      }
+    }, "Settings.Cloud.Deleted");
+
+  return (
+    <Stack gap="xs">
+      <Divider label={t("Settings.Cloud.Legal")} labelPosition="left" />
+      <Group gap="xs">
+        <Button size="compact-sm" variant="subtle" onClick={() => setReading("terms")}>
+          {t("Login.Consent.Terms")}
+        </Button>
+        <Button size="compact-sm" variant="subtle" onClick={() => setReading("privacy")}>
+          {t("Login.Consent.Privacy")}
+        </Button>
+      </Group>
+      {account && (
+        <Card withBorder padding="md">
+          <Group justify="space-between" wrap="nowrap">
+            <Stack gap={2}>
+              <Text fw={500}>{t("Settings.Cloud.DeleteAccount")}</Text>
+              <Text size="xs" c="dimmed">
+                {t("Settings.Cloud.DeleteAccount.Desc")}
+              </Text>
+            </Stack>
+            <Button
+              color="red"
+              variant="light"
+              leftSection={<IconTrash size="1rem" />}
+              disabled={busy}
+              onClick={() => setConfirmDelete(true)}
+            >
+              {t("Settings.Cloud.DeleteAccount")}
+            </Button>
+          </Group>
+        </Card>
+      )}
+      <LegalTextModal doc={reading} onClose={() => setReading(null)} />
+      <Modal
+        opened={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title={<Text fw={600}>{t("Settings.Cloud.DeleteAccount.Confirm")}</Text>}
+      >
+        <Stack>
+          <Text size="sm">{t("Settings.Cloud.DeleteAccount.ConfirmDesc")}</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmDelete(false)}>
+              {t("Common.Cancel")}
+            </Button>
+            <Button
+              color="red"
+              leftSection={<IconTrash size="1rem" />}
+              onClick={() => void remove()}
+            >
+              {t("Settings.Cloud.DeleteAccount.Final")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

@@ -6,7 +6,6 @@ import {
   ScrollArea,
   Select,
   Stack,
-  Switch,
   Table,
   Tabs,
   Text,
@@ -34,7 +33,6 @@ import { useLoaderData } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAtom } from "jotai";
 import { RESET } from "jotai/utils";
-import posthog from "posthog-js";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -65,7 +63,6 @@ import {
   storedDocumentDirAtom,
   storedEnginesDirAtom,
   storedPuzzlesDirAtom,
-  telemetryEnabledAtom,
 } from "@/state/atoms";
 import ProfileSettings from "@/components/cloud/ProfileSettings";
 import { settingsTabAtom } from "@/components/cloud/cloudUi";
@@ -82,6 +79,7 @@ import PiecesSelect from "./PiecesSelect";
 import RepertoireMainOwnerSetting from "./RepertoireMainOwnerSetting";
 import RepertoireMinGamesSetting from "./RepertoireMinGamesSetting";
 import classes from "./SettingsPage.module.css";
+import { LegalLinks } from "@/components/cloud/LegalText";
 import SettingsSwitch from "./SettingsSwitch";
 import SoundSelect from "./SoundSelect";
 import ThemeButton from "./ThemeButton";
@@ -134,31 +132,6 @@ function SettingRow({
       </div>
       {children}
     </Group>
-  );
-}
-
-function TelemetrySwitch() {
-  const { t } = useTranslation();
-  const [enabled, setEnabled] = useAtom(telemetryEnabledAtom);
-  return (
-    <Switch
-      onLabel={t("Common.On")}
-      offLabel={t("Common.Off")}
-      size="lg"
-      checked={enabled}
-      onChange={(event) => {
-        const newValue = event.currentTarget.checked;
-        setEnabled(newValue);
-        if (newValue) {
-          posthog.opt_in_capturing();
-        } else {
-          posthog.opt_out_capturing();
-        }
-      }}
-      styles={{
-        track: { cursor: "pointer" },
-      }}
-    />
   );
 }
 
@@ -692,12 +665,12 @@ export default function Page() {
       },
       // Privacy settings
       {
-        id: "telemetry",
+        id: "legal",
         category: "privacy",
-        title: t("Settings.Privacy.Telemetry"),
-        description: t("Settings.Privacy.Telemetry.Desc"),
-        keywords: ["telemetry", "privacy", "analytics", "tracking"],
-        render: () => <TelemetrySwitch />,
+        title: t("Settings.Privacy.Legal"),
+        description: t("Settings.Privacy.Legal.Desc"),
+        keywords: ["privacy", "datenschutz", "terms", "nutzungsbedingungen", "gdpr", "dsgvo"],
+        render: () => <LegalLinks />,
       },
     ],
     [

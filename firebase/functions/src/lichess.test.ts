@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
+import { lichessListed, lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
 
 test("accepts a lichess token", () => {
     assert.equal(parseToken({ token: " lio_abcdefghijklmnop " }), "lio_abcdefghijklmnop");
@@ -27,4 +27,13 @@ test("rejects broken accounts", () => {
     assert.equal(parseLichessAccount({ id: "Upper", username: "Upper" }), null);
     assert.equal(parseLichessAccount({ id: "someone", username: "other" }), null);
     assert.equal(parseLichessAccount({ id: "a/b", username: "a/b" }), null);
+});
+
+test("only listed Lichess accounts get in", () => {
+    const carla = { id: "carla", username: "Carla" };
+    assert.equal(lichessListed({ lichess: ["Carla "] }, carla), true);
+    assert.equal(lichessListed({ lichess: ["dave"] }, carla), false);
+    assert.equal(lichessListed({ lichess: "carla" }, carla), false);
+    assert.equal(lichessListed({}, carla), false);
+    assert.equal(lichessListed(undefined, carla), false);
 });

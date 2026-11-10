@@ -6,6 +6,7 @@ import { getDefaultStore } from "jotai";
 import { cloudErrorKey, saveProfile, signInWithLichessToken } from "@/utils/cloud/auth";
 import { cloudAccountAtom, signedInBefore, startCloudSync } from "@/utils/cloud/sync";
 import { linkLichess, loginScreenOpenAtom, loginSkipped } from "./cloudUi";
+import ConsentGate from "./ConsentGate";
 import LoginScreen from "./LoginScreen";
 
 /**
@@ -48,5 +49,10 @@ export default function CloudRoot() {
     };
   }, [t]);
 
-  return <LoginScreen />;
+  return (
+    <>
+      <LoginScreen />
+      <ConsentGate />
+    </>
+  );
 }

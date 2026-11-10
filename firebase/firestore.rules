@@ -25,8 +25,34 @@ service cloud.firestore {
       return signedIn() && request.auth.token.get('admin', false) == true;
     }
 
+    // The cloud is private: only accounts on the allowlist config/access
+    // (lower-case e-mail addresses and Lichess usernames) and admins get in.
+    // The list is edited in the Firebase console; the app cannot read it.
+    // E-mail accounts count only once the address is confirmed.
+    function accessList() {
+      return get(/databases/$(database)/documents/config/access).data;
+    }
+
+    function listedEmail() {
+      return request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', null) is string
+        && accessList().get('emails', []).hasAny([request.auth.token.email.lower()]);
+    }
+
+    function listedLichess() {
+      return request.auth.token.get('lichess', null) is string
+        && accessList().get('lichess', []).hasAny([request.auth.token.lichess.lower()]);
+    }
+
+    function member() {
+      return signedIn()
+        && (isAdmin()
+          || (exists(/databases/$(database)/documents/config/access)
+            && (listedEmail() || listedLichess())));
+    }
+
     function isOwner(uid) {
-      return signedIn() && request.auth.uid == uid;
+      return member() && request.auth.uid == uid;
     }
 
     function userMaxDepth() {
@@ -105,6 +131,20 @@ service cloud.firestore {
       return 'mate' in d.lines[0];
     }
 
+    // Agreement to the terms of use and the privacy policy. The id is
+    // "<terms version>_<privacy version>"; acceptedAt is the server time.
+    function validConsent(id, d) {
+      return d.keys().hasOnly(['terms', 'privacy', 'method', 'ageConfirmed', 'appVersion', 'acceptedAt'])
+        && d.keys().hasAll(['terms', 'privacy', 'method', 'ageConfirmed', 'appVersion', 'acceptedAt'])
+        && d.terms is string && d.terms.size() > 0 && d.terms.size() <= 20
+        && d.privacy is string && d.privacy.size() > 0 && d.privacy.size() <= 20
+        && id == d.terms + '_' + d.privacy
+        && d.method in ['register', 'lichess', 'update']
+        && d.ageConfirmed == true
+        && d.appVersion is string && d.appVersion.size() <= 32
+        && d.acceptedAt == request.time;
+    }
+
     // Depth limit for normal users; admins and mates are exempt.
     function withinUserLimit(d) {
       return isAdmin()
@@ -120,6 +160,13 @@ service cloud.firestore {
         && (!('lichess' in request.resource.data) || request.resource.data.lichess is string)
         && (!('chesscom' in request.resource.data) || request.resource.data.chesscom is string)
         && (!('settings' in request.resource.data) || request.resource.data.settings is map);
+
+      // Consent records: created once per version, never changed. Deleted
+      // only together with the account.
+      match /consents/{consentId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validConsent(consentId, request.resource.data);
+      }
 
       // Repertoires, synced as whole files (phase 3, see
       // src/utils/cloud/repertoireSync.ts). Deleted ones keep a mark.
@@ -156,9 +203,9 @@ service cloud.firestore {
       }
     }
 
-    // Shared position store: everyone signed in reads, only admins write.
+    // Shared position store: every member reads, only admins write.
     match /evals/{evalId} {
-      allow read: if signedIn();
+      allow read: if member();
       allow create, update: if isAdmin() && validEval(request.resource.data);
       allow delete: if isAdmin();
     }

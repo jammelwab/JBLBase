@@ -5,8 +5,9 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 import { budgetExceeded, parseNotification } from "./budget.js";
-import { lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
+import { lichessListed, lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
 
 // All functions run in Frankfurt with at most one instance, so a bug or an
 // attack can never scale up costs.
@@ -81,6 +82,17 @@ export const lichessLogin = onCall({ cors: true, timeoutSeconds: 15 }, async (re
 
     const uid = lichessUid(account);
     const auth = getAuth();
+
+    // Private cloud: only listed accounts (or existing admins) get an account.
+    const access = await getFirestore().doc("config/access").get();
+    if (!lichessListed(access.data(), account)) {
+        const existing = await auth.getUser(uid).catch(() => null);
+        if (existing?.customClaims?.admin !== true) {
+            logger.info("Lichess login refused, not on the allowlist");
+            throw new HttpsError("permission-denied", "Account not on the allowlist");
+        }
+    }
+
     try {
         await auth.updateUser(uid, { displayName: account.username });
     } catch {
@@ -89,4 +101,25 @@ export const lichessLogin = onCall({ cors: true, timeoutSeconds: 15 }, async (re
     const customToken = await auth.createCustomToken(uid, { lichess: account.username });
     logger.info("Lichess login", { uid });
     return { token: customToken, username: account.username };
+});
+
+/**
+ * Deletes the caller's account: everything below users/{uid} (profile,
+ * repertoires, training, evaluations, consent records) and the Firebase
+ * account itself. Runs on the server, so it works without a fresh sign-in
+ * and also removes subcollections, which the app cannot list.
+ */
+export const deleteAccount = onCall({ cors: true, timeoutSeconds: 120 }, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Not signed in");
+
+    const db = getFirestore();
+    await db.recursiveDelete(db.doc(`users/${uid}`));
+    try {
+        await getAuth().deleteUser(uid);
+    } catch (e) {
+        if ((e as { code?: string }).code !== "auth/user-not-found") throw e;
+    }
+    logger.info("Account deleted", { uid });
+    return { deleted: true };
 });

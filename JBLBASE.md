@@ -341,6 +341,31 @@ nichts.
 - Firebase wird erst geladen, wenn man sich auf diesem Gerät einmal
   angemeldet hat.
 
+**Private Cloud (Freigabeliste):** Nur Konten in `config/access` (Felder
+`emails` und `lichess`, kleingeschrieben) und Admins dürfen synchronisieren;
+E-Mail-Konten erst nach Bestätigung der Adresse. Nicht freigeschaltete
+Lichess-Konten werden gar nicht angelegt. Einrichten: `firebase/SETUP.md`.
+
+**Nutzungsbedingungen und Datenschutz** (`src/legal/`):
+
+- Vor dem Registrieren und vor „Mit Lichess anmelden“ erscheint ein Fenster
+  mit einer Kurzfassung, den vollen Texten und drei Häkchen
+  (Nutzungsbedingungen, Datenschutzerklärung, mindestens 16 Jahre). Erst
+  danach wird das Konto angelegt.
+- Die Zustimmung wird unter `users/{uid}/consents/<AGB-Version>_<Datenschutz-Version>`
+  gespeichert (Fassung, Weg, App-Version, Serverzeit). Die Regeln erlauben nur
+  Anlegen, kein Ändern.
+- Ändert sich ein Text inhaltlich, die Version in `src/legal/legal.ts` erhöhen.
+  Angemeldete Konten werden dann beim nächsten Start gefragt; bis zur
+  Zustimmung wird nicht synchronisiert. Kann die Zustimmung nicht geprüft
+  werden (offline, Regeln noch nicht veröffentlicht), läuft der Sync weiter.
+- Die Texte stehen auch unter Einstellungen → Datenschutz und Profil & Konten.
+- **Konto löschen** (Profil & Konten) ruft die Cloud Function `deleteAccount`
+  auf: Sie löscht alles unter `users/{uid}` und das Firebase-Konto. Die
+  Dateien auf dem Gerät bleiben.
+- Die Telemetrie von En Croissant (PostHog) ist entfernt; die App schickt keine
+  Nutzungsdaten mehr.
+
 **Synchronisierung** (läuft nur angemeldet; beim Start, alle 5 Minuten,
 kurz nach Änderungen und per Knopf):
 

@@ -30,3 +30,16 @@ export function parseLichessAccount(body: unknown): LichessAccount | null {
 export function lichessUid(account: LichessAccount): string {
     return `lichess:${account.id}`;
 }
+
+/**
+ * The account is on the allowlist (field "lichess" of config/access,
+ * lower-case usernames). A missing or malformed list lets nobody in.
+ */
+export function lichessListed(access: unknown, account: LichessAccount): boolean {
+    if (!access || typeof access !== "object") return false;
+    const list = (access as { lichess?: unknown }).lichess;
+    return (
+        Array.isArray(list) &&
+        list.some((name) => typeof name === "string" && name.trim().toLowerCase() === account.id)
+    );
+}
