@@ -20,6 +20,7 @@ mod pgn;
 mod progress;
 mod puzzle;
 mod sound;
+mod tactics;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -184,6 +185,7 @@ fn main() {
             get_themes_for_puzzle,
             delete_puzzle_database,
             import_lichess_puzzles,
+            tactics::find_tactics_in_lines,
             start_game,
             get_game_state,
             make_game_move,

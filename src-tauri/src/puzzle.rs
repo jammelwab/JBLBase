@@ -117,6 +117,14 @@ impl PuzzleCache {
     }
 }
 
+/// Drops the puzzles held ready from `file`, after its contents changed.
+pub fn forget_cached_puzzles(file: &Path) {
+    let mut cache = PUZZLE_CACHE.lock().unwrap();
+    if Path::new(&cache.file) == file {
+        cache.cache.clear();
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn get_puzzle(
