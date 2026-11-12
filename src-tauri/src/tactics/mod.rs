@@ -7,6 +7,7 @@ pub mod calibration;
 pub mod engine;
 pub mod motifs;
 pub mod rating;
+pub mod review;
 pub mod store;
 
 use std::{
@@ -51,7 +52,7 @@ const MAX_SOLVER_MOVES: usize = 8;
 /// How deep the rating probe looks for the solution.
 const PROBE_DEPTH: u32 = 14;
 
-fn is_winning(line: &Line) -> bool {
+pub(crate) fn is_winning(line: &Line) -> bool {
     match (line.mate, line.cp) {
         (Some(m), _) => m > 0,
         (None, Some(cp)) => cp >= MIN_ADVANTAGE_CP,
@@ -60,7 +61,7 @@ fn is_winning(line: &Line) -> bool {
 }
 
 /// Is the first line the only good move? `legal` is the number of legal moves.
-fn is_only_move(lines: &[Line], legal: usize) -> bool {
+pub(crate) fn is_only_move(lines: &[Line], legal: usize) -> bool {
     let Some(best) = lines.first() else {
         return false;
     };
@@ -79,7 +80,7 @@ fn is_only_move(lines: &[Line], legal: usize) -> bool {
         && second.cp.is_none_or(|cp| cp <= MAX_SECOND_BEST_CP)
 }
 
-fn eval_cp(line: &Line) -> i32 {
+pub(crate) fn eval_cp(line: &Line) -> i32 {
     match (line.mate, line.cp) {
         (Some(m), _) => {
             if m > 0 {
@@ -144,7 +145,7 @@ fn collect_candidates(
 /// Follows the solution from `start` as long as the solver has a single
 /// winning move. Returns the moves (solver, opponent, solver, ...) and the
 /// evaluation at the solver's last move.
-async fn build_solution(
+pub(crate) async fn build_solution(
     analyzer: &mut Analyzer,
     cache: Option<&EvalCache>,
     depth: u32,
@@ -395,6 +396,12 @@ pub struct TacticSearchResult {
     pub calculated: u32,
     /// Tactics found for this source.
     pub found: u32,
+    /// Of those, newly in the database.
+    pub added: u32,
+    /// Found, but already in the database from another repertoire or game.
+    pub duplicates: u32,
+    /// Found, but deleted in an earlier review of reported puzzles.
+    pub rejected: u32,
     /// Puzzles in the database after the search.
     pub total: u32,
 }
@@ -463,13 +470,16 @@ pub async fn find_tactics_in_lines(
         prober.quit().await;
         let (positions, tactics) = searched?;
 
-        let total = store::replace_source(&options.dest, &options.source, &tactics)?;
+        let stored = store::replace_source(&options.dest, &options.source, &tactics)?;
         crate::puzzle::forget_cached_puzzles(&options.dest);
         Ok(TacticSearchResult {
             positions: positions as u32,
             calculated,
             found: tactics.len() as u32,
-            total,
+            added: stored.added,
+            duplicates: stored.duplicates,
+            rejected: stored.rejected,
+            total: stored.total,
         })
     }
     .await;

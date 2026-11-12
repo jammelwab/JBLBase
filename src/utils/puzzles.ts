@@ -17,6 +17,8 @@ export interface Puzzle {
     completion: Completion;
     timeSpent?: number;
     themes?: string[];
+    // The database the puzzle came from.
+    db?: string;
 }
 
 async function getPuzzleDatabase(name: string): Promise<PuzzleDatabaseInfo | null> {

@@ -21,7 +21,9 @@ import {
 import { useSessionStorage } from "@mantine/hooks";
 import {
   IconAlertTriangle,
+  IconFlag,
   IconFlame,
+  IconListCheck,
   IconPlus,
   IconSettings,
   IconTrash,
@@ -61,6 +63,7 @@ import MoveControls from "../common/MoveControls";
 import { TreeStateContext } from "../common/TreeStateContext";
 import AddPuzzle from "./AddPuzzle";
 import PuzzleBoard from "./PuzzleBoard";
+import { ReportedPuzzlesModal, ReportPuzzleModal } from "./PuzzleReports";
 
 function Puzzles({ id }: { id: string }) {
   const { t } = useTranslation();
@@ -181,6 +184,7 @@ function Puzzles({ id }: { id: string }) {
       ...puzzle,
       moves: puzzle.moves.split(" "),
       completion: "incomplete",
+      db,
     };
     setPuzzles((puzzles) => {
       return [...puzzles, newPuzzle];
@@ -214,6 +218,8 @@ function Puzzles({ id }: { id: string }) {
   }
 
   const [addOpened, setAddOpened] = useState(false);
+  const [reportOpened, setReportOpened] = useState(false);
+  const [reportsOpened, setReportsOpened] = useState(false);
   const [deleteModalOpened, setDeleteModalOpened] = useState(false);
   const [isPlayingSolution, setIsPlayingSolution] = useState(false);
 
@@ -337,6 +343,19 @@ function Puzzles({ id }: { id: string }) {
               setDeleteModalOpened(false);
             }}
           />
+          {reportOpened && puzzles[currentPuzzle] && (
+            <ReportPuzzleModal
+              puzzle={puzzles[currentPuzzle]}
+              db={puzzles[currentPuzzle].db ?? selectedDb ?? ""}
+              onClose={() => setReportOpened(false)}
+            />
+          )}
+          {reportsOpened && (
+            <ReportedPuzzlesModal
+              onClose={() => setReportsOpened(false)}
+              onChanged={async () => setPuzzleDbs(await getPuzzleDatabases())}
+            />
+          )}
           <Group justify="space-between" pb="sm">
             <Select
               style={{ flex: 1 }}
@@ -358,6 +377,11 @@ function Puzzles({ id }: { id: string }) {
               }}
             />
             <Group gap="xs">
+              <Tooltip label={t("Puzzle.Reports.Title")}>
+                <ActionIcon onClick={() => setReportsOpened(true)}>
+                  <IconListCheck size={20} />
+                </ActionIcon>
+              </Tooltip>
               <Tooltip label="Delete database">
                 <ActionIcon
                   color="red"
@@ -585,6 +609,14 @@ function Puzzles({ id }: { id: string }) {
                   }
                 >
                   <IconZoomCheck />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label={t("Puzzle.Report.Button")}>
+                <ActionIcon
+                  disabled={!puzzles[currentPuzzle] || !(puzzles[currentPuzzle].db ?? selectedDb)}
+                  onClick={() => setReportOpened(true)}
+                >
+                  <IconFlag />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label={t("Puzzle.ClearSession")}>

@@ -11,15 +11,23 @@ import {
 } from "@mantine/core";
 import { IconAlertCircle, IconTargetArrow } from "@tabler/icons-react";
 import { useAtom, useAtomValue } from "jotai";
+import { AnalysisTime, useAnalysisClock } from "@/components/common/AnalysisTime";
+import EnginePowerControl from "@/components/common/EnginePowerControl";
 import { atomWithStorage } from "jotai/utils";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands, type TacticSearchResult } from "@/bindings";
 import { useProgress } from "@/hooks/useProgress";
 import { enginesAtom } from "@/state/atoms";
+import { enginePowerAtom, engineOptions } from "@/utils/enginePower";
 import type { LocalEngine } from "@/utils/engines";
 import type { Repertoire } from "@/utils/repertoires";
-import { DEFAULT_TACTIC_DEPTH, linesOfTree, repertoireTacticsPath } from "@/utils/tactics";
+import {
+  countSolverPositions,
+  DEFAULT_TACTIC_DEPTH,
+  linesOfTree,
+  repertoireTacticsPath,
+} from "@/utils/tactics";
 
 const tacticSearchSettingsAtom = atomWithStorage("tactic-search-settings", {
   engine: "",
@@ -53,19 +61,24 @@ export default function TacticSearchModal({
   const [error, setError] = useState<string | null>(null);
 
   const lines = useMemo(() => linesOfTree(repertoire.root), [repertoire.root]);
+  const positions = useMemo(
+    () => countSolverPositions(repertoire.root, repertoire.color),
+    [repertoire.root, repertoire.color],
+  );
+  const power = useAtomValue(enginePowerAtom);
+  const clock = useAnalysisClock("tactics", settings.depth);
 
   async function search() {
     if (!engine) return;
     setError(null);
     setResult(null);
     setRunning(true);
+    clock.start();
+    let done = 0;
     try {
       const res = await commands.findTacticsInLines(id, {
         engine: engine.path,
-        uciOptions: (engine.settings ?? []).map((s) => ({
-          name: s.name,
-          value: s.value?.toString() ?? "",
-        })),
+        uciOptions: engineOptions(engine.settings ?? undefined, power),
         depth: settings.depth,
         fen: repertoire.root.fen,
         lines,
@@ -73,11 +86,14 @@ export default function TacticSearchModal({
         source: `${repertoire.owner} / ${repertoire.name} (${repertoire.color})`,
         dest: await repertoireTacticsPath(),
       });
-      if (res.status === "ok") setResult(res.data);
-      else if (!/cancel/i.test(res.error)) setError(res.error);
+      if (res.status === "ok") {
+        setResult(res.data);
+        done = res.data.positions;
+      } else if (!/cancel/i.test(res.error)) setError(res.error);
     } catch (e) {
       setError(String(e));
     } finally {
+      clock.finish(done);
       clear();
       setRunning(false);
     }
@@ -119,6 +135,15 @@ export default function TacticSearchModal({
               }
               disabled={running}
             />
+            <EnginePowerControl disabled={running} />
+            <AnalysisTime
+              kind="tactics"
+              depth={settings.depth}
+              units={positions}
+              running={running}
+              elapsed={clock.elapsed}
+              progress={progress}
+            />
           </>
         )}
         {running && (
@@ -136,6 +161,12 @@ export default function TacticSearchModal({
               positions: result.positions,
               calculated: result.calculated,
             })}
+            {(result.duplicates > 0 || result.rejected > 0) &&
+              ` ${t("Repertoire.Tactics.Skipped", {
+                added: result.added,
+                duplicates: result.duplicates,
+                rejected: result.rejected,
+              })}`}
           </Alert>
         )}
         {error && (

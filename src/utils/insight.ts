@@ -46,3 +46,25 @@ export function monthLabel(month: string): string {
 export function moveNumber(ply: number): string {
     return `${Math.floor(ply / 2) + 1}${ply % 2 === 0 ? "." : "..."}`;
 }
+
+// Identifies an account in a select box.
+export function accountKey(account: InsightAccount): string {
+    return `${account.file}\n${account.player.toLowerCase()}`;
+}
+
+// "Magnus (lichess_Magnus.duckdb)"
+export function accountLabel(account: InsightAccount): string {
+    const file = account.file.split(/[\\/]/).pop() ?? account.file;
+    return `${account.player} (${file})`;
+}
+
+// Both lists of accounts, each account once.
+export function mergeAccounts(a: InsightAccount[], b: InsightAccount[]): InsightAccount[] {
+    const seen = new Set<string>();
+    return [...a, ...b].filter((account) => {
+        const key = accountKey(account);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}

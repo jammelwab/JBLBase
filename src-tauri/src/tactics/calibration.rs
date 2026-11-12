@@ -127,7 +127,7 @@ fn draw_samples(file: &Path, count: u32) -> Result<Vec<Sample>, Error> {
 
 /// The position the solver sees and the solution, from a puzzle in the
 /// trainer's format. `None` when the puzzle cannot be read.
-fn parse_puzzle(fen: &str, moves: &str) -> Option<(Chess, Vec<Move>)> {
+pub(crate) fn parse_puzzle(fen: &str, moves: &str) -> Option<(Chess, Vec<Move>)> {
     let mut pos: Chess = fen
         .parse::<Fen>()
         .ok()?
