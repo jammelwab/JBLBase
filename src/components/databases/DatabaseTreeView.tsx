@@ -1,15 +1,31 @@
-import { ActionIcon, Box, Group, Loader, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Box,
+  Group,
+  Loader,
+  NumberInput,
+  SegmentedControl,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import { IconSwitchVertical } from "@tabler/icons-react";
 import { INITIAL_FEN } from "chessops/fen";
+import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import BoardPreview from "@/components/repertoire/BoardPreview";
 import TreeDiagram, { type DiagramNode } from "@/components/repertoire/TreeDiagram";
 import { useOpenLine } from "@/components/repertoire/useOpenLine";
+import { PlayerSearchInput } from "./PlayerSearchInput";
 import { usePositionData } from "@/components/repertoire/usePositionData";
 import { type DatabaseMove, DEFAULT_MIN_SHARE, frequentMoves } from "@/utils/databaseTree";
-import { type SuccessDatabaseInfo, searchPosition } from "@/utils/db";
+import { sessionsAtom } from "@/state/atoms";
+import { accountDatabaseFilename, sameName } from "@/utils/accountDatabase";
+import { query_players, type SuccessDatabaseInfo, searchPosition } from "@/utils/db";
 import type { MoveStat } from "@/utils/gamesTree";
+import { sessionUsername } from "@/utils/session";
 
 const SHARE_COLOR = "var(--mantine-color-blue-5)";
 
@@ -23,6 +39,12 @@ function shortCount(games: number, locale: string) {
   return new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 })
     .format(games)
     .replace(/\.$/, "");
+}
+
+type PlayerColor = "any" | "white" | "black";
+
+function moveSide(move: DatabaseMove): "white" | "black" {
+  return move.halfMoves % 2 === 1 ? "white" : "black";
 }
 
 function moveLabel(move: DatabaseMove) {
@@ -40,11 +62,63 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
   const [expanded, setExpanded] = useState(() => new Set<string>());
   const [selected, setSelected] = useState<{ id: string; line: string[] } | null>(null);
   const [orientation, setOrientation] = useState<"white" | "black">("white");
+  // One player's games only, and which color they had: "As White" shows what they play with
+  // White and what their opponents answer.
+  const [player, setPlayer] = useState<string>();
+  const [color, setColor] = useState<PlayerColor>("any");
+  const [debouncedPlayer] = useDebouncedValue(player?.trim() || undefined, 400);
 
+  // A database of your own account starts with your games as White
+  const sessions = useAtomValue(sessionsAtom);
+  const accountName = useMemo(() => {
+    for (const session of sessions) {
+      const names = [
+        session.lichess && ([sessionUsername(session), "lichess"] as const),
+        session.chessCom && ([session.chessCom.username, "chesscom"] as const),
+      ];
+      for (const entry of names) {
+        if (entry && sameName(database.filename, accountDatabaseFilename(entry[0], entry[1])))
+          return entry[0];
+      }
+    }
+    return undefined;
+  }, [sessions, database.filename]);
+  useEffect(() => {
+    if (!accountName) return;
+    let active = true;
+    // The name as the games spell it: "beispielkonto" can be "BeispielKonto" there
+    query_players(database.file, {
+      name: accountName,
+      options: { skipCount: true, pageSize: 50, sort: "name", direction: "asc" },
+    })
+      .then((res) => res.data.find((p) => sameName(p.name, accountName))?.name ?? accountName)
+      .catch(() => accountName)
+      .then((name) => {
+        if (!active) return;
+        setPlayer((prev) => prev ?? name);
+        setColor("white");
+        setOrientation("white");
+      });
+    return () => {
+      active = false;
+    };
+  }, [accountName, database.file]);
+
+  const filterKey = debouncedPlayer ? `${debouncedPlayer}|${color}` : "";
   const loadStats = useCallback(
-    async (fen: string): Promise<MoveStat[]> => {
+    async (key: string): Promise<MoveStat[]> => {
+      const fen = key.slice(key.lastIndexOf("|") + 1);
       const [openings] = await searchPosition(
-        { path: database.file, position: { fen, type_: "exact" } },
+        {
+          path: database.file,
+          position: { fen, type_: "exact" },
+          ...(debouncedPlayer
+            ? {
+                player1: debouncedPlayer,
+                sides: color === "white" ? "WhiteBlack" : color === "black" ? "BlackWhite" : "Any",
+              }
+            : {}),
+        },
         "database-tree",
       );
       return openings.map((op) => ({
@@ -55,10 +129,29 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
         black: op.black,
       }));
     },
-    [database.file],
+    [database.file, debouncedPlayer, color],
   );
   const [openFens, setOpenFens] = useState<string[]>([INITIAL_FEN]);
-  const stats = usePositionData<MoveStat[]>(openFens, loadStats, true);
+  // Counted per filter, so switching between White and Black does not mix the numbers
+  const statKeys = useMemo(
+    () => openFens.map((fen) => `${filterKey}|${fen}`),
+    [openFens, filterKey],
+  );
+  const allStats = usePositionData<MoveStat[]>(statKeys, loadStats, true);
+  const stats = useMemo(
+    () => ({
+      get: (fen: string) => allStats.get(`${filterKey}|${fen}`),
+      has: (fen: string) => allStats.has(`${filterKey}|${fen}`),
+    }),
+    [allStats, filterKey],
+  );
+  const mineColor = debouncedPlayer && color !== "any" ? color : null;
+
+  function changeColor(next: PlayerColor) {
+    setColor(next);
+    if (next !== "any") setOrientation(next);
+    setSelected(null);
+  }
 
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
@@ -87,8 +180,9 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
       return {
         id,
         label: move ? moveLabel(move) : t("Repertoire.Diagram.Start"),
-        kind: move ? "theirs" : "root",
-        side: move ? (move.halfMoves % 2 === 1 ? "white" : "black") : undefined,
+        // The moves of the chosen player get the strong frame
+        kind: move ? (moveSide(move) === mineColor ? "mine" : "theirs") : "root",
+        side: move ? moveSide(move) : undefined,
         note: move
           ? `${shortCount(move.games, i18n.language)} · ${percent(move.share)}`
           : undefined,
@@ -114,7 +208,7 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
     };
     const diagram = build({ fen: INITIAL_FEN, halfMoves: 0, line: [] }, null);
     return { diagram, fens };
-  }, [expanded, stats, minShare, toggle, t, i18n.language]);
+  }, [expanded, stats, minShare, mineColor, toggle, t, i18n.language]);
 
   const fensKey = fens.join("\n");
   useEffect(() => {
@@ -125,32 +219,59 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
 
   return (
     <Stack h="100%" gap="xs">
-      <Group justify="space-between" align="flex-end" wrap="nowrap">
-        <Text size="sm" c="dimmed" style={{ flex: 1 }}>
-          {t("Databases.Tree.Help", { share: minPercent })} {t("Repertoire.Diagram.Help")}
-        </Text>
-        <Group gap="xs" align="flex-end" wrap="nowrap">
-          <NumberInput
-            size="xs"
-            w={220}
-            min={0}
-            max={100}
-            suffix=" %"
-            value={minPercent}
-            onChange={(v) => setMinPercent(Math.min(100, Math.max(0, Number(v) || 0)))}
-            label={t("Databases.Tree.MinShare")}
+      <Group gap="xs" align="flex-end">
+        <Box w={240}>
+          <Text size="xs" fw={500} mb={2}>
+            {t("Databases.Tree.Player")}
+          </Text>
+          <PlayerSearchInput
+            label={t("Databases.Tree.PlayerPlaceholder")}
+            file={database.file}
+            value={player}
+            setValue={(value) => {
+              setPlayer(value);
+              setSelected(null);
+            }}
           />
-          <Tooltip label={t("Databases.Tree.FlipBoard")}>
-            <ActionIcon
-              variant="default"
-              size="input-xs"
-              onClick={() => setOrientation((o) => (o === "white" ? "black" : "white"))}
-            >
-              <IconSwitchVertical size="1rem" />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
+        </Box>
+        <Tooltip label={t("Databases.Tree.ColorHint")} disabled={!!debouncedPlayer}>
+          <SegmentedControl
+            disabled={!debouncedPlayer}
+            value={debouncedPlayer ? color : "any"}
+            onChange={(value) => changeColor(value as PlayerColor)}
+            data={[
+              { value: "white", label: t("Home.Personal.AsWhite") },
+              { value: "black", label: t("Home.Personal.AsBlack") },
+              { value: "any", label: t("Databases.Tree.BothColors") },
+            ]}
+          />
+        </Tooltip>
+        <Box style={{ flex: 1 }} />
+        <NumberInput
+          w={220}
+          min={0}
+          max={100}
+          suffix=" %"
+          value={minPercent}
+          onChange={(v) => setMinPercent(Math.min(100, Math.max(0, Number(v) || 0)))}
+          label={t("Databases.Tree.MinShare")}
+        />
+        <Tooltip label={t("Databases.Tree.FlipBoard")}>
+          <ActionIcon
+            variant="default"
+            size="input-sm"
+            onClick={() => setOrientation((o) => (o === "white" ? "black" : "white"))}
+          >
+            <IconSwitchVertical size="1rem" />
+          </ActionIcon>
+        </Tooltip>
       </Group>
+      <Text size="sm" c="dimmed">
+        {mineColor && debouncedPlayer
+          ? `${t(mineColor === "white" ? "Databases.Tree.MineWhite" : "Databases.Tree.MineBlack", { player: debouncedPlayer })} `
+          : ""}
+        {t("Databases.Tree.Help", { share: minPercent })} {t("Repertoire.Diagram.Help")}
+      </Text>
       {!rootLoaded ? (
         <Group gap="xs">
           <Loader size="xs" />
@@ -160,7 +281,9 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
         </Group>
       ) : diagram.children.length === 0 ? (
         <Text size="sm" c="dimmed">
-          {t("Databases.Tree.Empty")}
+          {debouncedPlayer
+            ? t("Databases.Tree.EmptyPlayer", { player: debouncedPlayer })
+            : t("Databases.Tree.Empty")}
         </Text>
       ) : (
         <Box flex={1} mih={0} pos="relative">
