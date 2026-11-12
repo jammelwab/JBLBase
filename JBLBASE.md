@@ -528,12 +528,45 @@ Stellung, in der der Repertoire-Besitzer am Zug ist (Standardtiefe 18):
   importierten Lichess-Puzzles mit deiner Engine und passt die Gewichte per
   kleinsten Quadraten an deren Wertungen an (`rating_model.json` im
   App-Datenordner). Die Seite zeigt, wie weit die Schätzung im Schnitt
-  danebenliegt.
+  danebenliegt. Sie findet die Lichess-Puzzles selbst (sonst die größte
+  andere Puzzle-Datenbank) und bietet, wenn keine da ist, den Download an.
 
 Die Aufgaben landen in `Repertoire-Taktiken.duckdb` im Puzzle-Ordner und
 erscheinen im Puzzle-Tab als eigene Datenbank. Eine neue Suche ersetzt die
-Aufgaben desselben Repertoires. Alle Bewertungen gehen in den
-Positionsspeicher, eine zweite Suche rechnet also nur neue Stellungen.
+Aufgaben desselben Repertoires. Jede Aufgabe steht nur einmal in der
+Datenbank: Führt ein anderes Repertoire (oder eine Zugumstellung) zur selben
+Stellung mit demselben Gegnerzug, wird sie nicht noch einmal angelegt. Alle
+Bewertungen gehen in den Positionsspeicher, eine zweite Suche rechnet also nur
+neue Stellungen.
+
+## Leistung und Restzeit
+
+Taktiksuche, Insight und die Prüfung gemeldeter Aufgaben haben eine gemeinsame
+Einstellung **Leistung**: Gering (ein Viertel der Kerne, 64 MB Hash), Mittel
+(die Hälfte, 256 MB), Hoch (alle bis auf einen, 512 MB) und Maximal. Sie setzt
+nur Threads und Hash, die übrigen Engine-Einstellungen bleiben. Vor dem Start
+steht eine geschätzte Dauer, während des Laufs die Restzeit. Die Schätzung ist
+anfangs grob und richtet sich nach jedem fertigen Lauf (je Tiefe und Stufe)
+nach der gemessenen Geschwindigkeit dieses Rechners.
+
+## Gemeldete Aufgaben
+
+Im Puzzle-Tab meldet das Fähnchen eine Aufgabe als falsch (falsche Lösung,
+anderer Zug gewinnt auch, Elo passt nicht, Sonstiges). Die Meldungen liegen
+getrennt von den Puzzle-Datenbanken in `puzzle_reports.sqlite3` im
+App-Datenordner und erscheinen unter **Gemeldete Aufgaben** (Symbol neben der
+Datenbankauswahl). Dort prüft Stockfish sie in Tiefe 30 (einstellbar) und
+schlägt vor:
+
+- **Doch richtig**: Die gespeicherte Lösung ist auch tief gerechnet die
+  einzige gewinnende (oder die Engine würde sie nur weiterführen).
+- **Korrigieren**: Ein anderer erster Zug gewinnt, die Fortsetzung weicht ab
+  oder die Aufgabe geht zu weit. Die neue Lösung und Elo stehen dabei.
+- **Löschen**: Es gibt keinen eindeutig gewinnenden Zug.
+
+Entschieden wird von Hand. Die Entscheidung wird in der Puzzle-Datenbank
+vermerkt (Tabelle `reviews`), damit eine spätere Taktiksuche eine gelöschte
+Aufgabe nicht zurückbringt und eine korrigierte korrigiert lässt.
 
 Test mit echter Engine:
 
@@ -545,7 +578,10 @@ JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored tactics
 ## Insight
 
 Die Seite **Insight** (Seitenleiste) analysiert alle Partien der verbundenen
-Lichess- und Chess.com-Konten, die neuesten zuerst.
+Lichess- und Chess.com-Konten, die neuesten zuerst. Oben wählst du den
+Spieler: alle Konten zusammen oder eines davon, für Analyse und Statistik.
+„Spieler hinzufügen“ nimmt auch jemanden auf, dessen Partien in einer
+Datenbank liegen, ohne verbundenes Konto.
 
 - Tiefe 18 (Standard) oder 24, wahlweise nur eine bestimmte Zahl Partien pro
   Lauf. Anhalten verliert nichts: Fertige Partien stehen in
