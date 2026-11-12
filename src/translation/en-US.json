@@ -587,7 +587,7 @@
     "Insight.Calibration.Start": "Calibrate",
     "Insight.Calibration.Status": "Calibrated on {{date}} with {{samples}} puzzles. On average the estimate is {{error}} rating points off the Lichess rating (with the built-in weights: {{before}}).",
     "Insight.Calibration.Title": "Calibrate the rating estimate",
-    "Insight.Calibration.Using": "",
+    "Insight.Calibration.Using": "Measured against “{{name}}” ({{puzzles}} puzzles).",
     "Insight.Color.black": "Black",
     "Insight.Color.white": "White",
     "Insight.Database": "Database",

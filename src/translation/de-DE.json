@@ -581,7 +581,7 @@
     "Insight.Calibration.Start": "Eichen",
     "Insight.Calibration.Status": "Geeicht am {{date}} an {{samples}} Aufgaben. Die Schätzung liegt im Schnitt {{error}} Elo neben der Lichess-Wertung (mit den eingebauten Gewichten: {{before}}).",
     "Insight.Calibration.Title": "Elo-Schätzung eichen",
-    "Insight.Calibration.Using": "",
+    "Insight.Calibration.Using": "Gemessen wird an „{{name}}“ ({{puzzles}} Aufgaben).",
     "Insight.Color.black": "Schwarz",
     "Insight.Color.white": "Weiß",
     "Insight.Database": "Datenbank",
