@@ -419,6 +419,22 @@ async getThemesForPuzzle(file: string, puzzleId: number) : Promise<Result<string
     else return { status: "error", error: e  as any };
 }
 },
+async importLichessPuzzles(id: string, source: string | null, dest: string) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_lichess_puzzles", { id, source, dest }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async findTacticsInLines(id: string, options: TacticSearchOptions) : Promise<Result<TacticSearchResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("find_tactics_in_lines", { id, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deletePuzzleDatabase(file: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_puzzle_database", { file }) };
@@ -649,6 +665,8 @@ export type DrawReason = "stalemate" | "insufficientMaterial" | "threefoldRepeti
 export type EngineCacheStats = { engine: string; entries: number; maxDepth: number }
 export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
+export type TacticSearchOptions = { engine: string; uciOptions: EngineOption[]; depth: number; fen: string; lines: string[][]; solver: string; source: string; dest: string }
+export type TacticSearchResult = { positions: number; calculated: number; found: number; total: number }
 export type EngineOption = { name: string; value: string }
 export type EngineOptions = { fen: string; moves: string[]; extraOptions: EngineOption[] }
 export type EvalCacheStats = { path: string; positions: number; entries: number; sizeBytes: number; engines: EngineCacheStats[] }

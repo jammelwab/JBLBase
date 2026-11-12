@@ -20,6 +20,7 @@ mod pgn;
 mod progress;
 mod puzzle;
 mod sound;
+mod tactics;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -58,7 +59,7 @@ use crate::oauth::{authenticate, authenticate_cloud};
 use crate::pgn::{count_pgn_games, delete_game, read_games, write_game};
 use crate::puzzle::{
     delete_puzzle_database, get_puzzle, get_puzzle_db_info, get_puzzle_themes,
-    get_themes_for_puzzle,
+    get_themes_for_puzzle, import_lichess_puzzles,
 };
 use crate::sound::get_sound_server_port;
 use crate::{
@@ -183,6 +184,8 @@ fn main() {
             get_puzzle_themes,
             get_themes_for_puzzle,
             delete_puzzle_database,
+            import_lichess_puzzles,
+            tactics::find_tactics_in_lines,
             start_game,
             get_game_state,
             make_game_move,
