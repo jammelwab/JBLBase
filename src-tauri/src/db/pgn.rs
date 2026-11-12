@@ -532,7 +532,7 @@ fn invalid_pgn(message: String) -> Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message).into()
 }
 
-pub(super) fn chess_from_fen(fen: &str) -> Result<Chess, String> {
+pub(crate) fn chess_from_fen(fen: &str) -> Result<Chess, String> {
     let parsed = ShakmatyFen::from_ascii(fen.as_bytes()).map_err(|e| e.to_string())?;
     let setup = parsed.as_setup();
     let castling_mode = CastlingMode::detect(setup);
