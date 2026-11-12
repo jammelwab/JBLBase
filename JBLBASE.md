@@ -270,6 +270,42 @@ pro Farbe (ein Klick springt zum nächsten solchen Zug) und mit dem Hinweis,
 welcher Zug besser gewesen wäre. Die Bewertungen werden nicht in die PGN
 geschrieben, die klassischen Zeichen (!!, ?, ?? …) schon.
 
+## Brillante Züge suchen
+
+Im Analysebrett gibt es neben **Engines**, **Bericht** und **Protokolle** den
+Tab **Brillant**. Er sucht ab der aktuellen Stellung nach Zügen, die ein „!!“
+verdienen würden. Voreingestellt ist Patricia, jede andere lokale Engine geht
+auch.
+
+So wird gesucht:
+
+1. Die Engine rechnet einen kleinen Variantenbaum (Einstellung **Halbzüge
+   voraus**, höchstens **Stellungen** viele Stellungen).
+2. **Auf deiner Seite** (Seite am Zug, Weiß, Schwarz oder beide) wird jede
+   Engine-Linie geprüft:
+   - **Opfer:** Der Zug gibt Material her (Bauer 0,9, Qualität 2, Leichtfigur 3,
+     Turm 5; die Grenze für „!!“ stellst du unter _Weitere Einstellungen_ ein)
+     und ist trotzdem korrekt, also höchstens 0,4 schlechter als der beste Zug
+     und nicht klar schlechter für dich.
+   - **Versteckt:** Eine flache Suche auf **Club-Niveau** (Standard Tiefe 8)
+     findet den Zug nicht.
+   - **Einziger Zug:** Alles andere ist mindestens 1,5 schlechter.
+     „!!“ gibt es für ein korrektes Opfer ab der Grenze, das die Engine als
+     besten Zug sieht oder das versteckt ist, und für einen versteckten ruhigen
+     einzigen Zug. Kleinere Funde bekommen „!“.
+3. **Beim Gegner** folgt die Suche nicht nur dem Engine-Zug, sondern auch
+   realistischen Club-Antworten: den Lieblingszügen der flachen Suche, Zügen
+   bis **Realistisch bis** Centipawns hinter dem besten und dem Annehmen eines
+   gerade angebotenen Opfers. Funde nach so einer Antwort tragen die Plakette
+   „Nach Club-Antwort“.
+
+Jeder Fund zeigt Zug, Bewertung, die Variante dorthin und die Fortsetzung.
+**Aufs Brett** fügt die Variante mit „!!“ bzw. „!“ in die Partie ein und
+springt zum Zug.
+
+Die tiefen Rechnungen landen im Positionsspeicher (mit der Grenze Tiefe 28
+für normale Konten), die flachen Club-Rechnungen nicht.
+
 ## Engines einrichten
 
 Engines sind eigenständige Programme und werden nicht mitgeliefert.
@@ -492,12 +528,45 @@ Stellung, in der der Repertoire-Besitzer am Zug ist (Standardtiefe 18):
   importierten Lichess-Puzzles mit deiner Engine und passt die Gewichte per
   kleinsten Quadraten an deren Wertungen an (`rating_model.json` im
   App-Datenordner). Die Seite zeigt, wie weit die Schätzung im Schnitt
-  danebenliegt.
+  danebenliegt. Sie findet die Lichess-Puzzles selbst (sonst die größte
+  andere Puzzle-Datenbank) und bietet, wenn keine da ist, den Download an.
 
 Die Aufgaben landen in `Repertoire-Taktiken.duckdb` im Puzzle-Ordner und
 erscheinen im Puzzle-Tab als eigene Datenbank. Eine neue Suche ersetzt die
-Aufgaben desselben Repertoires. Alle Bewertungen gehen in den
-Positionsspeicher, eine zweite Suche rechnet also nur neue Stellungen.
+Aufgaben desselben Repertoires. Jede Aufgabe steht nur einmal in der
+Datenbank: Führt ein anderes Repertoire (oder eine Zugumstellung) zur selben
+Stellung mit demselben Gegnerzug, wird sie nicht noch einmal angelegt. Alle
+Bewertungen gehen in den Positionsspeicher, eine zweite Suche rechnet also nur
+neue Stellungen.
+
+## Leistung und Restzeit
+
+Taktiksuche, Insight und die Prüfung gemeldeter Aufgaben haben eine gemeinsame
+Einstellung **Leistung**: Gering (ein Viertel der Kerne, 64 MB Hash), Mittel
+(die Hälfte, 256 MB), Hoch (alle bis auf einen, 512 MB) und Maximal. Sie setzt
+nur Threads und Hash, die übrigen Engine-Einstellungen bleiben. Vor dem Start
+steht eine geschätzte Dauer, während des Laufs die Restzeit. Die Schätzung ist
+anfangs grob und richtet sich nach jedem fertigen Lauf (je Tiefe und Stufe)
+nach der gemessenen Geschwindigkeit dieses Rechners.
+
+## Gemeldete Aufgaben
+
+Im Puzzle-Tab meldet das Fähnchen eine Aufgabe als falsch (falsche Lösung,
+anderer Zug gewinnt auch, Elo passt nicht, Sonstiges). Die Meldungen liegen
+getrennt von den Puzzle-Datenbanken in `puzzle_reports.sqlite3` im
+App-Datenordner und erscheinen unter **Gemeldete Aufgaben** (Symbol neben der
+Datenbankauswahl). Dort prüft Stockfish sie in Tiefe 30 (einstellbar) und
+schlägt vor:
+
+- **Doch richtig**: Die gespeicherte Lösung ist auch tief gerechnet die
+  einzige gewinnende (oder die Engine würde sie nur weiterführen).
+- **Korrigieren**: Ein anderer erster Zug gewinnt, die Fortsetzung weicht ab
+  oder die Aufgabe geht zu weit. Die neue Lösung und Elo stehen dabei.
+- **Löschen**: Es gibt keinen eindeutig gewinnenden Zug.
+
+Entschieden wird von Hand. Die Entscheidung wird in der Puzzle-Datenbank
+vermerkt (Tabelle `reviews`), damit eine spätere Taktiksuche eine gelöschte
+Aufgabe nicht zurückbringt und eine korrigierte korrigiert lässt.
 
 Test mit echter Engine:
 
@@ -509,7 +578,10 @@ JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored tactics
 ## Insight
 
 Die Seite **Insight** (Seitenleiste) analysiert alle Partien der verbundenen
-Lichess- und Chess.com-Konten, die neuesten zuerst.
+Lichess- und Chess.com-Konten, die neuesten zuerst. Oben wählst du den
+Spieler: alle Konten zusammen oder eines davon, für Analyse und Statistik.
+„Spieler hinzufügen“ nimmt auch jemanden auf, dessen Partien in einer
+Datenbank liegen, ohne verbundenes Konto.
 
 - Tiefe 18 (Standard) oder 24, wahlweise nur eine bestimmte Zahl Partien pro
   Lauf. Anhalten verliert nichts: Fertige Partien stehen in

@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Anchor,
   Badge,
   Card,
   Group,
@@ -24,29 +25,22 @@ import { resolve } from "@tauri-apps/api/path";
 import { notifications } from "@mantine/notifications";
 import { error, info } from "@tauri-apps/plugin-log";
 import { useAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { trackUsage } from "@/utils/usageStats";
 import type { DatabaseInfo } from "@/bindings";
 import { commands, events } from "@/bindings";
 import { databaseConversionStateAtom, storedDatabasesDirAtom } from "@/state/atoms";
+import { useActiveDatabaseViewStore } from "@/state/store/database";
+import { refreshDatabaseCaches, registerAccountSync } from "@/utils/accountSync";
 import { downloadChessCom } from "@/utils/chess.com/api";
 import { getDatabases, query_games } from "@/utils/db";
 import { capitalize } from "@/utils/format";
 import { downloadLichess } from "@/utils/lichess/api";
 import { refreshOwnGames } from "@/utils/repertoireExplorer";
 import { unwrap } from "@/utils/unwrap";
-import { mutate } from "swr";
-
 import LichessLogo from "./LichessLogo";
-
-function refreshPersonalStats() {
-  return mutate(
-    (key) => Array.isArray(key) && (key[0] === "personalDatabases" || key[0] === "personalInfo"),
-    undefined,
-    { revalidate: true },
-  );
-}
 
 interface AccountCardProps {
   type: "lichess" | "chesscom";
@@ -60,7 +54,9 @@ interface AccountCardProps {
     diff?: number;
   }[];
   logout: () => void;
-  reload: () => void;
+  reload: () => void | Promise<void>;
+  /** Id under which the player can start this download ("update all"). */
+  syncKey: string;
   setDatabases: (databases: DatabaseInfo[]) => void;
   token?: string;
 }
@@ -76,8 +72,12 @@ export function AccountCard({
   reload,
   setDatabases,
   token,
+  syncKey,
 }: AccountCardProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const setActiveDatabase = useActiveDatabaseViewStore((store) => store.setDatabase);
+  const setActiveDatabaseTab = useActiveDatabaseViewStore((store) => store.setActiveTab);
   const items = stats.map((stat) => {
     let color = "gray.5";
     let DiffIcon: React.FC<IconProps> = IconArrowRight;
@@ -207,6 +207,57 @@ export function AccountCard({
     await commands.deleteEmptyGames(dbPath);
   }
 
+  async function syncGames() {
+    if (syncing.current) return;
+    syncing.current = true;
+    setLoading(true);
+    try {
+      await downloadGames();
+      // The game counts and ratings on the card come from the website.
+      await reload();
+    } catch (e) {
+      error(`Downloading ${type} games of ${title} failed: ${e}`);
+      notifications.show({
+        color: "red",
+        title: t("Home.Accounts.DownloadFailed"),
+        message: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
+    } finally {
+      syncing.current = false;
+      setConversionState((prev) => ({
+        ...prev,
+        inProgress: false,
+        totalGames: 0,
+        elapsedSeconds: 0,
+        targetDatabasePath: null,
+        targetDatabaseTitle: null,
+        sourceFileName: null,
+      }));
+      // A failed download must not leave the button spinning forever
+      setLoading(false);
+      setDatabases(await getDatabases());
+      // Refresh the player overview, open databases and the repertoire pages,
+      // which cache the downloaded games.
+      refreshOwnGames();
+      await refreshDatabaseCaches();
+    }
+  }
+
+  const syncing = useRef(false);
+  const latestSync = useRef(syncGames);
+  latestSync.current = syncGames;
+  useEffect(() => registerAccountSync(syncKey, () => latestSync.current()), [syncKey]);
+
+  const openDatabase =
+    database?.type === "success"
+      ? () => {
+          setActiveDatabase(database);
+          setActiveDatabaseTab("games");
+          void navigate({ to: "/databases/$databaseId", params: { databaseId: database.title } });
+        }
+      : undefined;
+
   return (
     <Card withBorder radius="md" padding="lg">
       <Card.Section withBorder inheritPadding py="xs">
@@ -217,9 +268,17 @@ export function AccountCard({
             ) : (
               <img width={30} height={30} src="/chesscom.png" alt="chess.com" />
             )}
-            <Text fw={600} size="sm">
-              {title}
-            </Text>
+            {openDatabase ? (
+              <Tooltip label={t("Home.Accounts.OpenDatabase")}>
+                <Anchor component="button" type="button" fw={600} size="sm" onClick={openDatabase}>
+                  {title}
+                </Anchor>
+              </Tooltip>
+            ) : (
+              <Text fw={600} size="sm">
+                {title}
+              </Text>
+            )}
             {type === "lichess" && token && (
               <Tooltip label={t("Home.Accounts.Authenticated")}>
                 <Text c="green" lh={0} style={{ cursor: "default" }}>
@@ -240,35 +299,7 @@ export function AccountCard({
                 color="gray"
                 loading={loading}
                 disabled={loading}
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    await downloadGames();
-                  } catch (e) {
-                    error(`Downloading ${type} games of ${title} failed: ${e}`);
-                    notifications.show({
-                      color: "red",
-                      title: t("Home.Accounts.DownloadFailed"),
-                      message: e instanceof Error ? e.message : String(e),
-                    });
-                  } finally {
-                    setConversionState((prev) => ({
-                      ...prev,
-                      inProgress: false,
-                      totalGames: 0,
-                      elapsedSeconds: 0,
-                      targetDatabasePath: null,
-                      targetDatabaseTitle: null,
-                      sourceFileName: null,
-                    }));
-                    // A failed download must not leave the button spinning forever
-                    setLoading(false);
-                    // Refresh the player overview and the repertoire pages, which cache
-                    // the downloaded games.
-                    refreshOwnGames();
-                    await refreshPersonalStats();
-                  }
-                }}
+                onClick={() => void syncGames().catch(() => {})}
               >
                 <IconDownload size="1rem" />
               </ActionIcon>

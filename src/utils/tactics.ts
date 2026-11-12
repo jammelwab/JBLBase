@@ -31,3 +31,18 @@ export function linesOfTree(root: TreeNode): string[][] {
     }
     return lines;
 }
+
+// How many different positions of a tree have `color` to move after a move: about the number
+// of positions the tactic search looks at.
+export function countSolverPositions(root: TreeNode, color: "white" | "black"): number {
+    const side = color === "white" ? "w" : "b";
+    const seen = new Set<string>();
+    const stack = [...root.children];
+    while (stack.length > 0) {
+        const node = stack.pop()!;
+        const parts = node.fen.split(" ");
+        if (parts[1] === side) seen.add(parts.slice(0, 4).join(" "));
+        stack.push(...node.children);
+    }
+    return seen.size;
+}

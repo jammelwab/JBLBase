@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+mod brilliance;
 mod chess;
 mod db;
 mod engine;
@@ -96,6 +97,7 @@ pub struct AppState {
     training: training::TrainingStore,
     insight: insight::InsightStore,
     rating: tactics::calibration::RatingStore,
+    reports: tactics::review::ReportStore,
 }
 
 #[tauri::command]
@@ -138,6 +140,7 @@ fn main() {
             get_best_moves,
             analyze_game,
             cancel_analysis,
+            brilliance::find_brilliancies,
             stop_engine,
             kill_engine,
             kill_engines,
@@ -196,6 +199,11 @@ fn main() {
             tactics::calibration::calibrate_rating,
             tactics::calibration::get_rating_calibration,
             tactics::calibration::reset_rating_calibration,
+            tactics::review::report_puzzle,
+            tactics::review::list_puzzle_reports,
+            tactics::review::check_puzzle_reports,
+            tactics::review::resolve_puzzle_report,
+            tactics::review::delete_puzzle_report,
             start_game,
             get_game_state,
             make_game_move,
@@ -302,8 +310,13 @@ fn main() {
                     state
                         .rating
                         .open(dir.join(tactics::calibration::RATING_FILE_NAME));
+                    state
+                        .reports
+                        .open(dir.join(tactics::review::REPORTS_FILE_NAME));
                 }
-                Err(err) => log::warn!("No app data dir, evaluation cache and training store disabled: {err}"),
+                Err(err) => log::warn!(
+                    "No app data dir, evaluation cache and training store disabled: {err}"
+                ),
             }
 
             *state
