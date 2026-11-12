@@ -419,6 +419,14 @@ async getThemesForPuzzle(file: string, puzzleId: number) : Promise<Result<string
     else return { status: "error", error: e  as any };
 }
 },
+async importLichessPuzzles(id: string, source: string | null, dest: string) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_lichess_puzzles", { id, source, dest }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deletePuzzleDatabase(file: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_puzzle_database", { file }) };

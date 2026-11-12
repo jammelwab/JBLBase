@@ -450,3 +450,13 @@ Danach startet die App normal, auch bei allen weiteren Starts. Nach jedem
 neuen Download einer neuen Version ist der Schritt einmal zu wiederholen.
 (Der früher übliche Weg „Rechtsklick → Öffnen“ funktioniert seit macOS 15
 nicht mehr.)
+
+## Lichess-Puzzles
+
+Im Puzzle-Tab unter **Datenbank hinzufügen** gibt es die Karte
+„Lichess-Puzzles (offiziell)“. Sie lädt
+<https://database.lichess.org/lichess_db_puzzle.csv.zst> (über 5 Mio. Aufgaben,
+CC0) und baut daraus lokal die Datei `Lichess Puzzles.duckdb` im
+Puzzle-Ordner. Wer die Datei schon hat, nimmt „Aus Datei importieren“
+(`.csv.zst` oder entpackte `.csv`). Ein erneuter Import ersetzt die alte
+Fassung, Lichess aktualisiert die Datei monatlich.
