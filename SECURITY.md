@@ -7,10 +7,10 @@ JBLBase. Die App aktualisiert sich selbst (**Einstellungen → Nach Updates
 suchen**), die aktuelle Version steht unter
 [Releases](https://github.com/jammelwab/jblbase/releases/latest).
 
-| Version             | Unterstützt |
-| ------------------- | ----------- |
-| Neueste Version     | ja          |
-| Alle älteren        | nein        |
+| Version         | Unterstützt |
+| --------------- | ----------- |
+| Neueste Version | ja          |
+| Alle älteren    | nein        |
 
 ## Eine Schwachstelle melden
 
