@@ -24,7 +24,13 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDebouncedValue, useToggle } from "@mantine/hooks";
-import { IconArrowRight, IconDatabase, IconPlus, IconSearch } from "@tabler/icons-react";
+import {
+  IconArrowRight,
+  IconBinaryTree,
+  IconDatabase,
+  IconPlus,
+  IconSearch,
+} from "@tabler/icons-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { basename } from "@tauri-apps/api/path";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
@@ -95,6 +101,7 @@ export default function DatabasesPage() {
   const [databaseDir] = useAtom(storedDatabasesDirAtom);
   // const [, setStorageSelected] = useAtom(selectedDatabaseAtom);
   const setActiveDatabase = useActiveDatabaseViewStore((store) => store.setDatabase);
+  const setActiveDatabaseTab = useActiveDatabaseViewStore((store) => store.setActiveTab);
 
   const isReference = referenceDatabase === selectedDatabase?.file;
 
@@ -431,6 +438,22 @@ export default function DatabasesPage() {
                           rightSection={<IconArrowRight size="1rem" />}
                         >
                           {t("Databases.Settings.Explore")}
+                        </Button>
+                      )}
+                      {selectedDatabase.type === "success" && (
+                        <Button
+                          component={Link}
+                          to={`/databases/${selectedDatabase.title}`}
+                          onClick={() => {
+                            setActiveDatabase(selectedDatabase);
+                            setActiveDatabaseTab("tree");
+                          }}
+                          fullWidth
+                          variant="default"
+                          mt="xs"
+                          leftSection={<IconBinaryTree size="1rem" />}
+                        >
+                          {t("Databases.Tree.Open")}
                         </Button>
                       )}
                     </div>
