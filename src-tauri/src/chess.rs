@@ -32,7 +32,10 @@ use crate::{
         parse_fen_and_apply_moves, BaseEngine, EngineLog, EngineOption, EngineReader, GoMode,
     },
     error::Error,
-    eval_cache::{position_key, CachedEval, EvalCache, StoredLine},
+    eval_cache::{
+        cache_engine_name, is_clean_history, option_defaults, position_key, CachedEval, EvalCache,
+        PosKey, StoredLine,
+    },
     progress::update_progress,
     AppState,
 };
@@ -48,10 +51,16 @@ pub struct EngineProcess {
     running: bool,
     real_multipv: u16,
     start: Instant,
-    /// Engine name as reported by `id name`, used as cache key.
+    /// Engine name as reported by `id name`.
     engine_name: String,
-    /// Normalised key of the position currently being analysed.
-    position_key: String,
+    /// Option defaults the engine announced, to tell which options are changed.
+    option_defaults: Vec<UciOptionConfig>,
+    /// Name results are filed under in the cache (engine name plus options
+    /// that change its play).
+    cache_engine: String,
+    /// Cache key of the position being analysed; `None` when its evaluation
+    /// depends on the move history and must not be shared.
+    position_key: Option<PosKey>,
 }
 
 impl EngineProcess {
@@ -59,7 +68,9 @@ impl EngineProcess {
         let mut base = BaseEngine::spawn(path.clone()).await?;
         base.init_uci().await?;
         let reader = base.take_reader().ok_or(Error::EngineDisconnected)?;
-        let engine_name = engine_name_from_logs(&base.get_logs()).unwrap_or_else(|| {
+        let logs = base.get_logs();
+        let option_defaults = option_defaults(&logs);
+        let engine_name = engine_name_from_logs(&logs).unwrap_or_else(|| {
             path.file_stem()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_else(|| path.display().to_string())
@@ -77,8 +88,10 @@ impl EngineProcess {
                 go_mode: GoMode::Infinite,
                 running: false,
                 start: Instant::now(),
+                cache_engine: engine_name.clone(),
                 engine_name,
-                position_key: String::new(),
+                option_defaults,
+                position_key: None,
             },
             reader,
         ))
@@ -114,7 +127,12 @@ impl EngineProcess {
             .unwrap_or(1);
 
         self.real_multipv = multipv.min(pos.legal_moves().len() as u16);
-        self.position_key = position_key(&pos);
+        self.position_key = clean_position_key(&options.fen, &options.moves);
+        self.cache_engine = cache_engine_name(
+            &self.engine_name,
+            &self.option_defaults,
+            &options.extra_options,
+        );
 
         for option in &options.extra_options {
             if !self.options.extra_options.contains(option) && option.name != "UCI_Chess960" {
@@ -164,17 +182,21 @@ impl EngineProcess {
     }
 
     fn cache_lookup(&self, cache: &EvalCache) -> Option<CachedEval> {
-        if self.real_multipv == 0 || self.position_key.is_empty() {
+        let key = self.position_key.as_ref()?;
+        if self.real_multipv == 0 {
             return None;
         }
-        cache.lookup(&self.position_key, &self.engine_name, self.real_multipv)
+        cache.lookup(key, &self.cache_engine, self.real_multipv)
     }
 
     fn cache_store(&self, cache: &EvalCache, lines: &[BestMoves]) {
-        if self.position_key.is_empty() || lines.len() != self.real_multipv as usize {
+        let Some(key) = self.position_key.as_ref() else {
+            return;
+        };
+        if lines.len() != self.real_multipv as usize {
             return;
         }
-        cache.store(&self.position_key, &self.engine_name, &to_stored(lines));
+        cache.store(key, &self.cache_engine, &to_stored(lines));
     }
 
     /// Shows a stored evaluation for the current position right away.
@@ -208,8 +230,8 @@ impl EngineProcess {
             }
         };
         info!(
-            "Evaluation cache hit: {} depth {} ({})",
-            self.engine_name, cached.depth, self.position_key
+            "Evaluation cache hit: {} depth {}",
+            self.cache_engine, cached.depth
         );
         BestMovesPayload {
             best_lines: lines.clone(),
@@ -226,9 +248,26 @@ impl EngineProcess {
         if satisfied {
             self.go_mode = go_mode.clone();
             self.running = false;
+            cache.note_saved_search();
         }
         Ok(satisfied)
     }
+}
+
+/// Cache key of the position after `moves`, or `None` when the move history
+/// changes its evaluation (a repeated position or a high 50-move counter).
+pub(crate) fn clean_position_key(fen: &str, moves: &[String]) -> Option<PosKey> {
+    let mut pos = parse_fen_and_apply_moves(fen, &[]).ok()?;
+    let mut history = vec![position_key(&pos)];
+    for m in moves {
+        let mv = UciMove::from_ascii(m.as_bytes()).ok()?.to_move(&pos).ok()?;
+        pos.play_unchecked(mv);
+        if pos.halfmoves() == 0 {
+            history.clear();
+        }
+        history.push(position_key(&pos));
+    }
+    is_clean_history(&history, pos.halfmoves()).then(|| *history.last().unwrap())
 }
 
 fn engine_name_from_logs(logs: &[EngineLog]) -> Option<String> {
@@ -680,6 +719,9 @@ pub async fn analyze_game(
     }
 
     let mut novelty_found = false;
+    // Depths the fresh searches of this run reached: what the time or node
+    // limit buys, so stored results at least that deep can stand in.
+    let mut reached: Vec<u32> = Vec::new();
 
     for (i, (_, moves, _)) in fens.iter().enumerate() {
         if cancel_flag.load(Ordering::SeqCst) {
@@ -723,7 +765,8 @@ pub async fn analyze_game(
             .as_ref()
             .and_then(|c| from_cached(c, &proc.options.fen, &proc.options.moves));
         if let (Some(c), Some(lines)) = (&cached, &cached_lines) {
-            if matches!(go_mode, GoMode::Depth(d) if c.depth >= d) {
+            if cached_is_enough(&go_mode, c, &reached) {
+                state.eval_cache.note_saved_search();
                 current_analysis.best = lines.clone();
                 analysis.push(current_analysis);
                 continue;
@@ -763,6 +806,9 @@ pub async fn analyze_game(
         }
         proc.cache_store(&state.eval_cache, &current_analysis.best);
         let engine_depth = current_analysis.best.first().map(|b| b.depth).unwrap_or(0);
+        if engine_depth > 0 {
+            reached.push(engine_depth);
+        }
         if let (Some(c), Some(lines)) = (cached, cached_lines) {
             if c.depth > engine_depth {
                 current_analysis.best = lines;
@@ -804,6 +850,20 @@ pub async fn analyze_game(
     update_progress(&state.progress_state, &app, id.clone(), 100.0, true)?;
     state.analysis_cancel_flags.remove(&id);
     Ok(analysis)
+}
+
+/// Whether a stored result can stand in for a search with `go_mode`.
+/// `reached` holds the depths the fresh searches of this run got to.
+fn cached_is_enough(go_mode: &GoMode, cached: &CachedEval, reached: &[u32]) -> bool {
+    let typical_depth =
+        (!reached.is_empty()).then(|| reached.iter().sum::<u32>().div_ceil(reached.len() as u32));
+    let deep_enough = typical_depth.is_some_and(|d| cached.depth >= d);
+    match go_mode {
+        GoMode::Depth(d) => cached.depth >= *d,
+        GoMode::Nodes(n) => cached.nodes >= *n || deep_enough,
+        GoMode::Time(_) => deep_enough,
+        GoMode::PlayersTime(_) | GoMode::Infinite => false,
+    }
 }
 
 pub(crate) fn count_material(position: &Chess) -> i32 {
@@ -889,6 +949,49 @@ mod tests {
     fn pos(fen: &str) -> Chess {
         let fen: Fen = fen.parse().unwrap();
         Chess::from_setup(fen.into_setup(), CastlingMode::Chess960).unwrap()
+    }
+
+    fn cached(depth: u32, nodes: u32) -> CachedEval {
+        CachedEval {
+            engine: "SF".into(),
+            depth,
+            multipv: 2,
+            nodes,
+            lines: vec![],
+        }
+    }
+
+    #[test]
+    fn stored_results_stand_in_for_limited_searches() {
+        let c = cached(22, 5_000_000);
+        assert!(cached_is_enough(&GoMode::Depth(22), &c, &[]));
+        assert!(!cached_is_enough(&GoMode::Depth(23), &c, &[]));
+        assert!(cached_is_enough(&GoMode::Nodes(5_000_000), &c, &[]));
+        assert!(!cached_is_enough(&GoMode::Nodes(6_000_000), &c, &[]));
+        // A time limit needs a reference from this run first.
+        assert!(!cached_is_enough(&GoMode::Time(500), &c, &[]));
+        assert!(cached_is_enough(&GoMode::Time(500), &c, &[20, 23]));
+        assert!(!cached_is_enough(&GoMode::Time(500), &c, &[22, 23]));
+        assert!(cached_is_enough(&GoMode::Nodes(9_000_000), &c, &[21]));
+        assert!(!cached_is_enough(&GoMode::Infinite, &c, &[10]));
+    }
+
+    #[test]
+    fn repeated_positions_are_not_shared() {
+        let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let moves = |m: &[&str]| m.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let shuffle = ["g1f3", "g8f6", "f3g1", "f6g8"];
+        assert!(clean_position_key(start, &moves(&shuffle[..2])).is_some());
+        // The start position for the second time: one more repetition draws.
+        assert_eq!(clean_position_key(start, &moves(&shuffle)), None);
+        // A pawn move resets the history.
+        let reset = clean_position_key(
+            start,
+            &moves(&[&shuffle[..], &["e2e4", "e7e5"], &shuffle[..2]].concat()),
+        );
+        assert!(reset.is_some());
+        let late = "8/8/4k3/8/8/4K3/4P3/8 w - - 31 80";
+        assert_eq!(clean_position_key(late, &[]), None);
     }
 
     #[test]

@@ -41,7 +41,7 @@ use crate::{
     chess::{count_material, qsearch},
     engine::{parse_fen_and_apply_moves, BaseEngine, EngineLog, EngineOption, GoMode},
     error::Error,
-    eval_cache::{position_key, EvalCache, StoredLine},
+    eval_cache::{cache_engine_name, option_defaults, position_key, EvalCache, PosKey, StoredLine},
     progress::update_progress,
     AppState,
 };
@@ -179,6 +179,9 @@ fn white_view(score: &Score, turn: Color) -> Score {
 struct Searcher {
     base: BaseEngine,
     engine_name: String,
+    /// Name results are filed under in the position store (engine name plus
+    /// options that change its play).
+    cache_name: String,
     multipv: u16,
 }
 
@@ -186,8 +189,8 @@ impl Searcher {
     async fn new(path: PathBuf, options: Vec<EngineOption>) -> Result<Self, Error> {
         let mut base = BaseEngine::spawn(path.clone()).await?;
         base.init_uci().await?;
-        let engine_name = base
-            .get_logs()
+        let logs = base.get_logs();
+        let engine_name = logs
             .iter()
             .find_map(|l| match l {
                 EngineLog::Engine(line) => line
@@ -206,9 +209,11 @@ impl Searcher {
                 base.set_option(&o.name, &o.value).await?;
             }
         }
+        let cache_name = cache_engine_name(&engine_name, &option_defaults(&logs), &options);
         Ok(Self {
             base,
             engine_name,
+            cache_name,
             multipv: 0,
         })
     }
@@ -229,12 +234,15 @@ impl Searcher {
             return Ok(vec![]);
         }
         let multipv = multipv.clamp(1, legal);
-        let key = position_key(&pos);
         let turn = pos.turn();
+        // Positions whose evaluation depends on the move history (repetition,
+        // high 50-move counter) are kept out of the store.
+        let key = crate::chess::clean_position_key(fen, moves);
+        let cache = cache.zip(key);
 
-        if let Some(cache) = cache {
+        if let Some((cache, key)) = cache {
             if let GoMode::Depth(d) = go_mode {
-                if let Some(c) = cache.lookup(&key, &self.engine_name, multipv) {
+                if let Some(c) = cache.lookup(&key, &self.cache_name, multipv) {
                     if c.depth >= *d && c.lines.len() == multipv as usize {
                         let lines: Vec<Line> = c
                             .lines
@@ -249,6 +257,7 @@ impl Searcher {
                             })
                             .collect();
                         if lines.iter().all(|l| !l.uci.is_empty()) {
+                            cache.note_saved_search();
                             return Ok(lines);
                         }
                     }
@@ -288,7 +297,7 @@ impl Searcher {
         }
         let lines: Vec<Line> = lines.into_iter().flatten().collect();
 
-        if let Some(cache) = cache {
+        if let Some((cache, key)) = cache {
             if lines.len() == multipv as usize && lines.iter().all(|l| l.depth > 0) {
                 let stored: Vec<StoredLine> = lines
                     .iter()
@@ -303,7 +312,7 @@ impl Searcher {
                         )
                     })
                     .collect();
-                cache.store(&key, &self.engine_name, &stored);
+                cache.store(&key, &self.cache_name, &stored);
             }
         }
         Ok(lines)
@@ -566,8 +575,8 @@ async fn run(
         club_moves: 0,
         sacrificed_on: None,
     });
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut found: HashSet<(String, String)> = HashSet::new();
+    let mut seen: HashSet<PosKey> = HashSet::new();
+    let mut found: HashSet<(PosKey, String)> = HashSet::new();
     let mut finds: Vec<BrillianceFind> = Vec::new();
     let mut positions = 0u32;
 

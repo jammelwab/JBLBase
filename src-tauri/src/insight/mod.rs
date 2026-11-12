@@ -25,7 +25,7 @@ use crate::{
     db::get_duckdb_pool,
     engine::EngineOption,
     error::Error,
-    eval_cache::{position_key, EvalCache},
+    eval_cache::{position_key, EvalCache, PosKey},
     opening::get_opening_from_setup,
     progress::update_progress,
     tactics::{
@@ -279,7 +279,7 @@ pub async fn analyse_game(
     let (mut own_sum, mut own_moves) = (0.0, 0u32);
     let (mut other_sum, mut other_moves) = (0.0, 0u32);
     let mut cp_lost = 0i64;
-    let mut covered: HashSet<String> = HashSet::new();
+    let mut covered: HashSet<PosKey> = HashSet::new();
 
     for i in 0..moves.len() {
         let Some(best) = evals[i].as_ref().and_then(|l| l.first()) else {
