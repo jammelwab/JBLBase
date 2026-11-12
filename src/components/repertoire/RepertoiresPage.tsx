@@ -471,7 +471,8 @@ function FolderSection({
   actions: FolderActions;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(true);
+  // Folders start closed and open or close with one click on their header
+  const [open, setOpen] = useState(false);
   const count = folderItems(node).length;
   return (
     <Paper withBorder p="xs" radius="md">
