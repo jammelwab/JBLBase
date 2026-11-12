@@ -21,6 +21,8 @@ export interface Puzzle {
     streak?: boolean;
     /** Set on the puzzle that ended a streak: how many were solved before it. */
     endedStreak?: number;
+    // The database the puzzle came from.
+    db?: string;
 }
 
 async function getPuzzleDatabase(name: string): Promise<PuzzleDatabaseInfo | null> {

@@ -13,40 +13,12 @@ import {
 } from "recharts";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { PlayerGameInfo, StatsData } from "@/bindings";
+import { type ActivityData, fillMissingMonths } from "@/utils/activity";
 import { getTimeControl } from "@/utils/timeControl";
 import ResultsChart from "./ResultsChart";
 import TimeControlSelector from "./TimeControlSelector";
 import WebsiteAccountSelector from "./WebsiteAccountSelector";
 import classes from "../PersonalCard.module.css";
-
-type ActivityData = { name: string; count: number; won: number; draw: number; lost: number };
-
-function fillMissingMonths(data: ActivityData[]): ActivityData[] {
-  if (data.length === 0) return data;
-
-  data = [...data].sort((a, b) => a.name.localeCompare(b.name));
-
-  const monthStrings: string[] = [];
-  const startDate = new Date(`${data[0].name}-01`);
-  const endDate = new Date(`${data[data.length - 1].name}-01`);
-
-  const timezoneOffset = new Date().getTimezoneOffset() * 60 * 1000; // milliseconds
-  const currDate = new Date(startDate);
-  while (currDate <= endDate) {
-    const localCurrDate = new Date(currDate.getTime() - timezoneOffset);
-    const monthString = localCurrDate.toISOString().slice(0, 7);
-    monthStrings.push(monthString);
-    currDate.setMonth(currDate.getMonth() + 1);
-  }
-
-  const dataMap = new Map(data.map((item) => [item.name, item]));
-  const filledData = monthStrings.map((month) => {
-    const item = dataMap.get(month);
-    return item ?? { name: month, count: 0, won: 0, draw: 0, lost: 0 };
-  });
-
-  return filledData;
-}
 
 function mergeYears(data: ActivityData[]): ActivityData[] {
   const yearCounts: { [year: string]: ActivityData } = {};

@@ -806,7 +806,7 @@ pub async fn analyze_game(
     Ok(analysis)
 }
 
-fn count_material(position: &Chess) -> i32 {
+pub(crate) fn count_material(position: &Chess) -> i32 {
     if position.is_checkmate() {
         return -10000;
     }
@@ -835,7 +835,7 @@ fn piece_value(role: Role) -> i32 {
     }
 }
 
-fn qsearch(position: &Chess, mut alpha: i32, beta: i32) -> i32 {
+pub(crate) fn qsearch(position: &Chess, mut alpha: i32, beta: i32) -> i32 {
     let stand_pat = count_material(position);
 
     if stand_pat >= beta {

@@ -40,6 +40,7 @@ import { getPiecesCount, hasCaptures, isOp1, positionFromFen } from "@/utils/che
 import type { Engine } from "@/utils/engines";
 import { getInitials } from "@/utils/format";
 import BestMoves, { arrowColors } from "./BestMoves";
+import BrilliancePanel from "./BrilliancePanel";
 import EngineSelection from "./EngineSelection";
 import LogsPanel from "./LogsPanel";
 import ReportPanel from "./ReportPanel";
@@ -101,6 +102,7 @@ function AnalysisPanel() {
         <Tabs.List>
           <Tabs.Tab value="engines">{t("Board.Analysis.Engines")}</Tabs.Tab>
           <Tabs.Tab value="report">{t("Board.Analysis.Report")}</Tabs.Tab>
+          <Tabs.Tab value="brilliance">{t("Board.Analysis.Brilliance")}</Tabs.Tab>
           <Tabs.Tab value="logs" disabled={loadedEngines.length === 0}>
             {t("Board.Analysis.Logs")}
           </Tabs.Tab>
@@ -257,6 +259,17 @@ function AnalysisPanel() {
           }}
         >
           <ReportPanel />
+        </Tabs.Panel>
+        <Tabs.Panel
+          value="brilliance"
+          pt="xs"
+          style={{
+            overflow: "hidden",
+            display: tab === "brilliance" ? "flex" : "none",
+            flexDirection: "column",
+          }}
+        >
+          <BrilliancePanel />
         </Tabs.Panel>
         <Tabs.Panel
           value="logs"
