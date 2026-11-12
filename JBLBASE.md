@@ -509,6 +509,28 @@ Puzzle-Ordner. Wer die Datei schon hat, nimmt „Aus Datei importieren“
 (`.csv.zst` oder entpackte `.csv`). Ein erneuter Import ersetzt die alte
 Fassung, Lichess aktualisiert die Datei monatlich.
 
+## Puzzle-Streak und Puzzle-Elo
+
+Im Puzzle-Tab schaltest du oben zwischen **Training** und **Streak** um.
+
+- **Streak:** Die erste Aufgabe liegt 400 Punkte unter deiner Puzzle-Elo
+  (mindestens 600), jede gelöste Aufgabe macht die nächste um 50 Punkte
+  schwerer. Ein falscher Zug, ein Hinweis oder das Anzeigen der Lösung beendet
+  die Streak, die Schwierigkeit fällt auf den Startwert zurück. Die
+  Wertungsspanne und „Steigernd“ sind in der Streak ohne Wirkung. Hat die
+  Datenbank bei der Zielwertung keine Aufgabe (kleine eigene Datenbanken), wird
+  die nächstliegende genommen.
+- **Puzzle-Elo:** Jede Aufgabe zählt beim ersten Versuch, im Training wie in
+  der Streak. Du startest bei 1500, gerechnet wird wie beim Schach-Elo gegen
+  die Wertung der Aufgabe (K = 40 für die ersten 20 Aufgaben, danach 20).
+- **Statistik:** Das Diagramm-Symbol neben den Einstellungen zeigt Elo,
+  Höchstwert, beste und aktuelle Streak, Trefferquote, Ø Zeit, den Elo-Verlauf
+  und die letzten Streaks. Dort lässt sich alles zurücksetzen.
+
+Gespeichert wird lokal in `puzzle_stats.json` im App-Datenordner (derselbe
+Ordner wie der Positionsspeicher). Eine laufende Streak übersteht auch einen
+Neustart der App.
+
 ## Taktiksuche im Repertoire
 
 Jede Repertoire-Karte hat den Knopf **Taktiken suchen**. Die Engine prüft jede

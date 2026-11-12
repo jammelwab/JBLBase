@@ -424,6 +424,8 @@ export const puzzleRatingRangeAtom = atomWithStorage<[number, number]>(
     [1000, 1500],
 );
 
+export const puzzleModeAtom = atomWithStorage<"normal" | "streak">("puzzle-mode", "normal");
+
 export const puzzleThemeAtom = atomWithStorage<string | null>("puzzle-theme", null);
 
 export const coverageMinGamesAtom = atomWithStorage<number>("coverage-min-games", 50);
