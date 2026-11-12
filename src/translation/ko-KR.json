@@ -965,6 +965,7 @@
     "Settings.EvalCache.MaxDepth": "",
     "Settings.EvalCache.Positions": "",
     "Settings.EvalCache.Refresh": "",
+    "Settings.EvalCache.Session": "",
     "Settings.EvalCache.Size": "",
     "Settings.EvalCache.Unavailable": "",
     "Settings.FlipBoardAfterMove": "자동 보드 뒤집기",
