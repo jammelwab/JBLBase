@@ -18,7 +18,7 @@ fn is_legacy_database(path: &Path) -> Result<bool, std::io::Error> {
     Ok(&header == b"SQLite format 3\0")
 }
 
-fn open_database(path: &Path) -> Result<Connection, Error> {
+pub(crate) fn open_database(path: &Path) -> Result<Connection, Error> {
     if is_legacy_database(path)? {
         return Err(std::io::Error::other(
             "This puzzle database uses the old SQLite format. Download the latest DuckDB puzzle database.",

@@ -33,6 +33,10 @@ export default defineConfig({
         preservePatterns: [
             "Files.FileType.*",
             "SideBar.*",
+            "Insight.Phase.*",
+            "Insight.Color.*",
+            "Insight.Speed.*",
+            "Insight.Result.*",
             "Settings.Keybinds.Actions.*",
             "TimeControl.*",
             "Annotate.*",

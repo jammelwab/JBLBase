@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as EnginesRouteImport } from './routes/engines'
 import { Route as FilesRouteImport } from './routes/files'
+import { Route as InsightRouteImport } from './routes/insight'
 import { Route as RepertoiresRouteImport } from './routes/repertoires'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as DatabasesIndexRouteImport } from './routes/databases/index'
@@ -36,6 +37,11 @@ const EnginesRoute = EnginesRouteImport.update({
 const FilesRoute = FilesRouteImport.update({
   id: '/files',
   path: '/files',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InsightRoute = InsightRouteImport.update({
+  id: '/insight',
+  path: '/insight',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RepertoiresRoute = RepertoiresRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AccountsRoute
   '/engines': typeof EnginesRoute
   '/files': typeof FilesRoute
+  '/insight': typeof InsightRoute
   '/repertoires': typeof RepertoiresRoute
   '/settings': typeof SettingsRoute
   '/databases/$databaseId': typeof DatabasesDatabaseIdRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/accounts': typeof AccountsRoute
   '/engines': typeof EnginesRoute
   '/files': typeof FilesRoute
+  '/insight': typeof InsightRoute
   '/repertoires': typeof RepertoiresRoute
   '/settings': typeof SettingsRoute
   '/databases/$databaseId': typeof DatabasesDatabaseIdRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/accounts': typeof AccountsRoute
   '/engines': typeof EnginesRoute
   '/files': typeof FilesRoute
+  '/insight': typeof InsightRoute
   '/repertoires': typeof RepertoiresRoute
   '/settings': typeof SettingsRoute
   '/databases/$databaseId': typeof DatabasesDatabaseIdRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/engines'
     | '/files'
+    | '/insight'
     | '/repertoires'
     | '/settings'
     | '/databases/$databaseId'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/engines'
     | '/files'
+    | '/insight'
     | '/repertoires'
     | '/settings'
     | '/databases/$databaseId'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/engines'
     | '/files'
+    | '/insight'
     | '/repertoires'
     | '/settings'
     | '/databases/$databaseId'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   AccountsRoute: typeof AccountsRoute
   EnginesRoute: typeof EnginesRoute
   FilesRoute: typeof FilesRoute
+  InsightRoute: typeof InsightRoute
   RepertoiresRoute: typeof RepertoiresRoute
   SettingsRoute: typeof SettingsRoute
   DatabasesDatabaseIdRoute: typeof DatabasesDatabaseIdRoute
@@ -162,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/files'
       fullPath: '/files'
       preLoaderRoute: typeof FilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/insight': {
+      id: '/insight'
+      path: '/insight'
+      fullPath: '/insight'
+      preLoaderRoute: typeof InsightRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/repertoires': {
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsRoute: AccountsRoute,
   EnginesRoute: EnginesRoute,
   FilesRoute: FilesRoute,
+  InsightRoute: InsightRoute,
   RepertoiresRoute: RepertoiresRoute,
   SettingsRoute: SettingsRoute,
   DatabasesDatabaseIdRoute: DatabasesDatabaseIdRoute,

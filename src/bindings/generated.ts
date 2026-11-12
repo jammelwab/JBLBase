@@ -435,6 +435,62 @@ async findTacticsInLines(id: string, options: TacticSearchOptions) : Promise<Res
     else return { status: "error", error: e  as any };
 }
 },
+async insightAnalyze(id: string, options: InsightOptions) : Promise<Result<InsightRunResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_analyze", { id, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insightStatus(accounts: InsightAccount[], depth: number) : Promise<Result<InsightAccountStatus[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_status", { accounts, depth }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insightSummary(player: string | null) : Promise<Result<InsightSummary, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_summary", { player }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insightClear() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_clear") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async calibrateRating(id: string, engine: string, file: string, samples: number) : Promise<Result<Calibration, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("calibrate_rating", { id, engine, file, samples }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getRatingCalibration() : Promise<Result<Calibration | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_rating_calibration") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resetRatingCalibration() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reset_rating_calibration") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deletePuzzleDatabase(file: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_puzzle_database", { file }) };
@@ -667,6 +723,16 @@ export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
 export type TacticSearchOptions = { engine: string; uciOptions: EngineOption[]; depth: number; fen: string; lines: string[][]; solver: string; source: string; dest: string }
 export type TacticSearchResult = { positions: number; calculated: number; found: number; total: number }
+export type InsightAccount = { file: string; player: string }
+export type InsightAccountStatus = { file: string; player: string; total: number; analysed: number }
+export type InsightError = { game: string; white: string; black: string; date: string; ply: number; fen: string; played: string; best: string; loss: number; phase: string }
+export type InsightGroup = { key: string; games: number; accuracy: number; score: number; inaccuracies: number; mistakes: number; blunders: number }
+export type InsightOptions = { engine: string; uciOptions: EngineOption[]; depth: number; accounts: InsightAccount[]; maxGames: number | null; tacticsDest: string }
+export type InsightPhase = { phase: string; moves: number; accuracy: number; inaccuracies: number; mistakes: number; blunders: number }
+export type InsightRunResult = { analysed: number; remaining: number; failed: number; missedTactics: number; calculated: number }
+export type InsightSummary = { games: number; accuracy: number; opponentAccuracy: number; acpl: number; missedTactics: number; byColor: InsightGroup[]; bySpeed: InsightGroup[]; byResult: InsightGroup[]; byOpening: InsightGroup[]; byMonth: InsightGroup[]; phases: InsightPhase[]; worst: InsightError[]; players: string[] }
+export type Calibration = { model: RatingModel; samples: number; meanError: number; defaultError: number; calibratedAt: number }
+export type RatingModel = { base: number; perFirstDepth: number; perExtraDepth: number; perExtraMove: number; sacrifice: number; quietFirstMove: number; plainCapture: number }
 export type EngineOption = { name: string; value: string }
 export type EngineOptions = { fen: string; moves: string[]; extraOptions: EngineOption[] }
 export type EvalCacheStats = { path: string; positions: number; entries: number; sizeBytes: number; engines: EngineCacheStats[] }
