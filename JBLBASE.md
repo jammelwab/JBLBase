@@ -257,6 +257,13 @@ Ergebnisse. Die Stellungen werden erst gezählt, wenn du einen Zug mit **+** auf
 Ein Klick auf einen Zug zeigt die Stellung auf dem kleinen Brett, **Auf dem Brett
 öffnen** öffnet die Zugfolge in der Analyse. Repertoire-Bäume bleiben ungefiltert.
 
+**Als Weiß / Als Schwarz:** Über dem Baum trägst du unter **Nur Partien dieses Spielers**
+einen Namen ein und wählst **Als Weiß**, **Als Schwarz** oder **Beide Farben**. Der Baum
+zählt dann nur die Partien, in denen dieser Spieler die gewählte Farbe hatte. Seine eigenen
+Züge sind blau umrandet, die anderen Züge sind die der Gegner, und das kleine Brett dreht
+sich zur gewählten Farbe. Bei den Datenbanken deiner eigenen Chess.com- und Lichess-Konten
+ist dein Name schon eingetragen und **Als Weiß** vorgewählt.
+
 ## Zugbewertungen
 
 Nach **Analyse → Bericht erstellen** bekommt jeder Zug eine Bewertung wie bei
