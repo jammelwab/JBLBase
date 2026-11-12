@@ -95,6 +95,7 @@ pub struct AppState {
     eval_cache: eval_cache::EvalCache,
     training: training::TrainingStore,
     insight: insight::InsightStore,
+    rating: tactics::calibration::RatingStore,
 }
 
 #[tauri::command]
@@ -192,6 +193,9 @@ fn main() {
             insight::insight_status,
             insight::insight_summary,
             insight::insight_clear,
+            tactics::calibration::calibrate_rating,
+            tactics::calibration::get_rating_calibration,
+            tactics::calibration::reset_rating_calibration,
             start_game,
             get_game_state,
             make_game_move,
@@ -295,6 +299,9 @@ fn main() {
                     state
                         .insight
                         .open(dir.join(insight::store::INSIGHT_FILE_NAME));
+                    state
+                        .rating
+                        .open(dir.join(tactics::calibration::RATING_FILE_NAME));
                 }
                 Err(err) => log::warn!("No app data dir, evaluation cache and training store disabled: {err}"),
             }

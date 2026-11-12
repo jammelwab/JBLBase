@@ -30,7 +30,9 @@ use crate::{
     progress::update_progress,
     tactics::{
         engine::{fen_of, Analyzer, Line},
-        motifs, store as tactic_store,
+        motifs,
+        rating::RatingModel,
+        store as tactic_store,
         store::StoredTactic,
         tactic_at,
     },
@@ -228,6 +230,7 @@ pub async fn analyse_game(
     analyzer: &mut Analyzer,
     prober: &mut Analyzer,
     cache: Option<&EvalCache>,
+    model: &RatingModel,
     depth: u32,
     info: &GameInfo,
     start: &Chess,
@@ -355,6 +358,7 @@ pub async fn analyse_game(
             analyzer,
             prober,
             cache,
+            model,
             depth,
             &positions[i - 1],
             &moves[i - 1],
@@ -606,6 +610,7 @@ pub async fn insight_analyze(
         ];
         let mut prober = Analyzer::new(path, &probe_options).await?;
         let engine_name = analyzer.name().to_string();
+        let model = state.rating.model();
         let total = todo.len() as f32;
 
         let mut outcome: Result<(), Error> = Ok(());
@@ -625,6 +630,7 @@ pub async fn insight_analyze(
                 &mut analyzer,
                 &mut prober,
                 Some(&state.eval_cache),
+                &model,
                 options.depth,
                 &game.info,
                 &start,
@@ -940,6 +946,7 @@ mod tests {
             &mut analyzer,
             &mut prober,
             Some(&cache),
+            &RatingModel::default(),
             12,
             &info(false, "0-1"),
             &start,

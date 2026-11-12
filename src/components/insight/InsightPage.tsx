@@ -21,6 +21,8 @@ import {
   IconPlayerPlay,
   IconTargetArrow,
 } from "@tabler/icons-react";
+import { resolve } from "@tauri-apps/api/path";
+import { exists } from "@tauri-apps/plugin-fs";
 import { useAtom, useAtomValue } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { useEffect, useMemo, useState } from "react";
@@ -44,6 +46,7 @@ import {
 import { useProgress } from "@/hooks/useProgress";
 import { enginesAtom, sessionsAtom } from "@/state/atoms";
 import { getDatabases } from "@/utils/db";
+import { getPuzzlesDir } from "@/utils/directories";
 import type { LocalEngine } from "@/utils/engines";
 import {
   DEFAULT_INSIGHT_DEPTH,
@@ -304,6 +307,111 @@ function Statistics({ summary }: { summary: InsightSummary }) {
   );
 }
 
+const CALIBRATION_ID = "rating_calibration";
+// The database the Lichess import of the puzzle tab writes.
+const LICHESS_PUZZLE_FILE = "Lichess Puzzles.duckdb";
+
+/**
+ * Fits the rating estimate of our own puzzles to the ratings of real Lichess puzzles.
+ */
+function RatingCalibration({ engine }: { engine: LocalEngine | undefined }) {
+  const { t } = useTranslation();
+  const [samples, setSamples] = useState<number>(2000);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { progress, clear } = useProgress(CALIBRATION_ID);
+  const { data: calibration, mutate } = useSWR("rating-calibration", async () =>
+    unwrap(await commands.getRatingCalibration()),
+  );
+  const { data: lichessDb } = useSWR("lichess-puzzle-db", async () => {
+    const path = await resolve(await getPuzzlesDir(), LICHESS_PUZZLE_FILE);
+    return (await exists(path)) ? path : null;
+  });
+
+  useEffect(() => () => void commands.cancelAnalysis(CALIBRATION_ID), []);
+
+  async function calibrate() {
+    if (!engine || !lichessDb) return;
+    setError(null);
+    setRunning(true);
+    try {
+      const res = await commands.calibrateRating(CALIBRATION_ID, engine.path, lichessDb, samples);
+      if (res.status === "error" && !/cancel/i.test(res.error)) setError(res.error);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      clear();
+      setRunning(false);
+      mutate();
+    }
+  }
+
+  return (
+    <Paper withBorder p="md">
+      <Stack gap="sm">
+        <Text fw={600}>{t("Insight.Calibration.Title")}</Text>
+        <Text size="sm" c="dimmed">
+          {t("Insight.Calibration.Desc")}
+        </Text>
+        {lichessDb === null && (
+          <Alert icon={<IconAlertCircle size="1rem" />} color="yellow">
+            {t("Insight.Calibration.NoLichess")}
+          </Alert>
+        )}
+        <Text size="sm">
+          {calibration
+            ? t("Insight.Calibration.Status", {
+                samples: calibration.samples,
+                error: Math.round(calibration.meanError),
+                before: Math.round(calibration.defaultError),
+                date: new Date(calibration.calibratedAt * 1000).toLocaleDateString(),
+              })
+            : t("Insight.Calibration.NotYet")}
+        </Text>
+        <Group align="flex-end">
+          <NumberInput
+            label={t("Insight.Calibration.Samples")}
+            min={200}
+            max={50000}
+            step={500}
+            w={170}
+            value={samples}
+            onChange={(value) => typeof value === "number" && setSamples(value)}
+            disabled={running}
+          />
+          {running ? (
+            <Button variant="default" onClick={() => commands.cancelAnalysis(CALIBRATION_ID)}>
+              {t("Common.Cancel")}
+            </Button>
+          ) : (
+            <Button onClick={calibrate} disabled={!engine || !lichessDb}>
+              {t("Insight.Calibration.Start")}
+            </Button>
+          )}
+          {calibration && !running && (
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={async () => {
+                await commands.resetRatingCalibration();
+                mutate();
+              }}
+            >
+              {t("Insight.Calibration.Reset")}
+            </Button>
+          )}
+        </Group>
+        {running && <Progress value={progress} animated />}
+        {error && (
+          <Alert icon={<IconAlertCircle size="1rem" />} title={t("Common.Error")} color="red">
+            {error}
+          </Alert>
+        )}
+      </Stack>
+    </Paper>
+  );
+}
+
 export default function InsightPage() {
   const { t } = useTranslation();
   const sessions = useAtomValue(sessionsAtom);
@@ -495,6 +603,7 @@ export default function InsightPage() {
             {t("Insight.Empty")}
           </Text>
         )}
+        <RatingCalibration engine={engine} />
       </Stack>
     </ScrollArea>
   );
