@@ -961,6 +961,8 @@
     "Settings.Privacy.Desc": "隐私与数据收集设置",
     "Settings.Privacy.Legal": "",
     "Settings.Privacy.Legal.Desc": "",
+    "Settings.Privacy.UsageStats": "",
+    "Settings.Privacy.UsageStats.Desc": "",
     "Settings.Repertoire": "开局库",
     "Settings.Repertoire.AutoDifficulty": "自动选择难度",
     "Settings.Repertoire.AutoDifficulty.Desc": "当您正确猜出一步棋时，自动选择难度",
@@ -1007,6 +1009,10 @@
     "Updater.Install": "",
     "Updater.Later": "",
     "Updater.Restarting": "",
-    "Updater.UpToDate": ""
+    "Updater.UpToDate": "",
+    "UsageStats.Prompt.No": "",
+    "UsageStats.Prompt.Text": "",
+    "UsageStats.Prompt.Title": "",
+    "UsageStats.Prompt.Yes": ""
   }
 }

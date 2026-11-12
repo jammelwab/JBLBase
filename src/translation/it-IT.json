@@ -954,6 +954,8 @@
     "Settings.Privacy.Desc": "Impostazioni privacy e collezione dati",
     "Settings.Privacy.Legal": "",
     "Settings.Privacy.Legal.Desc": "",
+    "Settings.Privacy.UsageStats": "",
+    "Settings.Privacy.UsageStats.Desc": "",
     "Settings.Repertoire": "Repertorio",
     "Settings.Repertoire.AutoDifficulty": "Seleziona difficoltà automaticamente",
     "Settings.Repertoire.AutoDifficulty.Desc": "Seleziona la difficoltà automaticamente quando esegui la mossa corretta",
@@ -1000,6 +1002,10 @@
     "Updater.Install": "",
     "Updater.Later": "",
     "Updater.Restarting": "",
-    "Updater.UpToDate": ""
+    "Updater.UpToDate": "",
+    "UsageStats.Prompt.No": "",
+    "UsageStats.Prompt.Text": "",
+    "UsageStats.Prompt.Title": "",
+    "UsageStats.Prompt.Yes": ""
   }
 }

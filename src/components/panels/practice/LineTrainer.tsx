@@ -15,6 +15,7 @@ import { makeSquare, type NormalMove } from "chessops";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { bucket, trackUsage } from "@/utils/usageStats";
 import { useStore } from "zustand";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { updateCardPerformance } from "@/components/files/opening";
@@ -174,6 +175,7 @@ export default function LineTrainer() {
     setFinished(null);
     setInvisible(true);
     setEvalOpen(false);
+    trackUsage("training_start", { mode, lines: bucket(items.length) });
     begin(items, 0, { repeated: new Set(), planned: items.length, correct: 0, wrong: 0 });
   }
 

@@ -14,6 +14,7 @@ import { useAtom, useAtomValue } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { bucket, trackUsage } from "@/utils/usageStats";
 import { commands, type TacticSearchResult } from "@/bindings";
 import { useProgress } from "@/hooks/useProgress";
 import { enginesAtom } from "@/state/atoms";
@@ -73,8 +74,10 @@ export default function TacticSearchModal({
         source: `${repertoire.owner} / ${repertoire.name} (${repertoire.color})`,
         dest: await repertoireTacticsPath(),
       });
-      if (res.status === "ok") setResult(res.data);
-      else if (!/cancel/i.test(res.error)) setError(res.error);
+      if (res.status === "ok") {
+        setResult(res.data);
+        trackUsage("tactic_search", { depth: settings.depth, lines: bucket(lines.length) });
+      } else if (!/cancel/i.test(res.error)) setError(res.error);
     } catch (e) {
       setError(String(e));
     } finally {

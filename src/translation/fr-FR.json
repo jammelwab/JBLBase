@@ -1007,6 +1007,8 @@
     "Settings.Privacy.Desc": "Paramètres de confidentialité et de collecte des données",
     "Settings.Privacy.Legal": "",
     "Settings.Privacy.Legal.Desc": "",
+    "Settings.Privacy.UsageStats": "",
+    "Settings.Privacy.UsageStats.Desc": "",
     "Settings.Repertoire": "Répertoire",
     "Settings.Repertoire.AutoDifficulty": "Sélection automatique du niveau de difficulté",
     "Settings.Repertoire.AutoDifficulty.Desc": "Sélectionner automatiquement un niveau de difficulté lorsque vous devinez correctement un coup",
@@ -1053,6 +1055,10 @@
     "Updater.Install": "",
     "Updater.Later": "",
     "Updater.Restarting": "",
-    "Updater.UpToDate": ""
+    "Updater.UpToDate": "",
+    "UsageStats.Prompt.No": "",
+    "UsageStats.Prompt.Text": "",
+    "UsageStats.Prompt.Title": "",
+    "UsageStats.Prompt.Yes": ""
   }
 }

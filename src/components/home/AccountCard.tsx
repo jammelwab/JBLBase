@@ -26,6 +26,7 @@ import { error, info } from "@tauri-apps/plugin-log";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { trackUsage } from "@/utils/usageStats";
 import type { DatabaseInfo } from "@/bindings";
 import { commands, events } from "@/bindings";
 import { databaseConversionStateAtom, storedDatabasesDirAtom } from "@/state/atoms";
@@ -144,6 +145,7 @@ export function AccountCard({
         null,
       ),
     );
+    trackUsage("games_download", { source: type });
     events.progressEvent.emit({
       id: `${type}_${title}`,
       progress: 100,

@@ -59,6 +59,7 @@ import {
   showVariationArrowsAtom,
   snapArrowsAtom,
   spellCheckAtom,
+  usageStatsAtom,
   storedDatabasesDirAtom,
   storedDocumentDirAtom,
   storedEnginesDirAtom,
@@ -80,6 +81,7 @@ import RepertoireMainOwnerSetting from "./RepertoireMainOwnerSetting";
 import RepertoireMinGamesSetting from "./RepertoireMinGamesSetting";
 import classes from "./SettingsPage.module.css";
 import { LegalLinks } from "@/components/cloud/LegalText";
+import { usageStatsConfigured } from "@/utils/usageStats";
 import SettingsSwitch from "./SettingsSwitch";
 import SoundSelect from "./SoundSelect";
 import ThemeButton from "./ThemeButton";
@@ -672,6 +674,18 @@ export default function Page() {
         keywords: ["privacy", "datenschutz", "terms", "nutzungsbedingungen", "gdpr", "dsgvo"],
         render: () => <LegalLinks />,
       },
+      ...(usageStatsConfigured()
+        ? [
+            {
+              id: "usage-stats",
+              category: "privacy" as SettingCategory,
+              title: t("Settings.Privacy.UsageStats"),
+              description: t("Settings.Privacy.UsageStats.Desc"),
+              keywords: ["statistics", "statistik", "analytics", "usage", "nutzung", "tracking"],
+              render: () => <SettingsSwitch atom={usageStatsAtom} />,
+            },
+          ]
+        : []),
     ],
     [
       t,
