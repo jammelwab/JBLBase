@@ -245,6 +245,18 @@ Linie, ähnlich wie bei Chessable:
 - **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
   **Alle Linien** das ganze Repertoire.
 
+## Datenbank als Baum
+
+Unter **Datenbanken** eine Datenbank anklicken und **Als Baum öffnen** wählen, oder nach
+**Erkunden** den Tab **Baum** öffnen. Die Datenbank erscheint als gezeichneter
+Eröffnungsbaum wie beim Repertoire. Damit er auch bei einer Million Partien übersichtlich
+bleibt, stehen dort nur Züge, die in **mindestens 15 %** der Partien aus der jeweiligen
+Stellung gespielt wurden. Die Grenze stellst du oben rechts ein (0 % zeigt alle Züge).
+An jedem Zug stehen die Anzahl der Partien und sein Anteil, der Tooltip nennt die
+Ergebnisse. Die Stellungen werden erst gezählt, wenn du einen Zug mit **+** aufklappst.
+Ein Klick auf einen Zug zeigt die Stellung auf dem kleinen Brett, **Auf dem Brett
+öffnen** öffnet die Zugfolge in der Analyse. Repertoire-Bäume bleiben ungefiltert.
+
 ## Zugbewertungen
 
 Nach **Analyse → Bericht erstellen** bekommt jeder Zug eine Bewertung wie bei
