@@ -11,6 +11,7 @@ mod error;
 mod eval_cache;
 mod training;
 mod game;
+mod insight;
 mod vision;
 
 mod fs;
@@ -21,6 +22,7 @@ mod pgn;
 mod progress;
 mod puzzle;
 mod sound;
+mod tactics;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -59,7 +61,7 @@ use crate::oauth::{authenticate, authenticate_cloud};
 use crate::pgn::{count_pgn_games, delete_game, read_games, write_game};
 use crate::puzzle::{
     delete_puzzle_database, get_puzzle, get_puzzle_db_info, get_puzzle_themes,
-    get_themes_for_puzzle,
+    get_themes_for_puzzle, import_lichess_puzzles,
 };
 use crate::sound::get_sound_server_port;
 use crate::{
@@ -93,6 +95,8 @@ pub struct AppState {
     progress_state: ProgressStore,
     eval_cache: eval_cache::EvalCache,
     training: training::TrainingStore,
+    insight: insight::InsightStore,
+    rating: tactics::calibration::RatingStore,
 }
 
 #[tauri::command]
@@ -185,6 +189,15 @@ fn main() {
             get_puzzle_themes,
             get_themes_for_puzzle,
             delete_puzzle_database,
+            import_lichess_puzzles,
+            tactics::find_tactics_in_lines,
+            insight::insight_analyze,
+            insight::insight_status,
+            insight::insight_summary,
+            insight::insight_clear,
+            tactics::calibration::calibrate_rating,
+            tactics::calibration::get_rating_calibration,
+            tactics::calibration::reset_rating_calibration,
             start_game,
             get_game_state,
             make_game_move,
@@ -285,6 +298,12 @@ fn main() {
                     }
                     state.eval_cache.open(dir.join(eval_cache::CACHE_FILE_NAME));
                     state.training.open(dir.join(training::TRAINING_FILE_NAME));
+                    state
+                        .insight
+                        .open(dir.join(insight::store::INSIGHT_FILE_NAME));
+                    state
+                        .rating
+                        .open(dir.join(tactics::calibration::RATING_FILE_NAME));
                 }
                 Err(err) => log::warn!(
                     "No app data dir, evaluation cache and training store disabled: {err}"

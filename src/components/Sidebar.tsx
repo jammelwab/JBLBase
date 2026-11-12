@@ -3,6 +3,7 @@ import { AppShellSection, Avatar, Stack, Tooltip, UnstyledButton } from "@mantin
 import {
   type Icon,
   IconBooks,
+  IconChartBar,
   IconChess,
   IconCpu,
   IconDatabase,
@@ -53,6 +54,7 @@ const linksdata = [
     url: "/databases",
   },
   { icon: IconCpu, label: "Engines", url: "/engines" },
+  { icon: IconChartBar, label: "Insight", url: "/insight" },
 ];
 
 /** The JBLBase account: sign in, or open the profile when signed in. */

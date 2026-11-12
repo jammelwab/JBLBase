@@ -245,6 +245,18 @@ Linie, ähnlich wie bei Chessable:
 - **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
   **Alle Linien** das ganze Repertoire.
 
+## Datenbank als Baum
+
+Unter **Datenbanken** eine Datenbank anklicken und **Als Baum öffnen** wählen, oder nach
+**Erkunden** den Tab **Baum** öffnen. Die Datenbank erscheint als gezeichneter
+Eröffnungsbaum wie beim Repertoire. Damit er auch bei einer Million Partien übersichtlich
+bleibt, stehen dort nur Züge, die in **mindestens 15 %** der Partien aus der jeweiligen
+Stellung gespielt wurden. Die Grenze stellst du oben rechts ein (0 % zeigt alle Züge).
+An jedem Zug stehen die Anzahl der Partien und sein Anteil, der Tooltip nennt die
+Ergebnisse. Die Stellungen werden erst gezählt, wenn du einen Zug mit **+** aufklappst.
+Ein Klick auf einen Zug zeigt die Stellung auf dem kleinen Brett, **Auf dem Brett
+öffnen** öffnet die Zugfolge in der Analyse. Repertoire-Bäume bleiben ungefiltert.
+
 ## Zugbewertungen
 
 Nach **Analyse → Bericht erstellen** bekommt jeder Zug eine Bewertung wie bei
@@ -486,3 +498,70 @@ Danach startet die App normal, auch bei allen weiteren Starts. Nach jedem
 neuen Download einer neuen Version ist der Schritt einmal zu wiederholen.
 (Der früher übliche Weg „Rechtsklick → Öffnen“ funktioniert seit macOS 15
 nicht mehr.)
+
+## Lichess-Puzzles
+
+Im Puzzle-Tab unter **Datenbank hinzufügen** gibt es die Karte
+„Lichess-Puzzles (offiziell)“. Sie lädt
+<https://database.lichess.org/lichess_db_puzzle.csv.zst> (über 5 Mio. Aufgaben,
+CC0) und baut daraus lokal die Datei `Lichess Puzzles.duckdb` im
+Puzzle-Ordner. Wer die Datei schon hat, nimmt „Aus Datei importieren“
+(`.csv.zst` oder entpackte `.csv`). Ein erneuter Import ersetzt die alte
+Fassung, Lichess aktualisiert die Datei monatlich.
+
+## Taktiksuche im Repertoire
+
+Jede Repertoire-Karte hat den Knopf **Taktiken suchen**. Die Engine prüft jede
+Stellung, in der der Repertoire-Besitzer am Zug ist (Standardtiefe 18):
+
+- Eine Aufgabe entsteht, wenn es genau einen klar gewinnenden Zug gibt
+  (mindestens +2,0 oder Matt, der zweitbeste Zug hält keinen Vorteil) und der
+  letzte Zug des Gegners ein echter Fehler war. Erzwungenes Zurückschlagen in
+  gewonnener Stellung zählt also nicht.
+- Die Lösung läuft weiter, solange es jeweils nur einen Gewinnzug gibt.
+- Motive (Gabel, Fesselung, Spieß, Abzug, Opfer, Matt in N, Grundreihenmatt …)
+  tragen die Lichess-Namen, der Filter im Puzzle-Tab funktioniert also.
+- Die Elo-Schätzung richtet sich danach, ab welcher Suchtiefe die Engine den
+  Zug findet, wie lang die Lösung ist und ob geopfert wird. Die Gewichte sind
+  von Hand gesetzt (`src-tauri/src/tactics/rating.rs`), bis du sie eichst:
+  Auf der Insight-Seite misst „Elo-Schätzung eichen“ eine Stichprobe der
+  importierten Lichess-Puzzles mit deiner Engine und passt die Gewichte per
+  kleinsten Quadraten an deren Wertungen an (`rating_model.json` im
+  App-Datenordner). Die Seite zeigt, wie weit die Schätzung im Schnitt
+  danebenliegt.
+
+Die Aufgaben landen in `Repertoire-Taktiken.duckdb` im Puzzle-Ordner und
+erscheinen im Puzzle-Tab als eigene Datenbank. Eine neue Suche ersetzt die
+Aufgaben desselben Repertoires. Alle Bewertungen gehen in den
+Positionsspeicher, eine zweite Suche rechnet also nur neue Stellungen.
+
+Test mit echter Engine:
+
+```bash
+cd src-tauri
+JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored tactics
+```
+
+## Insight
+
+Die Seite **Insight** (Seitenleiste) analysiert alle Partien der verbundenen
+Lichess- und Chess.com-Konten, die neuesten zuerst.
+
+- Tiefe 18 (Standard) oder 24, wahlweise nur eine bestimmte Zahl Partien pro
+  Lauf. Anhalten verliert nichts: Fertige Partien stehen in
+  `insight.sqlite3` im App-Datenordner, alle Bewertungen im Positionsspeicher.
+- Je Zug wird gemessen, wie viel Gewinnchance er kostet (Formeln wie bei
+  Lichess): ab 10 Punkten Ungenauigkeit, ab 20 Fehler, ab 30 Patzer (auf der
+  Skala von -100 bis 100).
+- Statistiken: Genauigkeit gesamt und pro Monat, nach Partiephase, Farbe,
+  Bedenkzeit, Ergebnis und Eröffnung, dazu die größten Patzer.
+- Übersehene Taktiken (du hattest einen einzigen Gewinnzug und hast ihn nicht
+  gespielt) werden zu Aufgaben in `Partien-Taktiken.duckdb` und erscheinen im
+  Puzzle-Tab, mit Motiv und geschätzter Elo wie bei der Repertoire-Suche.
+
+Test mit echter Engine:
+
+```bash
+cd src-tauri
+JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored insight
+```
