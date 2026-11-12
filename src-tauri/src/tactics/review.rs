@@ -638,16 +638,24 @@ mod tests {
         let mut analyzer = Analyzer::new(engine.clone(), &[]).await.unwrap();
         let mut prober = Analyzer::new(engine, &[]).await.unwrap();
         let model = RatingModel::default();
-        // A back-rank mate: Black steps into the corner, White mates on a8.
-        let fen = "6k1/5ppp/8/8/8/8/5PPP/R5K1 b - - 0 1";
+        // The Englund trap: 1.d4 e5 2.dxe5 Nc6 3.Nf3 Qe7 4.Bf4 Qb4+ 5.Bd2 Qxb2,
+        // and after 6.Bc3?? Black wins the queen with 6...Bb4!
+        let mut pos = Chess::default();
+        for uci in [
+            "d2d4", "e7e5", "d4e5", "b8c6", "g1f3", "d8e7", "c1f4", "e7b4", "f4d2", "b4b2",
+        ] {
+            let m = uci.parse::<UciMove>().unwrap().to_move(&pos).unwrap();
+            pos.play_unchecked(m);
+        }
+        let fen = super::super::engine::fen_of(&pos);
         let right = check_puzzle(
             &mut analyzer,
             &mut prober,
             None,
             &model,
             18,
-            fen,
-            "g8h8 a1a8",
+            &fen,
+            "d2c3 f8b4",
         )
         .await
         .unwrap();
@@ -659,14 +667,14 @@ mod tests {
             None,
             &model,
             18,
-            fen,
-            "g8h8 a1a7",
+            &fen,
+            "d2c3 b2a1",
         )
         .await
         .unwrap();
         assert_eq!(wrong.verdict, Verdict::Corrected, "{wrong:?}");
         assert_eq!(wrong.reason, "otherMove");
-        assert_eq!(wrong.moves.as_deref(), Some("g8h8 a1a8"));
+        assert!(wrong.moves.as_deref().unwrap().starts_with("d2c3 f8b4"));
         assert!(wrong.rating.is_some());
 
         // A quiet position: nothing wins, the puzzle has to go.

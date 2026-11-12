@@ -499,6 +499,46 @@ async resetRatingCalibration() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async reportPuzzle(report: NewPuzzleReport) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("report_puzzle", { report }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listPuzzleReports(includeResolved: boolean) : Promise<Result<PuzzleReport[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_puzzle_reports", { includeResolved }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async checkPuzzleReports(id: string, options: ReportCheckOptions) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_puzzle_reports", { id, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resolvePuzzleReport(reportId: number, verdict: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("resolve_puzzle_report", { reportId, verdict }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deletePuzzleReport(reportId: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_puzzle_report", { reportId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deletePuzzleDatabase(file: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_puzzle_database", { file }) };
@@ -809,7 +849,10 @@ export type EngineCacheStats = { engine: string; entries: number; maxDepth: numb
 export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
 export type TacticSearchOptions = { engine: string; uciOptions: EngineOption[]; depth: number; fen: string; lines: string[][]; solver: string; source: string; dest: string }
-export type TacticSearchResult = { positions: number; calculated: number; found: number; total: number }
+export type TacticSearchResult = { positions: number; calculated: number; found: number; added: number; duplicates: number; rejected: number; total: number }
+export type NewPuzzleReport = { db: string; fen: string; moves: string; rating: number; reason: string; note: string }
+export type PuzzleReport = { id: number; db: string; fen: string; moves: string; rating: number; reason: string; note: string; createdAt: number; status: string; suggestion: string | null; checkReason: string | null; newMoves: string | null; newRating: number | null; checkDepth: number | null; checkEval: number | null; resolution: string | null }
+export type ReportCheckOptions = { engine: string; uciOptions: EngineOption[]; depth: number; ids: number[] }
 export type InsightAccount = { file: string; player: string }
 export type InsightAccountStatus = { file: string; player: string; total: number; analysed: number }
 export type InsightError = { game: string; white: string; black: string; date: string; ply: number; fen: string; played: string; best: string; loss: number; phase: string }
