@@ -25,7 +25,7 @@ Webseite.
 - **Figurenanimation abschaltbar** oder in der Geschwindigkeit wählbar
 - **Zugtöne** mit einstellbarer Lautstärke als akustische Rückmeldung
 - **Oberfläche in mehreren Sprachen**, darunter Deutsch und Englisch
-- **Züge per Tastatur eingeben:** Unter **Einstellungen → Eingabe** lässt sich
+- **Züge per Tastatur eingeben:** Unter **Einstellungen → Eingaben → Zugeingabe im Text** lässt sich
   ein Textfeld einschalten, in das Züge getippt werden (z. B. `Sf3`/`Nf3`)
 - Züge stehen zusätzlich zum Brett immer als **Text in der Notation**
 
