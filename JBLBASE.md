@@ -450,3 +450,42 @@ Danach startet die App normal, auch bei allen weiteren Starts. Nach jedem
 neuen Download einer neuen Version ist der Schritt einmal zu wiederholen.
 (Der früher übliche Weg „Rechtsklick → Öffnen“ funktioniert seit macOS 15
 nicht mehr.)
+
+## Lichess-Puzzles
+
+Im Puzzle-Tab unter **Datenbank hinzufügen** gibt es die Karte
+„Lichess-Puzzles (offiziell)“. Sie lädt
+<https://database.lichess.org/lichess_db_puzzle.csv.zst> (über 5 Mio. Aufgaben,
+CC0) und baut daraus lokal die Datei `Lichess Puzzles.duckdb` im
+Puzzle-Ordner. Wer die Datei schon hat, nimmt „Aus Datei importieren“
+(`.csv.zst` oder entpackte `.csv`). Ein erneuter Import ersetzt die alte
+Fassung, Lichess aktualisiert die Datei monatlich.
+
+## Taktiksuche im Repertoire
+
+Jede Repertoire-Karte hat den Knopf **Taktiken suchen**. Die Engine prüft jede
+Stellung, in der der Repertoire-Besitzer am Zug ist (Standardtiefe 18):
+
+- Eine Aufgabe entsteht, wenn es genau einen klar gewinnenden Zug gibt
+  (mindestens +2,0 oder Matt, der zweitbeste Zug hält keinen Vorteil) und der
+  letzte Zug des Gegners ein echter Fehler war. Erzwungenes Zurückschlagen in
+  gewonnener Stellung zählt also nicht.
+- Die Lösung läuft weiter, solange es jeweils nur einen Gewinnzug gibt.
+- Motive (Gabel, Fesselung, Spieß, Abzug, Opfer, Matt in N, Grundreihenmatt …)
+  tragen die Lichess-Namen, der Filter im Puzzle-Tab funktioniert also.
+- Die Elo-Schätzung richtet sich danach, ab welcher Suchtiefe die Engine den
+  Zug findet, wie lang die Lösung ist und ob geopfert wird. Die Gewichte sind
+  vorerst von Hand gesetzt (`src-tauri/src/tactics/rating.rs`) und noch nicht
+  an den Lichess-Wertungen geeicht.
+
+Die Aufgaben landen in `Repertoire-Taktiken.duckdb` im Puzzle-Ordner und
+erscheinen im Puzzle-Tab als eigene Datenbank. Eine neue Suche ersetzt die
+Aufgaben desselben Repertoires. Alle Bewertungen gehen in den
+Positionsspeicher, eine zweite Suche rechnet also nur neue Stellungen.
+
+Test mit echter Engine:
+
+```bash
+cd src-tauri
+JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored tactics
+```

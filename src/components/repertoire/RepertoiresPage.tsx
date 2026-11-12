@@ -33,6 +33,7 @@ import {
   IconPencil,
   IconTrash,
   IconHistory,
+  IconTargetArrow,
   IconGitCompare,
   IconPlus,
 } from "@tabler/icons-react";
@@ -71,6 +72,7 @@ import {
 } from "@/utils/repertoires";
 import ImportCourseModal from "./ImportCourseModal";
 import ImportHistoryModal from "./ImportHistoryModal";
+import TacticSearchModal from "./TacticSearchModal";
 import { type FolderEdit, FolderNameModal, ImportFolderModal } from "./RepertoireFolderModals";
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
@@ -104,9 +106,13 @@ function RepertoireCard({
   const { stats } = repertoire;
   const [showHistory, setShowHistory] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [searchingTactics, setSearchingTactics] = useState(false);
 
   return (
     <Card withBorder padding="md">
+      {searchingTactics && (
+        <TacticSearchModal repertoire={repertoire} onClose={() => setSearchingTactics(false)} />
+      )}
       <ImportHistoryModal
         repertoire={showHistory ? repertoire : null}
         onClose={() => setShowHistory(false)}
@@ -186,6 +192,14 @@ function RepertoireCard({
           onClick={onCompare}
         >
           {t("Repertoire.Compare.Button")}
+        </Button>
+        <Button
+          variant="subtle"
+          size="xs"
+          leftSection={<IconTargetArrow size="1rem" />}
+          onClick={() => setSearchingTactics(true)}
+        >
+          {t("Repertoire.Tactics.Button")}
         </Button>
         {main && main.missing > 0 && (
           <Button
