@@ -17,6 +17,10 @@ export interface Puzzle {
     completion: Completion;
     timeSpent?: number;
     themes?: string[];
+    /** Whether the puzzle was handed out by the streak mode. */
+    streak?: boolean;
+    /** Set on the puzzle that ended a streak: how many were solved before it. */
+    endedStreak?: number;
 }
 
 async function getPuzzleDatabase(name: string): Promise<PuzzleDatabaseInfo | null> {

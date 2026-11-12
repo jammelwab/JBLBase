@@ -11,6 +11,7 @@ import {
   Portal,
   RangeSlider,
   ScrollArea,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
@@ -21,6 +22,7 @@ import {
 import { useSessionStorage } from "@mantine/hooks";
 import {
   IconAlertTriangle,
+  IconChartLine,
   IconFlame,
   IconPlus,
   IconSettings,
@@ -42,6 +44,7 @@ import {
   hidePuzzleRatingAtom,
   jumpToNextPuzzleAtom,
   progressivePuzzlesAtom,
+  puzzleModeAtom,
   puzzleRatingRangeAtom,
   puzzleThemeAtom,
   selectedPuzzleDbAtom,
@@ -51,6 +54,7 @@ import {
 import { positionFromFen } from "@/utils/chessops";
 import { formatThemeLabel, formatTime } from "@/utils/format";
 import { type Completion, getPuzzleDatabases, type Puzzle } from "@/utils/puzzles";
+import { streakRatingSpans, streakTargetRating } from "@/utils/puzzleStats";
 import { createTab } from "@/utils/tabs";
 import { defaultTree } from "@/utils/treeReducer";
 import { unwrap } from "@/utils/unwrap";
@@ -61,6 +65,8 @@ import MoveControls from "../common/MoveControls";
 import { TreeStateContext } from "../common/TreeStateContext";
 import AddPuzzle from "./AddPuzzle";
 import PuzzleBoard from "./PuzzleBoard";
+import PuzzleStatsModal from "./PuzzleStatsModal";
+import { getPuzzleStats, recordPuzzleAttempt, usePuzzleStats } from "./usePuzzleStats";
 
 function Puzzles({ id }: { id: string }) {
   const { t } = useTranslation();
@@ -81,6 +87,11 @@ function Puzzles({ id }: { id: string }) {
   const [selectedDb, setSelectedDb] = useAtom(selectedPuzzleDbAtom);
 
   const [settingsOpened, setSettingsOpened] = useState(false);
+  const [statsOpened, setStatsOpened] = useState(false);
+
+  const [mode, setMode] = useAtom(puzzleModeAtom);
+  const streakMode = mode === "streak";
+  const stats = usePuzzleStats();
 
   useEffect(() => {
     getPuzzleDatabases().then((databases) => {
@@ -147,9 +158,25 @@ function Puzzles({ id }: { id: string }) {
 
   const solutionAbortRef = useRef<AbortController | null>(null);
 
+  // The next puzzle of the streak: as hard as the streak is long, a little
+  // wider if the database has nothing at exactly that rating.
+  async function fetchStreakPuzzle(db: string) {
+    const target = streakTargetRating(getPuzzleStats());
+    const [first, ...wider] = streakRatingSpans(target);
+    let res = await commands.getPuzzle(db, first[0], first[1], effectiveSelectedTheme);
+    for (const [min, max] of wider) {
+      if (res.status === "ok") break;
+      res = await commands.getPuzzle(db, min, max, effectiveSelectedTheme);
+    }
+    return res;
+  }
+
   async function generatePuzzle(db: string, force: boolean = false) {
-    let nextIndex = puzzles.findIndex((p, i) => i > currentPuzzle && p.completion === "incomplete");
-    if (nextIndex === -1) {
+    // A streak has no puzzles waiting: it always continues with a harder one
+    let nextIndex = streakMode
+      ? -1
+      : puzzles.findIndex((p, i) => i > currentPuzzle && p.completion === "incomplete");
+    if (nextIndex === -1 && !streakMode) {
       nextIndex = puzzles.findIndex((p, i) => i < currentPuzzle && p.completion === "incomplete");
     }
 
@@ -168,19 +195,22 @@ function Puzzles({ id }: { id: string }) {
     setIsPlayingSolution(false);
 
     let range = ratingRange;
-    if (progressive) {
+    if (progressive && !streakMode) {
       const rating = puzzles[currentPuzzle]?.rating;
       if (rating) {
         range = [rating + 50, rating + 100];
         setRatingRange([rating + 50, rating + 100]);
       }
     }
-    const res = await commands.getPuzzle(db, range[0], range[1], effectiveSelectedTheme);
+    const res = streakMode
+      ? await fetchStreakPuzzle(db)
+      : await commands.getPuzzle(db, range[0], range[1], effectiveSelectedTheme);
     const puzzle = unwrap(res);
     const newPuzzle: Puzzle = {
       ...puzzle,
       moves: puzzle.moves.split(" "),
       completion: "incomplete",
+      streak: streakMode,
     };
     setPuzzles((puzzles) => {
       return [...puzzles, newPuzzle];
@@ -195,12 +225,28 @@ function Puzzles({ id }: { id: string }) {
   async function changeCompletion(completion: Completion) {
     const timeSpent = timerStart !== null ? Date.now() - timerStart : 0;
     const puzzle = puzzles[currentPuzzle];
+    // Only the first result of a puzzle counts for rating, statistics and streak
+    const firstResult = puzzle?.completion === "incomplete" && completion !== "incomplete";
+    const endedStreak =
+      firstResult && puzzle.streak && completion === "incorrect"
+        ? getPuzzleStats().run.length
+        : undefined;
     setPuzzles((puzzles) => {
       puzzles[currentPuzzle].completion = completion;
       puzzles[currentPuzzle].timeSpent = timeSpent;
+      if (endedStreak !== undefined) puzzles[currentPuzzle].endedStreak = endedStreak;
       return [...puzzles];
     });
     setTimerStart(null);
+
+    if (firstResult) {
+      await recordPuzzleAttempt({
+        rating: puzzle.rating,
+        correct: completion === "correct",
+        timeMs: timeSpent,
+        streak: puzzle.streak === true,
+      });
+    }
 
     if (selectedDb && puzzle?.id) {
       const res = await commands.getThemesForPuzzle(selectedDb, puzzle.id);
@@ -262,6 +308,11 @@ function Puzzles({ id }: { id: string }) {
 
   const [, setTabs] = useAtom(tabsAtom);
   const setActiveTab = useSetAtom(activeTabAtom);
+
+  const current: Puzzle | undefined = puzzles[currentPuzzle];
+  // In a streak the open puzzle has to be answered before the next one comes
+  const streakPuzzleOpen = streakMode && current?.streak === true && isPuzzleIncomplete;
+  const streakOver = streakMode && current?.endedStreak !== undefined;
 
   const turnToMove =
     puzzles[currentPuzzle] !== undefined
@@ -367,6 +418,11 @@ function Puzzles({ id }: { id: string }) {
                   <IconTrash size={20} />
                 </ActionIcon>
               </Tooltip>
+              <Tooltip label={t("Puzzle.Stats.Title")}>
+                <ActionIcon onClick={() => setStatsOpened(true)}>
+                  <IconChartLine size={20} />
+                </ActionIcon>
+              </Tooltip>
               <Tooltip label={t("SideBar.Settings")}>
                 <ActionIcon onClick={() => setSettingsOpened((o) => !o)}>
                   <IconSettings size={20} />
@@ -374,6 +430,17 @@ function Puzzles({ id }: { id: string }) {
               </Tooltip>
             </Group>
           </Group>
+          <PuzzleStatsModal opened={statsOpened} onClose={() => setStatsOpened(false)} />
+          <SegmentedControl
+            fullWidth
+            mb="sm"
+            value={mode}
+            onChange={(v) => setMode(v === "streak" ? "streak" : "normal")}
+            data={[
+              { label: t("Puzzle.Mode.Normal"), value: "normal" },
+              { label: t("Puzzle.Mode.Streak"), value: "streak" },
+            ]}
+          />
           <Accordion
             value={settingsOpened ? "settings" : null}
             onChange={(v) => setSettingsOpened(v === "settings")}
@@ -401,7 +468,7 @@ function Puzzles({ id }: { id: string }) {
                       max={2800}
                       value={ratingRange}
                       onChange={setRatingRange}
-                      disabled={progressive}
+                      disabled={progressive || streakMode}
                       marks={[
                         { value: 600, label: "600" },
                         { value: 1700, label: "1700" },
@@ -426,6 +493,7 @@ function Puzzles({ id }: { id: string }) {
                       label={t("Puzzle.Progressive")}
                       description={t("Puzzle.Progressive.Desc")}
                       checked={progressive}
+                      disabled={streakMode}
                       onChange={(event) => setProgressive(event.currentTarget.checked)}
                     />
                     <Switch
@@ -485,6 +553,15 @@ function Puzzles({ id }: { id: string }) {
 
             <Paper withBorder p="xs">
               <Text size="xs" c="dimmed">
+                {t("Puzzle.Elo")}
+              </Text>
+              <Text fw={700} size="lg">
+                {stats.elo}
+              </Text>
+            </Paper>
+
+            <Paper withBorder p="xs">
+              <Text size="xs" c="dimmed">
                 {t("Puzzle.Accuracy")}
               </Text>
               <Text
@@ -502,7 +579,7 @@ function Puzzles({ id }: { id: string }) {
               </Text>
               <Group gap={2}>
                 <Text fw={700} size="lg">
-                  {currentStreak}
+                  {streakMode ? stats.run.length : currentStreak}
                 </Text>
                 <IconFlame size={20} color="orange" />
               </Group>
@@ -520,6 +597,38 @@ function Puzzles({ id }: { id: string }) {
             )}
           </Group>
           <Divider my="sm" />
+          {streakMode && (
+            <Alert
+              mb="sm"
+              color={streakOver ? "red" : "orange"}
+              icon={<IconFlame />}
+              title={
+                streakOver
+                  ? t("Puzzle.Streak.Over", { count: current?.endedStreak ?? 0 })
+                  : t("Puzzle.Streak.Running", { count: stats.run.length })
+              }
+            >
+              <Stack gap="xs" align="flex-start">
+                <Text size="sm">
+                  {streakOver
+                    ? t("Puzzle.Streak.OverDesc", { best: stats.bestStreak })
+                    : t("Puzzle.Streak.Desc", { best: stats.bestStreak })}
+                </Text>
+                {!streakPuzzleOpen && (
+                  <Button
+                    size="xs"
+                    color={streakOver ? "red" : "orange"}
+                    disabled={!selectedDb}
+                    onClick={() => generatePuzzle(selectedDb!, true)}
+                  >
+                    {streakOver || stats.run.length === 0
+                      ? t("Puzzle.Streak.Start")
+                      : t("Puzzle.Streak.Next")}
+                  </Button>
+                )}
+              </Stack>
+            </Alert>
+          )}
           {!isPuzzleIncomplete && (puzzles[currentPuzzle]?.themes?.length ?? 0) > 0 && (
             <Group gap="xs" mb="sm">
               {puzzles[currentPuzzle]?.themes?.map((theme) => (
@@ -555,7 +664,7 @@ function Puzzles({ id }: { id: string }) {
             <Group gap="xs">
               <Tooltip label={t("Puzzle.NewPuzzle")}>
                 <ActionIcon
-                  disabled={!selectedDb}
+                  disabled={!selectedDb || streakPuzzleOpen}
                   onClick={() => generatePuzzle(selectedDb!, true)}
                 >
                   <IconPlus />
