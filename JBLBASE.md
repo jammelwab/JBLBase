@@ -487,8 +487,12 @@ Stellung, in der der Repertoire-Besitzer am Zug ist (Standardtiefe 18):
   tragen die Lichess-Namen, der Filter im Puzzle-Tab funktioniert also.
 - Die Elo-Schätzung richtet sich danach, ab welcher Suchtiefe die Engine den
   Zug findet, wie lang die Lösung ist und ob geopfert wird. Die Gewichte sind
-  vorerst von Hand gesetzt (`src-tauri/src/tactics/rating.rs`) und noch nicht
-  an den Lichess-Wertungen geeicht.
+  von Hand gesetzt (`src-tauri/src/tactics/rating.rs`), bis du sie eichst:
+  Auf der Insight-Seite misst „Elo-Schätzung eichen“ eine Stichprobe der
+  importierten Lichess-Puzzles mit deiner Engine und passt die Gewichte per
+  kleinsten Quadraten an deren Wertungen an (`rating_model.json` im
+  App-Datenordner). Die Seite zeigt, wie weit die Schätzung im Schnitt
+  danebenliegt.
 
 Die Aufgaben landen in `Repertoire-Taktiken.duckdb` im Puzzle-Ordner und
 erscheinen im Puzzle-Tab als eigene Datenbank. Eine neue Suche ersetzt die
