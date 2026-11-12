@@ -489,3 +489,27 @@ Test mit echter Engine:
 cd src-tauri
 JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored tactics
 ```
+
+## Insight
+
+Die Seite **Insight** (Seitenleiste) analysiert alle Partien der verbundenen
+Lichess- und Chess.com-Konten, die neuesten zuerst.
+
+- Tiefe 18 (Standard) oder 24, wahlweise nur eine bestimmte Zahl Partien pro
+  Lauf. Anhalten verliert nichts: Fertige Partien stehen in
+  `insight.sqlite3` im App-Datenordner, alle Bewertungen im Positionsspeicher.
+- Je Zug wird gemessen, wie viel Gewinnchance er kostet (Formeln wie bei
+  Lichess): ab 10 Punkten Ungenauigkeit, ab 20 Fehler, ab 30 Patzer (auf der
+  Skala von -100 bis 100).
+- Statistiken: Genauigkeit gesamt und pro Monat, nach Partiephase, Farbe,
+  Bedenkzeit, Ergebnis und Eröffnung, dazu die größten Patzer.
+- Übersehene Taktiken (du hattest einen einzigen Gewinnzug und hast ihn nicht
+  gespielt) werden zu Aufgaben in `Partien-Taktiken.duckdb` und erscheinen im
+  Puzzle-Tab, mit Motiv und geschätzter Elo wie bei der Repertoire-Suche.
+
+Test mit echter Engine:
+
+```bash
+cd src-tauri
+JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored insight
+```

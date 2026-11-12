@@ -192,6 +192,104 @@ async fn build_solution(
     Ok(Some((moves, best)))
 }
 
+/// Is there a tactic for the side to move in `start`, which came about by
+/// `lead` played in `parent`? If so, returns it as a finished puzzle together
+/// with the positions its solution covers.
+///
+/// A tactic is a single clearly winning move after a real mistake of the
+/// opponent. `line` is the text shown as the way to the position.
+#[allow(clippy::too_many_arguments)]
+pub async fn tactic_at(
+    analyzer: &mut Analyzer,
+    prober: &mut Analyzer,
+    cache: Option<&EvalCache>,
+    depth: u32,
+    parent: &Chess,
+    lead: &Move,
+    start: &Chess,
+    line: &str,
+) -> Result<Option<(StoredTactic, Vec<String>)>, Error> {
+    let first = analyzer.analyze(cache, start, depth, 2).await?;
+    let legal = start.legal_moves().len();
+    let Some(best) = first.first() else {
+        return Ok(None);
+    };
+    if !is_winning(best) || !is_only_move(&first, legal) {
+        return Ok(None);
+    }
+    // What the opponent could have had instead of the move played.
+    let before = analyzer.analyze(cache, parent, depth, 2).await?;
+    let Some(opponent_best) = before.first() else {
+        return Ok(None);
+    };
+    if best.win_chances() + opponent_best.win_chances() < MIN_GAIN {
+        return Ok(None);
+    }
+
+    let Some((solution, last)) = build_solution(analyzer, cache, depth, start, &first).await?
+    else {
+        return Ok(None);
+    };
+
+    // Rate it: how deep does a single-threaded search have to look?
+    let mut covered = Vec::new();
+    let mut pos = start.clone();
+    let mut first_depth = 0;
+    let mut max_depth = 0;
+    for (n, m) in solution.iter().enumerate() {
+        if n % 2 == 0 {
+            covered.push(position_key(&pos));
+            let d = if pos.legal_moves().len() == 1 {
+                1
+            } else {
+                prober.solve_depth(&pos, m, PROBE_DEPTH).await?
+            };
+            if n == 0 {
+                first_depth = d;
+            }
+            max_depth = max_depth.max(d);
+        }
+        pos.play_unchecked(*m);
+    }
+    let mut themes = motifs::detect(start, &solution);
+    themes.push(motifs::phase(start));
+    if !themes.contains(&"mate") {
+        themes.push(if eval_cp(&last) >= 600 {
+            "crushing"
+        } else {
+            "advantage"
+        });
+    }
+    let mut after_first = start.clone();
+    after_first.play_unchecked(solution[0]);
+    let features = Features {
+        solver_moves: solution.len().div_ceil(2) as u32,
+        first_depth,
+        max_depth,
+        sacrifice: themes.contains(&"sacrifice"),
+        first_capture: solution[0].is_capture(),
+        first_check: after_first.is_check(),
+    };
+
+    let mut moves = vec![lead.to_uci(CastlingMode::Standard).to_string()];
+    moves.extend(
+        solution
+            .iter()
+            .map(|m| m.to_uci(CastlingMode::Standard).to_string()),
+    );
+    Ok(Some((
+        StoredTactic {
+            fen: fen_of(parent),
+            moves,
+            rating: RatingModel::default().estimate(&features),
+            themes: themes.iter().map(|t| t.to_string()).collect(),
+            line: line.to_string(),
+            eval_cp: eval_cp(&last),
+        },
+        covered,
+    )))
+}
+
 /// Searches `lines` for tactics of `solver`. `on_progress` gets the share of
 /// positions done; the search stops with an error once `cancel` is set.
 #[allow(clippy::too_many_arguments)]
@@ -207,7 +305,6 @@ pub async fn find_tactics(
     mut on_progress: impl FnMut(f32),
 ) -> Result<(usize, Vec<StoredTactic>), Error> {
     let candidates = collect_candidates(root, lines, solver)?;
-    let model = RatingModel::default();
     let mut found = Vec::new();
     // Positions that already are part of a found solution are not offered
     // again as a puzzle of their own.
@@ -221,83 +318,21 @@ pub async fn find_tactics(
         if covered.contains(&position_key(&candidate.start)) {
             continue;
         }
-
-        let first = analyzer.analyze(cache, &candidate.start, depth, 2).await?;
-        let legal = candidate.start.legal_moves().len();
-        let Some(best) = first.first() else {
-            continue;
-        };
-        if !is_winning(best) || !is_only_move(&first, legal) {
-            continue;
+        if let Some((tactic, positions)) = tactic_at(
+            analyzer,
+            prober,
+            cache,
+            depth,
+            &candidate.parent,
+            &candidate.lead,
+            &candidate.start,
+            &candidate.line,
+        )
+        .await?
+        {
+            covered.extend(positions);
+            found.push(tactic);
         }
-        // What the opponent could have had instead of the move played.
-        let before = analyzer.analyze(cache, &candidate.parent, depth, 2).await?;
-        let Some(opponent_best) = before.first() else {
-            continue;
-        };
-        if best.win_chances() + opponent_best.win_chances() < MIN_GAIN {
-            continue;
-        }
-
-        let Some((solution, last)) =
-            build_solution(analyzer, cache, depth, &candidate.start, &first).await?
-        else {
-            continue;
-        };
-
-        // Rate it: how deep does a single-threaded search have to look?
-        let mut pos = candidate.start.clone();
-        let mut first_depth = 0;
-        let mut max_depth = 0;
-        for (n, m) in solution.iter().enumerate() {
-            if n % 2 == 0 {
-                covered.insert(position_key(&pos));
-                let d = if pos.legal_moves().len() == 1 {
-                    1
-                } else {
-                    prober.solve_depth(&pos, m, PROBE_DEPTH).await?
-                };
-                if n == 0 {
-                    first_depth = d;
-                }
-                max_depth = max_depth.max(d);
-            }
-            pos.play_unchecked(*m);
-        }
-        let mut themes = motifs::detect(&candidate.start, &solution);
-        themes.push(motifs::phase(&candidate.start));
-        if !themes.contains(&"mate") {
-            themes.push(if eval_cp(&last) >= 600 {
-                "crushing"
-            } else {
-                "advantage"
-            });
-        }
-        let mut after_first = candidate.start.clone();
-        after_first.play_unchecked(solution[0]);
-        let features = Features {
-            solver_moves: solution.len().div_ceil(2) as u32,
-            first_depth,
-            max_depth,
-            sacrifice: themes.contains(&"sacrifice"),
-            first_capture: solution[0].is_capture(),
-            first_check: after_first.is_check(),
-        };
-
-        let mut moves = vec![candidate.lead.to_uci(CastlingMode::Standard).to_string()];
-        moves.extend(
-            solution
-                .iter()
-                .map(|m| m.to_uci(CastlingMode::Standard).to_string()),
-        );
-        found.push(StoredTactic {
-            fen: fen_of(&candidate.parent),
-            moves,
-            rating: model.estimate(&features),
-            themes: themes.iter().map(|t| t.to_string()).collect(),
-            line: candidate.line.clone(),
-            eval_cp: eval_cp(&last),
-        });
     }
     on_progress(1.0);
     Ok((candidates.len(), found))

@@ -279,6 +279,16 @@ impl Analyzer {
         Ok(found)
     }
 
+    /// Forgets the results of this run (the evaluation cache keeps them).
+    pub fn clear_memo(&mut self) {
+        self.memo.clear();
+    }
+
+    /// The engine's name, as it is filed in the evaluation cache.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub async fn quit(&mut self) {
         let _ = self.engine.quit().await;
     }
