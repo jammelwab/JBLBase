@@ -17,18 +17,32 @@ Knoten, Bewertung (Centipawn, Matt, WDL) und die kompletten Hauptvarianten.
 
 So wird der Speicher genutzt:
 
-1. **Schlüssel ist die Stellung, nicht der Zugweg.** Die FEN ohne Zugzähler,
-   ein En-passant-Feld zählt nur, wenn der Schlag wirklich möglich ist.
+1. **Schlüssel ist die Stellung, nicht der Zugweg.** Ein 128-Bit-Fingerabdruck
+   (Zobrist) aus Figurenstellung, Zugrecht, Rochaderechten und En-passant-Feld
+   (nur wenn der Schlag wirklich möglich ist), ohne Zugzähler.
    `1.Sf3 d5 2.d4` und `1.d4 d5 2.Sf3` teilen sich also einen Eintrag.
-2. **Getrennt pro Engine.** Stockfish und Patricia haben eigene Einträge
-   (erkannt am `id name` der Engine), damit sich ihre Bewertungen nicht mischen.
+2. **Getrennt pro Engine und Einstellung.** Stockfish und Patricia haben eigene
+   Einträge (erkannt am `id name` der Engine). Optionen, die das Spiel der
+   Engine ändern (z. B. `Skill Level`, `UCI_LimitStrength`/`UCI_Elo`, ein
+   anderes Netz), kommen mit in den Namen, etwa
+   `Stockfish 17.1 [Skill Level=5]`. Threads, Hash, MultiPV, WDL-Anzeige,
+   Syzygy-Pfad und Ähnliches zählen nicht.
 3. **Getrennt pro Linienanzahl.** Eine Suche mit 3 Linien kann eine Anfrage mit
-   1, 2 oder 3 Linien bedienen, aber nicht eine mit 5.
+   1, 2 oder 3 Linien bedienen, aber nicht eine mit 5. Ein Eintrag, den ein
+   anderer mit mehr Linien und mindestens gleicher Tiefe ersetzt, wird gelöscht.
 4. **Nur tiefer überschreibt.** Ein flacheres Ergebnis ersetzt nie ein tieferes.
-5. **Matts zählen extra.** Hat eine Engine ein Matt sicher, meldet sie eine
+5. **Kein Ballast.** Ergebnisse unter Tiefe 10 werden nicht gespeichert (die
+   rechnet die Engine in Sekundenbruchteilen neu), Matts immer.
+6. **Nur, was für jede Zugfolge gilt.** Kam die Stellung im Partieverlauf seit
+   dem letzten Bauernzug oder Schlag schon einmal vor, sieht die Engine ein
+   Remis durch Wiederholung, das es auf anderem Weg nicht gibt. Ab einem
+   50-Züge-Zähler über 30 Halbzügen ziehen Engines die Bewertung Richtung
+   Remis. Solche Stellungen werden weder aus dem Speicher gelesen noch
+   gespeichert.
+7. **Matts zählen extra.** Hat eine Engine ein Matt sicher, meldet sie eine
    künstliche Höchsttiefe (Stockfish 245). Solche Einträge bleiben immer
    erhalten, zählen in der Statistik aber nicht als „maximale Tiefe“.
-6. **Speichergrenze für Nutzerkonten.** Bist du mit einem normalen Konto
+8. **Speichergrenze für Nutzerkonten.** Bist du mit einem normalen Konto
    angemeldet, rechnet die Engine so tief wie immer, dauerhaft gespeichert wird
    aber höchstens Tiefe 28. Das tiefere Ergebnis bleibt bis zum Schließen der
    App im Arbeitsspeicher und wird in dieser Sitzung weiter genutzt. Matts
@@ -41,11 +55,16 @@ Beim Analysieren:
 - **Live-Analyse:** Gibt es einen Eintrag, wird er sofort angezeigt. Ist bei
   „Tiefe N“ der Eintrag schon mindestens N tief, startet die Engine gar nicht.
   Sonst rechnet die Engine weiter, und ihre Ausgabe ersetzt die gespeicherte
-  Anzeige erst, wenn sie mindestens genauso tief ist. Unendliche Analyse läuft
-  also ab der gespeicherten Tiefe sichtbar weiter.
-- **Partieanalyse:** Stellungen, die schon tief genug im Speicher sind, werden
-  übersprungen. Bei Zeit- oder Knotenlimit wird das tiefere von Speicher und
-  neuer Rechnung genommen.
+  Anzeige erst, wenn sie mindestens genauso tief ist.
+- **Bericht (Partieanalyse):** Bei „Tiefe N“ werden Stellungen übersprungen,
+  die schon mindestens N tief gespeichert sind. Bei Zeit- oder Knotenlimit
+  merkt sich der Bericht, wie tief die Engine in diesem Lauf im Schnitt kommt,
+  und überspringt Stellungen, die schon mindestens so tief gespeichert sind;
+  beim Knotenlimit reicht auch ein Eintrag mit genug Knoten. Sonst wird das
+  tiefere von Speicher und neuer Rechnung genommen.
+- **Taktiksuche und Insight:** Jede Stellung wird zuerst im Speicher gesucht;
+  ist sie tief genug, rechnet die Engine nicht. Neue Ergebnisse werden mit
+  Knoten und WDL gespeichert.
 
 Eine Grenze: Die Engine selbst fängt intern bei einer neuen Suche von vorne an
 (ihr Hash lebt nur im Arbeitsspeicher). Der Gewinn ist, dass du gespeicherte
@@ -53,11 +72,18 @@ Ergebnisse sofort siehst und tief genug bewertete Stellungen gar nicht mehr
 gerechnet werden müssen.
 
 Unter **Einstellungen → Positionsspeicher** siehst du Anzahl Stellungen,
-Dateigröße und maximale Tiefe pro Engine und kannst den Speicher leeren.
+Dateigröße und maximale Tiefe pro Engine, wie oft der Speicher seit dem Start
+eine Rechnung erspart hat, und kannst den Speicher leeren.
+
+**Format:** Die Züge der Hauptvarianten werden binär gespeichert (2 Byte pro
+Zug), die Engine als Nummer, die Stellung als 16-Byte-Fingerabdruck. Das ist
+etwa ein Drittel der früheren Größe. Ein Speicher aus älteren Versionen wird
+beim ersten Start einmalig umgestellt (dabei fallen überholte und zu flache
+Einträge weg); bei großen Dateien kann das einige Sekunden dauern, die Analyse
+läuft währenddessen ohne Speicher.
 
 Das Schreibprotokoll (`eval_cache.sqlite3-wal`) wird beim Start in die
-Hauptdatei übernommen und danach auf höchstens 1 MB begrenzt. Vorher blieb es
-dauerhaft bei etwa 4 MB stehen.
+Hauptdatei übernommen und danach auf höchstens 1 MB begrenzt.
 
 Für spätere Phasen (Repertoire, Vergleich der Eröffnungsbäume) gibt es schon
 den Befehl `getCachedEvals(fen)`, der alle gespeicherten Bewertungen einer

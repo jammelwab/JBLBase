@@ -1148,6 +1148,7 @@
     "Settings.EvalCache.MaxDepth": "Max. depth",
     "Settings.EvalCache.Positions": "Positions",
     "Settings.EvalCache.Refresh": "Refresh",
+    "Settings.EvalCache.Session": "Since the app started: {{lookups}} positions looked up, {{hits}} found in the cache, {{saved}} engine searches saved",
     "Settings.EvalCache.Size": "File size",
     "Settings.EvalCache.Unavailable": "The position cache could not be opened",
     "Settings.FlipBoardAfterMove": "Automatically flip board",

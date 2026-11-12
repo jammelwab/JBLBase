@@ -302,7 +302,13 @@ fn main() {
                     if let Err(err) = std::fs::create_dir_all(&dir) {
                         log::warn!("Failed to create app data dir: {err}");
                     }
-                    state.eval_cache.open(dir.join(eval_cache::CACHE_FILE_NAME));
+                    // Opening may convert an older cache format, which can take a
+                    // while on a big file; analysis runs without the cache meanwhile.
+                    let handle = app.handle().clone();
+                    let cache_path = dir.join(eval_cache::CACHE_FILE_NAME);
+                    std::thread::spawn(move || {
+                        handle.state::<AppState>().eval_cache.open(cache_path);
+                    });
                     state.training.open(dir.join(training::TRAINING_FILE_NAME));
                     state
                         .insight

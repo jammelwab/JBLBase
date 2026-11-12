@@ -999,6 +999,7 @@
     "Settings.EvalCache.MaxDepth": "",
     "Settings.EvalCache.Positions": "",
     "Settings.EvalCache.Refresh": "",
+    "Settings.EvalCache.Session": "Since the app started: {{lookups}} positions looked up, {{hits}} found in the cache, {{saved}} engine searches saved",
     "Settings.EvalCache.Size": "",
     "Settings.EvalCache.Unavailable": "",
     "Settings.FlipBoardAfterMove": "",

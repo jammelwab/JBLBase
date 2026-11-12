@@ -26,7 +26,7 @@ use specta::Type;
 use crate::{
     engine::EngineOption,
     error::Error,
-    eval_cache::{position_key, EvalCache},
+    eval_cache::{position_key, EvalCache, PosKey},
     progress::update_progress,
     AppState,
 };
@@ -111,7 +111,7 @@ fn collect_candidates(
     lines: &[Vec<String>],
     solver: Color,
 ) -> Result<Vec<Candidate>, Error> {
-    let mut seen: HashSet<String> = HashSet::new();
+    let mut seen: HashSet<PosKey> = HashSet::new();
     let mut candidates = Vec::new();
     for line in lines {
         let mut pos = root.clone();
@@ -195,7 +195,7 @@ pub(crate) async fn build_solution(
 }
 
 /// Keys of the positions in which the solver is to move during `solution`.
-fn solver_positions(start: &Chess, solution: &[Move]) -> Vec<String> {
+fn solver_positions(start: &Chess, solution: &[Move]) -> Vec<PosKey> {
     let mut pos = start.clone();
     let mut keys = Vec::new();
     for (n, m) in solution.iter().enumerate() {
@@ -264,7 +264,7 @@ pub async fn tactic_at(
     lead: &Move,
     start: &Chess,
     line: &str,
-) -> Result<Option<(StoredTactic, Vec<String>)>, Error> {
+) -> Result<Option<(StoredTactic, Vec<PosKey>)>, Error> {
     let first = analyzer.analyze(cache, start, depth, 2).await?;
     let legal = start.legal_moves().len();
     let Some(best) = first.first() else {
@@ -337,7 +337,7 @@ pub async fn find_tactics(
     let mut found = Vec::new();
     // Positions that already are part of a found solution are not offered
     // again as a puzzle of their own.
-    let mut covered: HashSet<String> = HashSet::new();
+    let mut covered: HashSet<PosKey> = HashSet::new();
 
     for (i, candidate) in candidates.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
@@ -504,6 +504,7 @@ mod tests {
             mate: None,
             depth: 18,
             pv: vec!["e2e4".into()],
+            ..Default::default()
         }
     }
 
@@ -513,6 +514,7 @@ mod tests {
             mate: Some(m),
             depth: 18,
             pv: vec!["e2e4".into()],
+            ..Default::default()
         }
     }
 

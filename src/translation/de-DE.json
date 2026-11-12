@@ -1142,6 +1142,7 @@
     "Settings.EvalCache.MaxDepth": "Max. Tiefe",
     "Settings.EvalCache.Positions": "Stellungen",
     "Settings.EvalCache.Refresh": "Aktualisieren",
+    "Settings.EvalCache.Session": "Seit dem Start: {{lookups}} Stellungen nachgeschlagen, {{hits}} davon im Speicher gefunden, {{saved}} Engine-Rechnungen gespart",
     "Settings.EvalCache.Size": "Dateigröße",
     "Settings.EvalCache.Unavailable": "Der Positionsspeicher konnte nicht geöffnet werden",
     "Settings.FlipBoardAfterMove": "Brett automatisch drehen",

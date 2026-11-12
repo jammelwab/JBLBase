@@ -979,6 +979,7 @@
     "Settings.EvalCache.MaxDepth": "",
     "Settings.EvalCache.Positions": "",
     "Settings.EvalCache.Refresh": "",
+    "Settings.EvalCache.Session": "",
     "Settings.EvalCache.Size": "",
     "Settings.EvalCache.Unavailable": "",
     "Settings.FlipBoardAfterMove": "自动翻转棋盘",
