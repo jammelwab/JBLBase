@@ -45,6 +45,14 @@ async cancelAnalysis(id: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async findBrilliancies(id: string, engine: string, options: BrillianceOptions, uciOptions: EngineOption[]) : Promise<Result<BrillianceResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("find_brilliancies", { id, engine, options, uciOptions }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async stopEngine(engine: string, tab: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stop_engine", { engine, tab }) };
@@ -713,6 +721,85 @@ export type BestMovesPayload = { bestLines: BestMoves[]; engine: string; tab: st
 /**
  * Cached evaluation as shown to the frontend (e.g. for repertoire tools).
  */
+export type BrillianceFind = { 
+/**
+ * Moves (UCI) from the start position up to the brilliant move.
+ */
+pathUci: string[]; pathSan: string[]; moveUci: string; moveSan: string; 
+/**
+ * Engine continuation after the move (without the move itself).
+ */
+continuationUci: string[]; continuationSan: string[]; 
+/**
+ * "!!" or "!".
+ */
+annotation: string; 
+/**
+ * "sacrifice", "hidden", "onlyMove", "mate".
+ */
+tags: string[]; 
+/**
+ * Material given up in centipawns (0 when it is not a sacrifice).
+ */
+sacrifice: number; 
+/**
+ * Engine score after the move, from White's point of view.
+ */
+score: Score; 
+/**
+ * How much worse the second best move is (centipawns, side to move).
+ */
+gap: number | null; 
+/**
+ * Opponent moves on the path that are club replies, not the engine's best.
+ */
+clubMoves: number; depth: number; 
+/**
+ * Higher is more spectacular; the list is sorted by it.
+ */
+rating: number; 
+/**
+ * Position before the brilliant move.
+ */
+fen: string }
+export type BrillianceOptions = { fen: string; moves: string[]; 
+/**
+ * "white", "black" or "both". Anything else means the side to move.
+ */
+hero: string; 
+/**
+ * Search per position (deep search).
+ */
+goMode: GoMode; 
+/**
+ * Depth of the "club level" search. 0 turns it off.
+ */
+clubDepth: number; 
+/**
+ * How many plies the tree goes from the start position.
+ */
+maxPlies: number; 
+/**
+ * Engine lines checked per hero position.
+ */
+lines: number; 
+/**
+ * Opponent replies followed per position.
+ */
+clubReplies: number; 
+/**
+ * Opponent replies within this many centipawns of the best are realistic.
+ */
+clubTolerance: number; 
+/**
+ * Smallest material sacrifice in centipawns (pawn 90, minor 300, rook 500).
+ */
+minSacrifice: number; 
+/**
+ * Upper bound for the number of positions searched.
+ */
+maxPositions: number }
+export type BrillianceResult = { finds: BrillianceFind[]; positions: number; engineName: string }
 export type CachedEvalJs = { engine: string; depth: number; multipv: number; score: Score; uciMoves: string[] }
 export type ClockUpdateEvent = { gameId: string; whiteTime: bigint | null; blackTime: bigint | null }
 export type DatabaseInfo = { needs_conversion: boolean; title: string; description: string; player_count: number; event_count: number; game_count: number; storage_size: bigint; filename: string }
