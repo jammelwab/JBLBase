@@ -29,6 +29,7 @@ import { useAtom, useAtomValue } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { bucket, trackUsage } from "@/utils/usageStats";
 import {
   CartesianGrid,
   Line,
@@ -542,6 +543,10 @@ export default function InsightPage() {
       if (res.status === "ok") {
         setLastRun(res.data);
         done = res.data.analysed;
+        trackUsage("insight_run", {
+          depth: settings.depth,
+          games: bucket(res.data.analysed),
+        });
       } else setError(res.error);
     } catch (e) {
       setError(String(e));

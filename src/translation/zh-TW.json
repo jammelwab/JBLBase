@@ -995,6 +995,8 @@
     "Settings.Privacy.Desc": "",
     "Settings.Privacy.Legal": "",
     "Settings.Privacy.Legal.Desc": "",
+    "Settings.Privacy.UsageStats": "",
+    "Settings.Privacy.UsageStats.Desc": "",
     "Settings.Repertoire": "",
     "Settings.Repertoire.AutoDifficulty": "",
     "Settings.Repertoire.AutoDifficulty.Desc": "",
@@ -1041,6 +1043,10 @@
     "Updater.Install": "",
     "Updater.Later": "",
     "Updater.Restarting": "",
-    "Updater.UpToDate": ""
+    "Updater.UpToDate": "",
+    "UsageStats.Prompt.No": "",
+    "UsageStats.Prompt.Text": "",
+    "UsageStats.Prompt.Title": "",
+    "UsageStats.Prompt.Yes": ""
   }
 }

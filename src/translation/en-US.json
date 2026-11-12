@@ -647,7 +647,7 @@
     "Login.Consent.Point.Data": "Your e-mail address or Lichess ID, linked usernames, your repertoires and your training progress are stored with Google Firebase (database in Frankfurt; sign-in may also be processed in the USA).",
     "Login.Consent.Point.Delete": "You can delete your account and all cloud data at any time yourself (Settings → Profile & accounts). The files on your devices stay.",
     "Login.Consent.Point.Free": "The account is free and run in spare time. There is no guarantee that the cloud service is always available or offered for good. Liability is limited to intent and gross negligence.",
-    "Login.Consent.Point.NoTracking": "No tracking, no ads, no selling of data.",
+    "Login.Consent.Point.NoTracking": "No ads, no selling of data. Usage statistics only if you switch them on.",
     "Login.Consent.Point.OpenSource": "JBLBase is a private open-source project under the GPL-3.0, based on En Croissant. You may read, change and share the code.",
     "Login.Consent.Point.ThirdParties": "Lichess and Chess.com are separate providers with their own privacy rules. The app contacts them directly from your device.",
     "Login.Consent.Privacy": "Privacy policy",
@@ -1230,7 +1230,9 @@
     "Settings.Privacy": "Privacy",
     "Settings.Privacy.Desc": "Privacy and data collection settings",
     "Settings.Privacy.Legal": "Privacy and terms of use",
-    "Settings.Privacy.Legal.Desc": "JBLBase does not use tracking. Here you find the privacy policy and the terms of use of the JBLBase account (in German).",
+    "Settings.Privacy.Legal.Desc": "JBLBase sends no usage data without your agreement. Here you find the privacy policy and the terms of use of the JBLBase account (in German).",
+    "Settings.Privacy.UsageStats": "Anonymous usage statistics",
+    "Settings.Privacy.UsageStats.Desc": "Sends to Google Analytics which pages and features of the app are used, to show what is needed. No games, positions, names or account data. Off unless you switch it on.",
     "Settings.Repertoire": "Repertoire",
     "Settings.Repertoire.AutoDifficulty": "Auto-select Difficulty",
     "Settings.Repertoire.AutoDifficulty.Desc": "Automatically select a difficulty when you correctly guess a move",
@@ -1279,6 +1281,10 @@
     "Updater.Install": "Install",
     "Updater.Later": "Later",
     "Updater.Restarting": "Restarting JBLBase",
-    "Updater.UpToDate": "JBLBase is up to date."
+    "Updater.UpToDate": "JBLBase is up to date.",
+    "UsageStats.Prompt.No": "No thanks",
+    "UsageStats.Prompt.Text": "With your agreement the app counts anonymously which pages and features are used and sends that to Google Analytics. No games, positions, names or account data. You can switch it off at any time under Settings → Privacy.",
+    "UsageStats.Prompt.Title": "Will you help to make JBLBase better?",
+    "UsageStats.Prompt.Yes": "Yes, help"
   }
 }

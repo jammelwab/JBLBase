@@ -641,7 +641,7 @@
     "Login.Consent.Point.Data": "Gespeichert werden deine E-Mail-Adresse bzw. Lichess-ID, verknüpfte Benutzernamen, deine Repertoires und dein Trainingsfortschritt, bei Google Firebase (Datenbank in Frankfurt; die Anmeldung kann auch in den USA verarbeitet werden).",
     "Login.Consent.Point.Delete": "Du kannst dein Konto mit allen Cloud-Daten jederzeit selbst löschen (Einstellungen → Profil & Konten). Die Dateien auf deinen Geräten bleiben.",
     "Login.Consent.Point.Free": "Das Konto ist kostenlos und wird in der Freizeit betrieben. Es gibt keine Garantie, dass der Cloud-Dienst immer erreichbar ist oder dauerhaft angeboten wird. Die Haftung ist auf Vorsatz und grobe Fahrlässigkeit beschränkt.",
-    "Login.Consent.Point.NoTracking": "Kein Tracking, keine Werbung, kein Verkauf von Daten.",
+    "Login.Consent.Point.NoTracking": "Keine Werbung, kein Verkauf von Daten. Nutzungsstatistik nur, wenn du sie einschaltest.",
     "Login.Consent.Point.OpenSource": "JBLBase ist ein privates Open-Source-Projekt unter der GPL-3.0 und baut auf En Croissant auf. Du darfst den Code ansehen, ändern und weitergeben.",
     "Login.Consent.Point.ThirdParties": "Lichess und Chess.com sind eigene Anbieter mit eigenen Datenschutzregeln. Die App fragt sie direkt von deinem Gerät aus ab.",
     "Login.Consent.Privacy": "Datenschutzerklärung",
@@ -1224,7 +1224,9 @@
     "Settings.Privacy": "Privatsphäre",
     "Settings.Privacy.Desc": "Einstellung zur Privatsphäre und Datensammlung",
     "Settings.Privacy.Legal": "Datenschutz und Nutzungsbedingungen",
-    "Settings.Privacy.Legal.Desc": "JBLBase verwendet kein Tracking. Hier findest du die Datenschutzerklärung und die Nutzungsbedingungen des JBLBase-Kontos.",
+    "Settings.Privacy.Legal.Desc": "Ohne deine Zustimmung sendet JBLBase keine Nutzungsdaten. Hier findest du die Datenschutzerklärung und die Nutzungsbedingungen des JBLBase-Kontos.",
+    "Settings.Privacy.UsageStats": "Anonyme Nutzungsstatistik",
+    "Settings.Privacy.UsageStats.Desc": "Sendet an Google Analytics, welche Seiten und Funktionen der App benutzt werden, damit sichtbar wird, was gebraucht wird. Keine Partien, Stellungen, Namen oder Kontodaten. Aus, solange du es nicht einschaltest.",
     "Settings.Repertoire": "Repertoire",
     "Settings.Repertoire.AutoDifficulty": "Schwierigkeit automatisch wählen",
     "Settings.Repertoire.AutoDifficulty.Desc": "Schwierigkeitsgrad bei korrekter Zugeingabe automatisch auswählen",
@@ -1273,6 +1275,10 @@
     "Updater.Install": "Installieren",
     "Updater.Later": "Später",
     "Updater.Restarting": "JBLBase startet neu",
-    "Updater.UpToDate": "JBLBase ist auf dem neuesten Stand."
+    "Updater.UpToDate": "JBLBase ist auf dem neuesten Stand.",
+    "UsageStats.Prompt.No": "Nein danke",
+    "UsageStats.Prompt.Text": "Mit deiner Zustimmung zählt die App anonym, welche Seiten und Funktionen benutzt werden, und sendet das an Google Analytics. Keine Partien, Stellungen, Namen oder Kontodaten. Du kannst es jederzeit unter Einstellungen → Privatsphäre ausschalten.",
+    "UsageStats.Prompt.Title": "Hilfst du mit, JBLBase besser zu machen?",
+    "UsageStats.Prompt.Yes": "Ja, mithelfen"
   }
 }

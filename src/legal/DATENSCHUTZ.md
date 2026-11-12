@@ -1,6 +1,6 @@
 # Datenschutzerklärung für JBLBase
 
-Stand: 10. November 2026 (Version 2026-11-10)
+Stand: 12. November 2026 (Version 2026-11-12)
 
 Hier steht, welche personenbezogenen Daten bei der Nutzung von JBLBase
 verarbeitet werden, wozu und welche Rechte du hast (Art. 13 DSGVO).
@@ -26,8 +26,9 @@ Pflicht besteht.
 - **Mit Konto** werden deine Kontodaten, Repertoires und dein
   Trainingsfortschritt bei Google Firebase gespeichert, die Datenbank in
   Frankfurt am Main.
-- **Kein Tracking, keine Werbung, keine Analyse-Werkzeuge.** Es werden keine
-  Nutzungsprofile erstellt und keine Daten verkauft.
+- **Keine Werbung, kein Verkauf von Daten, keine Nutzungsprofile.** Eine
+  anonyme Nutzungsstatistik gibt es nur, wenn du sie selbst einschaltest
+  (Abschnitt 6). Ohne dein Häkchen wird nichts gezählt.
 - Du kannst dein Konto mit allen Cloud-Daten **jederzeit selbst löschen**.
 
 ## 3. Nutzung ohne Konto
@@ -152,7 +153,46 @@ Art. 28 DSGVO).
 
 Mehr dazu: <https://firebase.google.com/support/privacy>
 
-## 6. Wie lange die Daten gespeichert werden
+## 6. Anonyme Nutzungsstatistik (freiwillig)
+
+Die Nutzungsstatistik ist **ausgeschaltet**, bis du sie einschaltest: bei der
+einmaligen Frage in der App oder unter Einstellungen → Privatsphäre. Sie
+hilft mir zu sehen, welche Funktionen gebraucht werden und welche
+App-Versionen im Umlauf sind. Du kannst JBLBase ohne sie vollständig nutzen.
+
+**Was gesendet wird, wenn sie an ist:**
+
+- eine zufällige Kennung dieser Installation, die nur dafür erzeugt wird. Sie
+  ist nicht mit deinem Konto, deiner E-Mail-Adresse oder deinen
+  Schach-Benutzernamen verbunden,
+- App-Version, Betriebssystem (z. B. „windows“) und Sprache der App,
+- welche Seite der App geöffnet wird (z. B. „insight“ oder „repertoires“)
+  und dass eine Funktion benutzt wurde: App-Start, neuer Tab, Download von
+  Partien, Import einer Datenbank, Insight-Analyse, Taktiksuche, Start eines
+  Trainings, Anmeldung oder Registrierung. Dazu höchstens grobe Angaben wie
+  die Suchtiefe, die Quelle („lichess“ oder „chesscom“) oder eine
+  Größenordnung („10-49“).
+
+**Was nie gesendet wird:** Partien, Stellungen, Züge, Repertoires,
+Datei- und Datenbanknamen, Benutzernamen, E-Mail-Adresse und Konto-ID.
+
+Empfänger ist **Google Analytics** für Firebase (Google Ireland Limited,
+siehe Abschnitt 5) als Auftragsverarbeiter. Die App schickt die Angaben
+direkt an den EU-Endpunkt von Google Analytics; es werden keine Cookies
+gesetzt und kein Programmcode von Google in die App geladen. Technisch
+bedingt erhält Google bei der Übertragung deine IP-Adresse; Google Analytics
+speichert sie nicht. Werbefunktionen und Google-Signale sind ausgeschaltet.
+Google kann die Daten auch in den USA verarbeiten; dafür gilt das zu
+Firebase Authentication in Abschnitt 5 Gesagte.
+
+Rechtsgrundlage ist deine **Einwilligung** (Art. 6 Abs. 1 lit. a DSGVO, § 25
+Abs. 1 TDDDG). Du kannst sie jederzeit unter Einstellungen → Privatsphäre
+widerrufen, indem du den Schalter ausstellst. Dann wird nichts mehr gesendet
+und die Kennung auf deinem Gerät gelöscht. Die Ereignisdaten werden bei
+Google Analytics nach 2 Monaten gelöscht; in den zusammengefassten Berichten
+bleiben nur Zahlen ohne Kennung.
+
+## 7. Wie lange die Daten gespeichert werden
 
 - Kontodaten und Cloud-Daten: bis du dein Konto löschst oder ich es nach
   Abschnitt 10 der Nutzungsbedingungen lösche. Von gelöschten Repertoires
@@ -166,7 +206,7 @@ Mehr dazu: <https://firebase.google.com/support/privacy>
 - Daten auf deinen Geräten löscht du selbst, zum Beispiel durch
   Deinstallieren der App und Löschen der Ordner.
 
-## 7. Deine Rechte
+## 8. Deine Rechte
 
 Du hast das Recht auf
 
@@ -178,7 +218,9 @@ Du hast das Recht auf
 - **Datenübertragbarkeit** (Art. 20 DSGVO): Deine Repertoires liegen ohnehin
   als PGN-Dateien auf deinem Gerät,
 - **Widerspruch** gegen Verarbeitungen auf Grundlage berechtigter Interessen
-  (Art. 21 DSGVO).
+  (Art. 21 DSGVO),
+- **Widerruf** einer Einwilligung mit Wirkung für die Zukunft (Art. 7 Abs. 3
+  DSGVO), für die Nutzungsstatistik über den Schalter in den Einstellungen.
 
 Schreib dafür einfach an die E-Mail-Adresse in Abschnitt 1.
 
@@ -187,20 +229,20 @@ Du kannst dich außerdem bei einer **Datenschutz-Aufsichtsbehörde** beschweren
 Aufsichtsbehörden in Deutschland findest du bei der Datenschutzkonferenz:
 <https://www.datenschutzkonferenz-online.de/datenschutzaufsichtsbehoerden.html>
 
-## 8. Keine automatisierten Entscheidungen
+## 9. Keine automatisierten Entscheidungen
 
 Es gibt keine automatisierten Entscheidungen und kein Profiling im Sinne von
 Art. 22 DSGVO. Die Rolle „Nutzer“ oder „Admin“ vergebe ich von Hand; sie
 bestimmt nur technische Grenzen beim Speichern.
 
-## 9. Sicherheit
+## 10. Sicherheit
 
 Die Verbindungen zum Cloud-Dienst sind verschlüsselt (HTTPS/TLS). Sicherheitsregeln
 sorgen dafür, dass jedes Konto nur seine eigenen Daten lesen und schreiben kann.
 Der Quellcode, auch der Sicherheitsregeln, ist öffentlich und kann geprüft
 werden.
 
-## 10. Änderungen
+## 11. Änderungen
 
 Ändert sich diese Datenschutzerklärung wesentlich, zeigt dir die App die neue
 Fassung an. Die aktuelle Fassung findest du jederzeit in der App unter

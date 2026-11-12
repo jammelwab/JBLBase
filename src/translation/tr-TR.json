@@ -1043,6 +1043,8 @@
     "Settings.Privacy.Desc": "Gizlilik ve veri toplama ayarları",
     "Settings.Privacy.Legal": "",
     "Settings.Privacy.Legal.Desc": "",
+    "Settings.Privacy.UsageStats": "",
+    "Settings.Privacy.UsageStats.Desc": "",
     "Settings.Repertoire": "Repertuvar",
     "Settings.Repertoire.AutoDifficulty": "Zorluğu Otomatik Seç",
     "Settings.Repertoire.AutoDifficulty.Desc": "Bir hamleyi doğru tahmin ettiğinizde zorluğu otomatik olarak seç",
@@ -1089,6 +1091,10 @@
     "Updater.Install": "",
     "Updater.Later": "",
     "Updater.Restarting": "",
-    "Updater.UpToDate": ""
+    "Updater.UpToDate": "",
+    "UsageStats.Prompt.No": "",
+    "UsageStats.Prompt.Text": "",
+    "UsageStats.Prompt.Title": "",
+    "UsageStats.Prompt.Yes": ""
   }
 }

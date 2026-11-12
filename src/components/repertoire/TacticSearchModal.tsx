@@ -16,6 +16,7 @@ import EnginePowerControl from "@/components/common/EnginePowerControl";
 import { atomWithStorage } from "jotai/utils";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { bucket, trackUsage } from "@/utils/usageStats";
 import { commands, type TacticSearchResult } from "@/bindings";
 import { useProgress } from "@/hooks/useProgress";
 import { enginesAtom } from "@/state/atoms";
@@ -89,6 +90,7 @@ export default function TacticSearchModal({
       if (res.status === "ok") {
         setResult(res.data);
         done = res.data.positions;
+        trackUsage("tactic_search", { depth: settings.depth, lines: bucket(lines.length) });
       } else if (!/cancel/i.test(res.error)) setError(res.error);
     } catch (e) {
       setError(String(e));

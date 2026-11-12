@@ -195,6 +195,14 @@ export const pieceAnimationAtom = atomWithStorage<"none" | "fast" | "normal" | "
     "normal",
 );
 export const spellCheckAtom = atomWithStorage<boolean>("spell-check", false);
+/** Anonymous usage statistics, off unless switched on (see utils/usageStats.ts). */
+export const usageStatsAtom = atomWithStorage<boolean>("usage-stats", false, undefined, {
+    getOnInit: true,
+});
+/** The one-time question about the usage statistics was answered. */
+export const usageStatsAskedAtom = atomWithStorage<boolean>("usage-stats-asked", false, undefined, {
+    getOnInit: true,
+});
 export const moveInputAtom = atomWithStorage<boolean>("move-input", false);
 export const showDestsAtom = atomWithStorage<boolean>("show-dests", true);
 export const moveHighlightAtom = atomWithStorage<boolean>("move-highlight", true);

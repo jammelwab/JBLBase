@@ -1009,6 +1009,8 @@
     "Settings.Privacy.Desc": "프라이버시 설정을 관리합니다",
     "Settings.Privacy.Legal": "",
     "Settings.Privacy.Legal.Desc": "",
+    "Settings.Privacy.UsageStats": "",
+    "Settings.Privacy.UsageStats.Desc": "",
     "Settings.Repertoire": "레퍼토리",
     "Settings.Repertoire.AutoDifficulty": "난이도 자동 선택",
     "Settings.Repertoire.AutoDifficulty.Desc": "정답을 맞췄을 때 난이도를 자동으로 선택합니다",
@@ -1055,6 +1057,10 @@
     "Updater.Install": "",
     "Updater.Later": "",
     "Updater.Restarting": "",
-    "Updater.UpToDate": ""
+    "Updater.UpToDate": "",
+    "UsageStats.Prompt.No": "",
+    "UsageStats.Prompt.Text": "",
+    "UsageStats.Prompt.Title": "",
+    "UsageStats.Prompt.Yes": ""
   }
 }
