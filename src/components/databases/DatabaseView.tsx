@@ -1,5 +1,11 @@
 import { ActionIcon, Box, Group, Stack, Tabs, Title } from "@mantine/core";
-import { IconArrowBackUp, IconChess, IconTrophy, IconUser } from "@tabler/icons-react";
+import {
+  IconArrowBackUp,
+  IconBinaryTree,
+  IconChess,
+  IconTrophy,
+  IconUser,
+} from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import GameTable from "@/components/databases/GameTable";
@@ -9,6 +15,7 @@ import {
   type DatabaseViewStore,
   useActiveDatabaseViewStore,
 } from "@/state/store/database";
+import DatabaseTreeView from "./DatabaseTreeView";
 import { DatabaseViewStateContext } from "./DatabaseViewStateContext";
 import TournamentTable from "./TournamentTable";
 
@@ -55,6 +62,9 @@ function DatabaseView() {
                 <Tabs.Tab leftSection={<IconTrophy size="1rem" />} value="tournaments">
                   {t("Databases.Settings.Events")}
                 </Tabs.Tab>
+                <Tabs.Tab leftSection={<IconBinaryTree size="1rem" />} value="tree">
+                  {t("Databases.Tree.Tab")}
+                </Tabs.Tab>
               </Tabs.List>
               <Tabs.Panel value="games" flex={1} style={{ overflow: "hidden" }} pt="md">
                 <GameTable />
@@ -64,6 +74,9 @@ function DatabaseView() {
               </Tabs.Panel>
               <Tabs.Panel value="tournaments" flex={1} style={{ overflow: "hidden" }} pt="md">
                 <TournamentTable />
+              </Tabs.Panel>
+              <Tabs.Panel value="tree" flex={1} style={{ overflow: "hidden" }} pt="md">
+                {mode === "tree" && <DatabaseTreeView key={database.file} database={database} />}
               </Tabs.Panel>
             </Tabs>
           </Stack>

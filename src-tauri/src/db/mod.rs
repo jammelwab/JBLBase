@@ -32,6 +32,7 @@ use log::info;
 pub use self::legacy::convert_legacy_database;
 pub use self::models::NormalizedGame;
 pub use self::models::Puzzle;
+pub(crate) use self::pgn::chess_from_fen;
 pub(crate) use self::search::PositionCache;
 pub use self::search::{is_position_in_db, search_position, PositionQueryJs};
 
@@ -107,7 +108,7 @@ fn duckdb_pool_key(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-fn get_duckdb_pool(
+pub(crate) fn get_duckdb_pool(
     state: &AppState,
     path: &Path,
 ) -> Result<Arc<Pool<DuckdbConnectionManager>>, Error> {

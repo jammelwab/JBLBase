@@ -8,9 +8,10 @@ import {
   Stack,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
-import { IconCheck, IconEdit, IconX } from "@tabler/icons-react";
+import { IconCheck, IconDownload, IconEdit, IconX } from "@tabler/icons-react";
 import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,6 +30,7 @@ import {
   sessionsOfPlayer,
 } from "@/utils/session";
 import { findAccountDatabase } from "@/utils/accountDatabase";
+import { syncAccounts } from "@/utils/accountSync";
 import { AccountCard } from "../home/AccountCard";
 import { EmptyAccounts } from "../home/EmptyAccounts";
 
@@ -140,6 +142,8 @@ function PlayerSession({
   const [, setSessions] = useAtom(sessionsAtom);
   const ownsDragged = !!dragging && sessions.some((s) => sessionKey(s) === dragging);
   const isTarget = !!dragging && !ownsDragged;
+  const { t } = useTranslation();
+  const [syncingAll, setSyncingAll] = useState(false);
   const [edit, setEdit] = useState(false);
   const [text, setText] = useState(name);
   useEffect(() => {
@@ -171,6 +175,26 @@ function PlayerSession({
           </Text>
         )}
         <Group>
+          {sessions.length > 1 && (
+            <Tooltip label={t("Home.Accounts.DownloadAll")}>
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="gray"
+                loading={syncingAll}
+                onClick={async () => {
+                  setSyncingAll(true);
+                  try {
+                    await syncAccounts(sessions.map(sessionKey));
+                  } finally {
+                    setSyncingAll(false);
+                  }
+                }}
+              >
+                <IconDownload />
+              </ActionIcon>
+            </Tooltip>
+          )}
           {edit ? (
             <ActionIcon
               size="sm"
@@ -301,6 +325,7 @@ function LichessOrChessCom({
     return (
       <AccountCard
         key={account.id}
+        syncKey={sessionKey(session)}
         token={lichessSession.accessToken}
         type="lichess"
         database={findAccountDatabase(databases, account.username, "lichess")}
@@ -347,6 +372,7 @@ function LichessOrChessCom({
     return (
       <AccountCard
         key={session.chessCom.username}
+        syncKey={sessionKey(session)}
         type="chesscom"
         title={session.chessCom.username}
         database={findAccountDatabase(databases, session.chessCom.username, "chesscom")}

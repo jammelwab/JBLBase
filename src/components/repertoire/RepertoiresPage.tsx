@@ -33,6 +33,7 @@ import {
   IconPencil,
   IconTrash,
   IconHistory,
+  IconTargetArrow,
   IconGitCompare,
   IconPlus,
 } from "@tabler/icons-react";
@@ -49,7 +50,9 @@ import {
   folderItems,
   inFolder,
   findMainRepertoire,
+  folderLabel,
   normalizeFolder,
+  prettyFolderName,
 } from "@/utils/repertoireFolders";
 import { mergeTree, missingMoves } from "@/utils/repertoireTree";
 import {
@@ -71,6 +74,7 @@ import {
 } from "@/utils/repertoires";
 import ImportCourseModal from "./ImportCourseModal";
 import ImportHistoryModal from "./ImportHistoryModal";
+import TacticSearchModal from "./TacticSearchModal";
 import { type FolderEdit, FolderNameModal, ImportFolderModal } from "./RepertoireFolderModals";
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
@@ -104,9 +108,13 @@ function RepertoireCard({
   const { stats } = repertoire;
   const [showHistory, setShowHistory] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [searchingTactics, setSearchingTactics] = useState(false);
 
   return (
     <Card withBorder padding="md">
+      {searchingTactics && (
+        <TacticSearchModal repertoire={repertoire} onClose={() => setSearchingTactics(false)} />
+      )}
       <ImportHistoryModal
         repertoire={showHistory ? repertoire : null}
         onClose={() => setShowHistory(false)}
@@ -186,6 +194,14 @@ function RepertoireCard({
           onClick={onCompare}
         >
           {t("Repertoire.Compare.Button")}
+        </Button>
+        <Button
+          variant="subtle"
+          size="xs"
+          leftSection={<IconTargetArrow size="1rem" />}
+          onClick={() => setSearchingTactics(true)}
+        >
+          {t("Repertoire.Tactics.Button")}
         </Button>
         {main && main.missing > 0 && (
           <Button
@@ -471,8 +487,10 @@ function FolderSection({
   actions: FolderActions;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(true);
+  // Folders start closed and open or close with one click on their header
+  const [open, setOpen] = useState(false);
   const count = folderItems(node).length;
+  const pretty = prettyFolderName(node.name);
   return (
     <Paper withBorder p="xs" radius="md">
       <Group justify="space-between" wrap="nowrap">
@@ -492,12 +510,24 @@ function FolderSection({
             color="var(--mantine-color-yellow-6)"
             style={{ flexShrink: 0 }}
           />
-          {/* Long names (e.g. imported course folders) are cut, the full name shows on hover */}
-          <Tooltip label={node.name} openDelay={400} multiline maw={480}>
+          {/* Imported course folders show a readable name and their source as a badge;
+              long names are cut, the full name shows on hover */}
+          <Tooltip
+            label={pretty.label === node.name ? node.name : `${pretty.label}\n(${node.name})`}
+            openDelay={400}
+            multiline
+            maw={480}
+            style={{ whiteSpace: "pre-line" }}
+          >
             <Text fw={600} truncate="end" style={{ minWidth: 0 }}>
-              {node.name}
+              {pretty.label}
             </Text>
           </Tooltip>
+          {pretty.source && (
+            <Badge size="xs" variant="outline" color="orange" style={{ flexShrink: 0 }}>
+              {pretty.source}
+            </Badge>
+          )}
           <Badge size="sm" variant="light" color="gray" style={{ flexShrink: 0 }}>
             {count}
           </Badge>
@@ -653,7 +683,7 @@ export default function RepertoiresPage() {
     return (
       combineRepertoires(
         parts,
-        folder ? `${color} · ${folder.replaceAll("/", " › ")}` : `${viewOwner} ${color}`,
+        folder ? `${color} · ${folderLabel(folder)}` : `${viewOwner} ${color}`,
       ) ?? undefined
     );
   }, [view, repertoires, viewOwner, t]);

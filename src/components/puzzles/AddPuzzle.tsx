@@ -1,6 +1,23 @@
-import { Alert, Box, Divider, Group, Modal, Paper, ScrollArea, Stack, Text } from "@mantine/core";
+import {
+  importLichessPuzzles,
+  LICHESS_PUZZLE_FILE,
+  LICHESS_PUZZLE_PROGRESS,
+} from "@/utils/lichessPuzzles";
+import {
+  Alert,
+  Box,
+  Button,
+  Divider,
+  Group,
+  Modal,
+  Paper,
+  ScrollArea,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { resolve } from "@tauri-apps/api/path";
+import { open } from "@tauri-apps/plugin-dialog";
 import { type Dispatch, type SetStateAction, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useSWRImmutable from "swr/immutable";
@@ -32,6 +49,10 @@ function AddPuzzle({
     <Modal opened={opened} onClose={() => setOpened(false)} title={t("Databases.Add.Title")}>
       <ScrollArea.Autosize mah={500} offsetScrollbars>
         <Stack>
+          <LichessPuzzleCard
+            setPuzzleDbs={setPuzzleDbs}
+            initInstalled={puzzleDbs.some((e) => e.title === LICHESS_PUZZLE_FILE)}
+          />
           {dbs?.map((db, i) => (
             <PuzzleDbCard
               puzzleDb={db}
@@ -51,6 +72,82 @@ function AddPuzzle({
         </Stack>
       </ScrollArea.Autosize>
     </Modal>
+  );
+}
+
+/**
+ * The official Lichess puzzle database, built locally from
+ * `lichess_db_puzzle.csv.zst`: downloaded here, or picked from disk.
+ */
+function LichessPuzzleCard({
+  setPuzzleDbs,
+  initInstalled,
+}: {
+  setPuzzleDbs: Dispatch<SetStateAction<PuzzleDatabaseInfo[]>>;
+  initInstalled: boolean;
+}) {
+  const { t } = useTranslation();
+  const [inProgress, setInProgress] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function importPuzzles(source: string | null) {
+    setError(null);
+    setInProgress(true);
+    try {
+      const result = await importLichessPuzzles(source);
+      if (result.status === "error") setError(result.error);
+      setPuzzleDbs(await getPuzzleDatabases());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setInProgress(false);
+    }
+  }
+
+  async function importFromFile() {
+    const file = await open({
+      multiple: false,
+      filters: [{ name: "Lichess Puzzles", extensions: ["zst", "csv"] }],
+    });
+    if (typeof file === "string") await importPuzzles(file);
+  }
+
+  return (
+    <Paper withBorder radius="md" p="md">
+      <Text tt="uppercase" c="dimmed" fw={700} size="xs">
+        {t("Puzzle.Database")}
+      </Text>
+      <Text fw="bold" mb="xs">
+        {t("Puzzle.Lichess.Title")}
+      </Text>
+      <Text size="xs" c="dimmed" mb="md">
+        {t("Puzzle.Lichess.Desc")}
+      </Text>
+      <Stack gap="xs">
+        <ProgressButton
+          id={LICHESS_PUZZLE_PROGRESS}
+          initInstalled={initInstalled && !inProgress}
+          redoable
+          labels={{
+            completed: t("Puzzle.Lichess.Update"),
+            action: t("Puzzle.Lichess.Download"),
+            inProgress: t("Puzzle.Lichess.Importing"),
+            finalizing: t("Puzzle.Lichess.Finalizing"),
+          }}
+          onClick={() => importPuzzles(null)}
+          inProgress={inProgress}
+          setInProgress={setInProgress}
+        />
+        <Button variant="default" onClick={importFromFile} disabled={inProgress}>
+          {t("Puzzle.Lichess.FromFile")}
+        </Button>
+        {error && (
+          <Alert icon={<IconAlertCircle size="1rem" />} title={t("Common.Error")} color="red">
+            {error}
+          </Alert>
+        )}
+      </Stack>
+    </Paper>
   );
 }
 

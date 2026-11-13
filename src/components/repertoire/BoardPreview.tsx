@@ -73,8 +73,9 @@ export default function BoardPreview({
   rootHalfMoves: number;
   line: string[];
   orientation: "white" | "black";
-  // Lines behind each repertoire move, by position (see repertoireWeights), for the green arrows
-  weights: Map<string, Map<string, number>>;
+  // Lines behind each repertoire move, by position (see repertoireWeights), for the green arrows.
+  // Without it (a database tree) the repertoire row is left out.
+  weights?: Map<string, Map<string, number>>;
   onOpen?: () => void;
   onClose: () => void;
   // A move played on the board, as SAN
@@ -98,7 +99,7 @@ export default function BoardPreview({
   // Most lines first
   const repertoireMoves = useMemo(
     () =>
-      [...(weights.get(positionKey(fen)) ?? new Map<string, number>())]
+      [...(weights?.get(positionKey(fen)) ?? new Map<string, number>())]
         .map(([san, lines]) => ({ san, lines }))
         .sort((a, b) => b.lines - a.lines),
     [weights, fen],
@@ -266,25 +267,27 @@ export default function BoardPreview({
         </Box>
       )}
       <Box mt={6}>
-        <Group gap={6} wrap="nowrap" align="flex-start">
-          <Arrow color={REPERTOIRE_ARROW} />
-          <Text size="xs">
-            {repertoireMoves.length > 0
-              ? t("Repertoire.Preview.RepertoireMoves", {
-                  moves: [
-                    ...repertoireMoves
-                      .slice(0, 3)
-                      .map((m) =>
-                        t("Repertoire.Preview.MoveLines", { move: m.san, count: m.lines }),
-                      ),
-                    ...(repertoireMoves.length > 3
-                      ? [t("Repertoire.Preview.More", { more: repertoireMoves.length - 3 })]
-                      : []),
-                  ].join(", "),
-                })
-              : t("Repertoire.Preview.NoRepertoireMove")}
-          </Text>
-        </Group>
+        {weights && (
+          <Group gap={6} wrap="nowrap" align="flex-start">
+            <Arrow color={REPERTOIRE_ARROW} />
+            <Text size="xs">
+              {repertoireMoves.length > 0
+                ? t("Repertoire.Preview.RepertoireMoves", {
+                    moves: [
+                      ...repertoireMoves
+                        .slice(0, 3)
+                        .map((m) =>
+                          t("Repertoire.Preview.MoveLines", { move: m.san, count: m.lines }),
+                        ),
+                      ...(repertoireMoves.length > 3
+                        ? [t("Repertoire.Preview.More", { more: repertoireMoves.length - 3 })]
+                        : []),
+                    ].join(", "),
+                  })
+                : t("Repertoire.Preview.NoRepertoireMove")}
+            </Text>
+          </Group>
+        )}
         {showLichess && (
           <Group gap={6} wrap="nowrap" align="flex-start">
             <Arrow color={LICHESS_ARROW} />

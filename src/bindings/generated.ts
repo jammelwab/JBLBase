@@ -45,6 +45,14 @@ async cancelAnalysis(id: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async findBrilliancies(id: string, engine: string, options: BrillianceOptions, uciOptions: EngineOption[]) : Promise<Result<BrillianceResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("find_brilliancies", { id, engine, options, uciOptions }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async stopEngine(engine: string, tab: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stop_engine", { engine, tab }) };
@@ -68,6 +76,9 @@ async killEngines(tab: string) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async killAllEngines() : Promise<null> {
+    return await TAURI_INVOKE("kill_all_engines");
 },
 async getEngineLogs(engine: string, tab: string) : Promise<Result<EngineLog[], string>> {
     try {
@@ -419,6 +430,118 @@ async getThemesForPuzzle(file: string, puzzleId: number) : Promise<Result<string
     else return { status: "error", error: e  as any };
 }
 },
+async importLichessPuzzles(id: string, source: string | null, dest: string) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_lichess_puzzles", { id, source, dest }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async findTacticsInLines(id: string, options: TacticSearchOptions) : Promise<Result<TacticSearchResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("find_tactics_in_lines", { id, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insightAnalyze(id: string, options: InsightOptions) : Promise<Result<InsightRunResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_analyze", { id, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insightStatus(accounts: InsightAccount[], depth: number) : Promise<Result<InsightAccountStatus[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_status", { accounts, depth }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insightSummary(player: string | null) : Promise<Result<InsightSummary, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_summary", { player }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insightClear() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insight_clear") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async calibrateRating(id: string, engine: string, file: string, samples: number) : Promise<Result<Calibration, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("calibrate_rating", { id, engine, file, samples }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getRatingCalibration() : Promise<Result<Calibration | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_rating_calibration") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resetRatingCalibration() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reset_rating_calibration") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async reportPuzzle(report: NewPuzzleReport) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("report_puzzle", { report }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listPuzzleReports(includeResolved: boolean) : Promise<Result<PuzzleReport[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_puzzle_reports", { includeResolved }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async checkPuzzleReports(id: string, options: ReportCheckOptions) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_puzzle_reports", { id, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resolvePuzzleReport(reportId: number, verdict: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("resolve_puzzle_report", { reportId, verdict }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deletePuzzleReport(reportId: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_puzzle_report", { reportId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deletePuzzleDatabase(file: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_puzzle_database", { file }) };
@@ -641,6 +764,85 @@ export type BestMovesPayload = { bestLines: BestMoves[]; engine: string; tab: st
 /**
  * Cached evaluation as shown to the frontend (e.g. for repertoire tools).
  */
+export type BrillianceFind = { 
+/**
+ * Moves (UCI) from the start position up to the brilliant move.
+ */
+pathUci: string[]; pathSan: string[]; moveUci: string; moveSan: string; 
+/**
+ * Engine continuation after the move (without the move itself).
+ */
+continuationUci: string[]; continuationSan: string[]; 
+/**
+ * "!!" or "!".
+ */
+annotation: string; 
+/**
+ * "sacrifice", "hidden", "onlyMove", "mate".
+ */
+tags: string[]; 
+/**
+ * Material given up in centipawns (0 when it is not a sacrifice).
+ */
+sacrifice: number; 
+/**
+ * Engine score after the move, from White's point of view.
+ */
+score: Score; 
+/**
+ * How much worse the second best move is (centipawns, side to move).
+ */
+gap: number | null; 
+/**
+ * Opponent moves on the path that are club replies, not the engine's best.
+ */
+clubMoves: number; depth: number; 
+/**
+ * Higher is more spectacular; the list is sorted by it.
+ */
+rating: number; 
+/**
+ * Position before the brilliant move.
+ */
+fen: string }
+export type BrillianceOptions = { fen: string; moves: string[]; 
+/**
+ * "white", "black" or "both". Anything else means the side to move.
+ */
+hero: string; 
+/**
+ * Search per position (deep search).
+ */
+goMode: GoMode; 
+/**
+ * Depth of the "club level" search. 0 turns it off.
+ */
+clubDepth: number; 
+/**
+ * How many plies the tree goes from the start position.
+ */
+maxPlies: number; 
+/**
+ * Engine lines checked per hero position.
+ */
+lines: number; 
+/**
+ * Opponent replies followed per position.
+ */
+clubReplies: number; 
+/**
+ * Opponent replies within this many centipawns of the best are realistic.
+ */
+clubTolerance: number; 
+/**
+ * Smallest material sacrifice in centipawns (pawn 90, minor 300, rook 500).
+ */
+minSacrifice: number; 
+/**
+ * Upper bound for the number of positions searched.
+ */
+maxPositions: number }
+export type BrillianceResult = { finds: BrillianceFind[]; positions: number; engineName: string }
 export type CachedEvalJs = { engine: string; depth: number; multipv: number; score: Score; uciMoves: string[] }
 export type ClockUpdateEvent = { gameId: string; whiteTime: bigint | null; blackTime: bigint | null }
 export type DatabaseInfo = { needs_conversion: boolean; title: string; description: string; player_count: number; event_count: number; game_count: number; storage_size: bigint; filename: string }
@@ -649,9 +851,24 @@ export type DrawReason = "stalemate" | "insufficientMaterial" | "threefoldRepeti
 export type EngineCacheStats = { engine: string; entries: number; maxDepth: number }
 export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
+export type TacticSearchOptions = { engine: string; uciOptions: EngineOption[]; depth: number; fen: string; lines: string[][]; solver: string; source: string; dest: string }
+export type TacticSearchResult = { positions: number; calculated: number; found: number; added: number; duplicates: number; rejected: number; total: number }
+export type NewPuzzleReport = { db: string; fen: string; moves: string; rating: number; reason: string; note: string }
+export type PuzzleReport = { id: number; db: string; fen: string; moves: string; rating: number; reason: string; note: string; createdAt: number; status: string; suggestion: string | null; checkReason: string | null; newMoves: string | null; newRating: number | null; checkDepth: number | null; checkEval: number | null; resolution: string | null }
+export type ReportCheckOptions = { engine: string; uciOptions: EngineOption[]; depth: number; ids: number[] }
+export type InsightAccount = { file: string; player: string }
+export type InsightAccountStatus = { file: string; player: string; total: number; analysed: number }
+export type InsightError = { game: string; white: string; black: string; date: string; ply: number; fen: string; played: string; best: string; loss: number; phase: string }
+export type InsightGroup = { key: string; games: number; accuracy: number; score: number; inaccuracies: number; mistakes: number; blunders: number }
+export type InsightOptions = { engine: string; uciOptions: EngineOption[]; depth: number; accounts: InsightAccount[]; maxGames: number | null; tacticsDest: string }
+export type InsightPhase = { phase: string; moves: number; accuracy: number; inaccuracies: number; mistakes: number; blunders: number }
+export type InsightRunResult = { analysed: number; remaining: number; failed: number; missedTactics: number; calculated: number }
+export type InsightSummary = { games: number; accuracy: number; opponentAccuracy: number; acpl: number; missedTactics: number; byColor: InsightGroup[]; bySpeed: InsightGroup[]; byResult: InsightGroup[]; byOpening: InsightGroup[]; byMonth: InsightGroup[]; phases: InsightPhase[]; worst: InsightError[]; players: string[] }
+export type Calibration = { model: RatingModel; samples: number; meanError: number; defaultError: number; calibratedAt: number }
+export type RatingModel = { base: number; perFirstDepth: number; perExtraDepth: number; perExtraMove: number; sacrifice: number; quietFirstMove: number; plainCapture: number }
 export type EngineOption = { name: string; value: string }
 export type EngineOptions = { fen: string; moves: string[]; extraOptions: EngineOption[] }
-export type EvalCacheStats = { path: string; positions: number; entries: number; sizeBytes: number; engines: EngineCacheStats[] }
+export type EvalCacheStats = { path: string; positions: number; entries: number; sizeBytes: number; engines: EngineCacheStats[]; sessionLookups: number; sessionHits: number; sessionSaved: number }
 export type Event = { name: string | null; games_count: number }
 export type FileMetadata = { last_modified: number }
 export type GameConfig = { white: PlayerConfig; black: PlayerConfig; whiteTimeControl: TimeControl | null; blackTimeControl: TimeControl | null; initialFen: string | null; initialMoves?: string[]; openingBook: OpeningBookConfig | null }

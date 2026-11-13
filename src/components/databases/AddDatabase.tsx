@@ -22,6 +22,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useAtom, useSetAtom } from "jotai";
 import { type Dispatch, type SetStateAction, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { bucket, trackUsage } from "@/utils/usageStats";
 import type { KeyedMutator } from "swr";
 import { commands, type DatabaseInfo } from "@/bindings";
 import { databaseConversionStateAtom, storedDatabasesDirAtom } from "@/state/atoms";
@@ -78,6 +79,7 @@ function AddDatabase({
     }));
     try {
       unwrap(await commands.convertPgn(paths, dbPath, null, title, description ?? null));
+      trackUsage("database_import", { files: bucket(paths.length) });
       await setDatabases(await getDatabases());
     } finally {
       setLoading(false);
