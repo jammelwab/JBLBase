@@ -968,7 +968,7 @@
     "Repertoire.Preview.NoRepertoireMove": "Your repertoire has no move here",
     "Repertoire.Preview.Open": "Open on the board",
     "Repertoire.Preview.OutOfRepertoire": "Not in your repertoire",
-    "Repertoire.Preview.PlayHint": "Play moves here, the tree follows your repertoire",
+    "Repertoire.Preview.PlayHint": "Move the pieces here, the tree jumps to the position",
     "Repertoire.Preview.RepertoireMoves": "Your repertoire: {{moves}}",
     "Repertoire.Preview.Resize": "Drag to resize, double-click for the normal size",
     "Repertoire.Preview.Start": "Start position",

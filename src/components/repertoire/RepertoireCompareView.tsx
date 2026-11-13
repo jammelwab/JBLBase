@@ -38,7 +38,7 @@ import { type MoveCount, repertoireWeights } from "@/utils/repertoireTree";
 import type { Repertoire } from "@/utils/repertoires";
 import BoardPreview from "./BoardPreview";
 import { ColorDot } from "./RepertoireLabel";
-import TreeDiagram, { type DiagramNode } from "./TreeDiagram";
+import TreeDiagram, { type DiagramNode, expandLine } from "./TreeDiagram";
 import { useOpenLine } from "./useOpenLine";
 import { usePositionData } from "./usePositionData";
 
@@ -186,6 +186,14 @@ export default function RepertoireCompareView({
   const showLichess = hasLichessToken();
   const lichess = usePositionData<MoveCount[]>(openFens, lichessMoveCounts, showLichess);
   const [selected, setSelected] = useState<{ id: string; line: string[] } | null>(null);
+  const [focus, setFocus] = useState<{ id: string } | null>(null);
+  // A line played on the small board: the tree opens down to it and moves there
+  const follow = useCallback((line: string[]) => {
+    const id = line.length === 0 ? "root" : line.join(" ");
+    setExpanded((prev) => expandLine(prev, line, 2));
+    setSelected({ id, line });
+    setFocus({ id });
+  }, []);
 
   // Your games as a drawn tree; positions are loaded as they are opened
   const { diagram, fens } = useMemo(() => {
@@ -408,7 +416,7 @@ export default function RepertoireCompareView({
                 </Text>
               ) : (
                 <Box h={560} pos="relative">
-                  <TreeDiagram root={diagram} highlight={selected?.id ?? null} />
+                  <TreeDiagram root={diagram} highlight={selected?.id ?? null} focus={focus} />
                   {selected && (
                     <BoardPreview
                       rootFen={root.fen}
@@ -417,6 +425,8 @@ export default function RepertoireCompareView({
                       orientation={repertoire.color}
                       weights={weights}
                       onOpen={() => openLine(selected.line)}
+                      onMove={(san) => follow([...selected.line, san])}
+                      onBack={() => follow(selected.line.slice(0, -1))}
                       onClose={() => setSelected(null)}
                     />
                   )}
