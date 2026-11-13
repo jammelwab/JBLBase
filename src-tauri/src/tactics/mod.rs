@@ -273,8 +273,10 @@ pub async fn tactic_at(
     if !is_winning(best) || !is_only_move(&first, legal) {
         return Ok(None);
     }
-    // What the opponent could have had instead of the move played.
-    let before = analyzer.analyze(cache, parent, depth, 2).await?;
+    // What the opponent could have had instead of the move played. Only the
+    // best line counts, so one line is enough (and comes from the cache when
+    // the position was evaluated before with more).
+    let before = analyzer.analyze(cache, parent, depth, 1).await?;
     let Some(opponent_best) = before.first() else {
         return Ok(None);
     };
