@@ -171,7 +171,7 @@ export async function syncRepertoires(
         newCursor = Math.max(newCursor, syncedAt);
     }
 
-    const locals: Local[] = [];
+    let locals: Local[] = [];
     for (const l of await b.listLocal()) {
         const infoJson = infoText(l.info);
         locals.push({
@@ -180,6 +180,27 @@ export async function syncRepertoires(
             infoJson,
             hash: await repertoireHash(l.path, infoJson, l.pgn),
         });
+    }
+
+    // Two files with one id (a file copied in the file manager, or a conflict copy of a
+    // cloud drive like iCloud or OneDrive): the file at the path the cloud knows keeps the
+    // id, the others become repertoires of their own. Otherwise only one of them would be
+    // synced, and its path would win by chance.
+    const sameId = new Map<string, Local[]>();
+    for (const l of locals) {
+        if (l.id) sameId.set(l.id, [...(sameId.get(l.id) ?? []), l]);
+    }
+    for (const [id, group] of sameId) {
+        if (group.length < 2) continue;
+        const known = index[id]?.path.toLowerCase();
+        const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
+        const keeper = sorted.find((l) => l.path.toLowerCase() === known) ?? sorted[0];
+        for (const l of group) {
+            if (l === keeper) continue;
+            l.id = "";
+            const { id: _id, ...rest } = l.info;
+            l.info = rest;
+        }
     }
 
     // Link local repertoires the cloud does not know by id to a remote one
@@ -203,11 +224,6 @@ export async function syncRepertoires(
         localIds.add(id);
         l.id = id;
     }
-
-    const byId = new Map(locals.map((l) => [l.id, l]));
-    const missing = Object.keys(bases).filter((id) => !byId.has(id) && !index[id]?.deleted);
-    const holdDeletions = missing.length > 2 && missing.length * 2 > Object.keys(bases).length;
-    result.deletionsHeld = holdDeletions;
 
     const remoteContent = async (id: string) => {
         const known = remotePgn.get(id);
@@ -244,6 +260,20 @@ export async function syncRepertoires(
         result.uploaded++;
     };
 
+    const pushDelete = async (id: string) => {
+        const r = index[id];
+        const state: RemoteState = {
+            ...r,
+            hash: "",
+            updatedAt: Math.max(b.now(), r.updatedAt + 1),
+            deleted: true,
+        };
+        await b.put(id, { ...state, pgn: "" });
+        index[id] = state;
+        delete bases[id];
+        result.uploaded++;
+    };
+
     const pull = async (id: string, l: Local | undefined) => {
         const r = index[id];
         const pgn = await remoteContent(id);
@@ -266,6 +296,43 @@ export async function syncRepertoires(
         );
     };
 
+    // Two repertoires in the cloud at the same path: created on two devices (e.g. "Ich Weiß"
+    // with "Standard-Repertoires anlegen") before either had synced. One file can hold only
+    // one of them; without this, each device overwrote its file with the other one's and
+    // then deleted both. The smaller id wins on every device alike, the other one is kept
+    // here as a conflict copy and deleted in the cloud.
+    const live = (id: string) => (index[id] && !index[id].deleted ? index[id] : undefined);
+    const localById = new Set(locals.map((l) => l.id));
+    for (const l of [...locals]) {
+        const own = live(l.id);
+        if (!own || own.path.toLowerCase() !== l.path.toLowerCase()) continue;
+        const other = Object.keys(index).find(
+            (id) =>
+                id !== l.id &&
+                !localById.has(id) &&
+                live(id)?.path.toLowerCase() === l.path.toLowerCase(),
+        );
+        if (!other) continue;
+        result.conflicts++;
+        if (other < l.id) {
+            // The other one wins: keep this file as a copy, it is downloaded below.
+            await keepCopy(l.path, l.info, l.pgn);
+            await pushDelete(l.id);
+            locals = locals.filter((x) => x !== l);
+            localById.delete(l.id);
+        } else {
+            const pgn = await remoteContent(other);
+            if (pgn !== null)
+                await keepCopy(index[other].path, parseJson(index[other].info, {}), pgn);
+            await pushDelete(other);
+        }
+    }
+
+    const byId = new Map(locals.map((l) => [l.id, l]));
+    const missing = Object.keys(bases).filter((id) => !byId.has(id) && !index[id]?.deleted);
+    const holdDeletions = missing.length > 2 && missing.length * 2 > Object.keys(bases).length;
+    result.deletionsHeld = holdDeletions;
+
     const ids = new Set([...byId.keys(), ...Object.keys(index), ...Object.keys(bases)]);
     for (const id of ids) {
         const l = byId.get(id);
@@ -284,20 +351,10 @@ export async function syncRepertoires(
             case "pull":
                 await pull(id, l);
                 break;
-            case "pushDelete": {
+            case "pushDelete":
                 if (holdDeletions) break;
-                const state: RemoteState = {
-                    ...r!,
-                    hash: "",
-                    updatedAt: Math.max(b.now(), r!.updatedAt + 1),
-                    deleted: true,
-                };
-                await b.put(id, { ...state, pgn: "" });
-                index[id] = state;
-                delete bases[id];
-                result.uploaded++;
+                await pushDelete(id);
                 break;
-            }
             case "deleteLocal":
                 await b.trashLocal(l!.file);
                 delete bases[id];

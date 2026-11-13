@@ -61,6 +61,7 @@ import {
   defaultRepertoires,
   DEFAULT_MAIN_OWNER,
   deleteFolder,
+  deleteRepertoire,
   type Repertoire,
   type RepertoireColor,
   type RepertoireView,
@@ -109,9 +110,17 @@ function RepertoireCard({
   const [showHistory, setShowHistory] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [searchingTactics, setSearchingTactics] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <Card withBorder padding="md">
+      {confirmDelete && (
+        <DeleteRepertoireModal
+          repertoire={repertoire}
+          main={!!main}
+          onClose={() => setConfirmDelete(false)}
+        />
+      )}
       {searchingTactics && (
         <TacticSearchModal repertoire={repertoire} onClose={() => setSearchingTactics(false)} />
       )}
@@ -138,6 +147,17 @@ function RepertoireCard({
               onClick={() => setShowHistory(true)}
             >
               <IconHistory size="1rem" />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t("Repertoire.Delete.Button")}>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              size="sm"
+              aria-label={t("Repertoire.Delete.Button")}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <IconTrash size="1rem" />
             </ActionIcon>
           </Tooltip>
         </Group>
@@ -221,6 +241,81 @@ function RepertoireCard({
         )}
       </Stack>
     </Card>
+  );
+}
+
+// Asks before a repertoire is deleted. Names its folder and file, so of two repertoires
+// with the same name the right one goes.
+function DeleteRepertoireModal({
+  repertoire,
+  main,
+  onClose,
+}: {
+  repertoire: Repertoire;
+  main: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const { documentDir } = useLoaderData({ from: "/repertoires" });
+  const [deleting, setDeleting] = useState(false);
+  const norm = (p: string) => p.replace(/\\/g, "/");
+  const dir = norm(documentDir).replace(/\/+$/, "");
+  const path = norm(repertoire.file.path);
+  const file = path.toLowerCase().startsWith(`${dir.toLowerCase()}/`)
+    ? path.slice(dir.length + 1)
+    : path;
+
+  async function remove() {
+    setDeleting(true);
+    try {
+      await deleteRepertoire(repertoire.file);
+      notifications.show({
+        color: "gray",
+        title: t("Repertoire.Delete.Done"),
+        message: repertoire.name,
+      });
+      onClose();
+    } catch (e) {
+      notifications.show({
+        color: "red",
+        title: t("Repertoire.Delete.Failed"),
+        message: e instanceof Error ? e.message : String(e),
+      });
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Modal opened onClose={onClose} title={t("Repertoire.Delete.Title")}>
+      <Stack gap="sm">
+        <Text>
+          {t("Repertoire.Delete.Message", {
+            name: repertoire.name,
+            count: repertoire.stats.moves,
+          })}
+        </Text>
+        <Text size="sm" c="dimmed">
+          {repertoire.folder ? `${folderLabel(repertoire.folder)} › ` : ""}
+          {repertoire.name} · {repertoire.owner} · {t("Repertoire.Delete.File", { file })}
+        </Text>
+        {main && (
+          <Alert color="yellow" variant="light">
+            {t("Repertoire.Delete.Main")}
+          </Alert>
+        )}
+        <Text size="sm" c="dimmed">
+          {t("Repertoire.Delete.Hint")}
+        </Text>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose} data-autofocus>
+            {t("Common.Cancel")}
+          </Button>
+          <Button color="red" loading={deleting} onClick={remove}>
+            {t("Common.Delete")}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }
 
