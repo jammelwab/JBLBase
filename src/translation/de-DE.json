@@ -962,7 +962,7 @@
     "Repertoire.Preview.NoRepertoireMove": "Dein Repertoire hat hier keinen Zug",
     "Repertoire.Preview.Open": "Auf dem Brett öffnen",
     "Repertoire.Preview.OutOfRepertoire": "Nicht in deinem Repertoire",
-    "Repertoire.Preview.PlayHint": "Hier Züge machen, der Baum folgt deinem Repertoire",
+    "Repertoire.Preview.PlayHint": "Hier Figuren ziehen, der Baum springt zur Stellung mit",
     "Repertoire.Preview.RepertoireMoves": "Dein Repertoire: {{moves}}",
     "Repertoire.Preview.Resize": "Ziehen ändert die Größe, Doppelklick setzt sie zurück",
     "Repertoire.Preview.Start": "Ausgangsstellung",
