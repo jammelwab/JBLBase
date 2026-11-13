@@ -137,6 +137,35 @@ E-Mail-Konten zählen erst, wenn die Adresse bestätigt ist. Wer sich mit
 Lichess anmeldet und nicht auf der Liste steht, bekommt gar kein Konto. Ein
 E-Mail-Konto kann technisch jeder anlegen, es kommt aber an keine Daten.
 
+## Eigene E-Mails (Bestätigung, Passwort)
+
+Firebase erlaubt keinen eigenen Text für seine Mails. JBLBase verschickt
+Bestätigungs- und Passwort-Mails deshalb selbst per SMTP aus einem normalen
+Postfach (Standard: GMX). Texte und Gestaltung stehen in
+`functions/src/mail.ts` (Deutsch und Englisch, nach App-Sprache).
+
+1. GMX → **E-Mail** → **Einstellungen** → **POP3/IMAP Abruf** →
+   „Senden und Empfangen von E-Mails via externem Programm“ aktivieren und
+   speichern. Mit Zwei-Faktor-Schutz: unter **Sicherheit** ein
+   anwendungsspezifisches Passwort erzeugen und das statt des normalen
+   Passworts verwenden.
+2. In der Cloud Shell (Adresse und Passwort nur dort eingeben, nie ins
+   Repository):
+   ```
+   cd ~/JBLBase && git pull && cd firebase/functions && npm ci && cd ..
+   npx -y firebase-tools@15 functions:secrets:set SMTP_USER --project jblbase
+   npx -y firebase-tools@15 functions:secrets:set SMTP_PASSWORD --project jblbase
+   npx -y firebase-tools@15 deploy --only functions --project jblbase
+   ```
+
+Anderer Anbieter: Umgebungsvariablen `SMTP_HOST` und `SMTP_PORT` setzen
+(Standard `mail.gmx.net`, `587`).
+
+Solange die Functions `sendVerificationMail` und `sendPasswordResetMail`
+nicht laufen, schickt die App die Standard-Mails von Firebase. Pro Adresse
+geht höchstens eine Mail je Art und Minute raus (`mailLimits` in Firestore,
+für die App gesperrt).
+
 ## Nutzungsstatistik (Google Analytics, freiwillig)
 
 Die App zählt anonym, welche Seiten und Funktionen benutzt werden, aber nur
