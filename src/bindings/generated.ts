@@ -77,6 +77,9 @@ async killEngines(tab: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async killAllEngines() : Promise<null> {
+    return await TAURI_INVOKE("kill_all_engines");
+},
 async getEngineLogs(engine: string, tab: string) : Promise<Result<EngineLog[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_engine_logs", { engine, tab }) };

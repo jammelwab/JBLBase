@@ -1806,7 +1806,7 @@ checksum = "4ef6b89e5b37196644d8796de5268852ff179b44e96276cf4290264843743bb7"
 
 [[package]]
 name = "en-croissant"
-version = "1.0.21"
+version = "1.0.22"
 dependencies = [
  "aix-chess-compression",
  "axum",
@@ -1825,6 +1825,7 @@ dependencies = [
  "image",
  "lazy-regex",
  "lazy_static",
+ "libc",
  "log",
  "nonzero_ext",
  "oauth2",
@@ -1863,6 +1864,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "vampirc-uci",
+ "windows-sys 0.59.0",
  "zip 2.1.6",
  "zstd",
 ]
