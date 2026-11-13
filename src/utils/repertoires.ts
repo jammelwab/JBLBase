@@ -1,4 +1,4 @@
-import { exists, readDir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, readDir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { INITIAL_FEN } from "chessops/fen";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 import useSWR from "swr";
@@ -9,7 +9,7 @@ import {
     processEntriesRecursively,
 } from "@/components/files/file";
 import { updatePersistedState } from "@/state/store/debouncedStorage";
-import { mainOwnerAtom, tabsAtom } from "@/state/atoms";
+import { mainOwnerAtom, removeRecentFilesAtom, tabsAtom } from "@/state/atoms";
 import { getPGN, headersToPGN, parsePGN } from "./chess";
 import { getDocumentDir } from "./directories";
 import { createFile } from "./files";
@@ -43,6 +43,7 @@ import {
     uniqueName,
 } from "./repertoireFolders";
 import {
+    historyPath,
     type ImportEntry,
     readHistory,
     recordImport,
@@ -238,6 +239,33 @@ export async function setRepertoireFolder(file: FileMetadata, folder: string) {
         file.path.replace(/\.pgn$/, ".info"),
         JSON.stringify({ ...info, folder: normalizeFolder(folder) }),
     );
+    bumpRepertoires();
+}
+
+// Deletes a repertoire. Its files are not removed but renamed to "….deleted-<time>" (as the
+// cloud sync does), so they can still be restored by hand. Open tabs of it stay open as
+// unsaved boards, so saving them cannot bring the file back. With the cloud sync on, the
+// next sync deletes it on the other devices too.
+export async function deleteRepertoire(file: FileMetadata) {
+    const suffix = `.deleted-${Date.now()}`;
+    await rename(file.path, file.path + suffix);
+    const info = file.path.replace(/\.pgn$/, ".info");
+    if (await exists(info).catch(() => false)) await rename(info, info + suffix);
+    const history = historyPath(file.path);
+    if (await exists(history).catch(() => false)) {
+        await rename(history, history + suffix).catch(() => {});
+    }
+    const store = getDefaultStore();
+    store.set(tabsAtom, (tabs) =>
+        tabs.map((tab) => {
+            const origin = tab.gameOrigin;
+            return (origin.kind === "file" || origin.kind === "temp_file") &&
+                origin.file.path === file.path
+                ? { ...tab, gameOrigin: { kind: "none" as const } }
+                : tab;
+        }),
+    );
+    store.set(removeRecentFilesAtom, file.path);
     bumpRepertoires();
 }
 

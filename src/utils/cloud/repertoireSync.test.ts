@@ -109,13 +109,16 @@ class FakeDevice implements RepertoireSyncBackend {
         this.files.set(path, { info, pgn, modifiedAt: this.cloud.tick() });
     }
     async listLocal(): Promise<LocalRepertoire[]> {
-        return [...this.files].map(([path, f]) => ({
-            file: `${this.dir}/${path}.pgn`,
-            path,
-            info: f.info,
-            pgn: f.pgn,
-            modifiedAt: f.modifiedAt,
-        }));
+        // Like the app: only repertoires, no conflict copies
+        return [...this.files]
+            .filter(([, f]) => f.info.type === "repertoire")
+            .map(([path, f]) => ({
+                file: `${this.dir}/${path}.pgn`,
+                path,
+                info: f.info,
+                pgn: f.pgn,
+                modifiedAt: f.modifiedAt,
+            }));
     }
     private pathOf(file: string) {
         return relativePath(this.dir, file)!;
@@ -279,5 +282,49 @@ describe("syncRepertoires", () => {
         const result = await syncRepertoires(mac, "u");
         expect(result.tooBig).toEqual(["big"]);
         expect(cloud.docs.size).toBe(0);
+    });
+
+    it("keeps one repertoire when two devices created the same one before syncing", async () => {
+        const cloud = new FakeCloud();
+        const mac = new FakeDevice(cloud, "mac");
+        const win = new FakeDevice(cloud, "win");
+        mac.file("Ich White", "1. e4");
+        win.file("Ich White", "1. d4");
+        // Both sync at the same time, neither sees the other's upload yet.
+        await Promise.all([syncRepertoires(mac, "u"), syncRepertoires(win, "u")]);
+        for (let i = 0; i < 3; i++) {
+            await syncRepertoires(mac, "u");
+            await syncRepertoires(win, "u");
+        }
+        const repertoires = (d: FakeDevice) =>
+            [...d.files].filter(([, f]) => f.info.type === "repertoire").map(([p]) => p);
+        expect(repertoires(mac)).toEqual(["Ich White"]);
+        expect(repertoires(win)).toEqual(["Ich White"]);
+        expect(mac.pgn("Ich White")).toBe(win.pgn("Ich White"));
+        expect(mac.files.get("Ich White")!.info.id).toBe(win.files.get("Ich White")!.info.id);
+        expect([...cloud.docs.values()].filter((d) => !d.deleted)).toHaveLength(1);
+        // The other version is not lost.
+        const copies = [...mac.files, ...win.files].filter(([p]) => p.includes("Konflikt"));
+        expect(copies.map(([, f]) => f.pgn)).toContain(
+            mac.pgn("Ich White") === "1. e4" ? "1. d4" : "1. e4",
+        );
+    });
+
+    it("gives a copied file its own id", async () => {
+        const cloud = new FakeCloud();
+        const mac = new FakeDevice(cloud, "mac");
+        const win = new FakeDevice(cloud, "win");
+        mac.file("Ich White", "1. e4");
+        await syncRepertoires(mac, "u");
+        await syncRepertoires(win, "u");
+        // e.g. a conflict copy of iCloud Drive, with the same .info
+        mac.file("Ich White 2", "1. e4 e5", { ...mac.files.get("Ich White")!.info });
+        await syncRepertoires(mac, "u");
+        await syncRepertoires(win, "u");
+        const id = mac.files.get("Ich White")!.info.id;
+        expect(mac.files.get("Ich White 2")!.info.id).not.toBe(id);
+        expect(win.files.get("Ich White")!.info.id).toBe(id);
+        expect(win.pgn("Ich White")).toBe("1. e4");
+        expect(win.pgn("Ich White 2")).toBe("1. e4 e5");
     });
 });
