@@ -144,6 +144,7 @@ fn main() {
             stop_engine,
             kill_engine,
             kill_engines,
+            kill_all_engines,
             get_engine_logs,
             memory_size,
             get_puzzle,
@@ -369,16 +370,37 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { .. } => {
                 let state = app.state::<AppState>();
                 for entry in state.engine_processes.iter() {
                     if let Ok(mut process) = entry.value().try_lock() {
                         process.kill_sync();
                     }
                 }
+                // Also covers engines that are busy (locked) or not owned by
+                // the analysis tabs (tactics search, insight, checks, games).
+                engine::reaper::kill_all();
             }
+            tauri::RunEvent::Exit => engine::reaper::kill_all(),
+            tauri::RunEvent::WindowEvent {
+                event: tauri::WindowEvent::Destroyed,
+                ..
+            } => {
+                if app.webview_windows().is_empty() {
+                    engine::reaper::kill_all();
+                }
+            }
+            _ => {}
         });
+}
+
+/// Stops every running engine process (analysis, tactics search, insight,
+/// checks, engine games). Called before an update is installed.
+#[tauri::command]
+#[specta::specta]
+fn kill_all_engines() {
+    engine::reaper::kill_all();
 }
 
 #[tauri::command]
