@@ -16,11 +16,12 @@ import { useTranslation } from "react-i18next";
 import useSWRImmutable from "swr/immutable";
 import type { DatabaseInfo as PlainDatabaseInfo, PlayerGameInfo } from "@/bindings";
 import { commands, events } from "@/bindings";
-import { sessionsAtom } from "@/state/atoms";
+import { playerDatabasesAtom, sessionsAtom } from "@/state/atoms";
 import { activeDatabaseViewStore } from "@/state/store/database";
 import { accountDatabaseFilename, sameName } from "@/utils/accountDatabase";
 import { getDatabases, query_players } from "@/utils/db";
-import { playerNames, type Session, sessionPlayerName, sessionsOfPlayer } from "@/utils/session";
+import { allPlayerNames, linksOfPlayer } from "@/utils/playerDatabases";
+import { type Session, sessionsOfPlayer } from "@/utils/session";
 import { unwrap } from "@/utils/unwrap";
 import { DatabaseViewStateContext } from "../databases/DatabaseViewStateContext";
 import PersonalPlayerCard from "./PersonalCard";
@@ -55,7 +56,8 @@ function isDatabaseFromSession(db: DatabaseInfo, sessions: Session[]) {
 }
 
 interface PersonalInfo {
-  db: DatabaseInfo;
+  file: string;
+  player: string;
   info: PlayerGameInfo;
 }
 
@@ -63,7 +65,8 @@ function Databases() {
   const { t } = useTranslation();
   const sessions = useAtomValue(sessionsAtom);
 
-  const players = playerNames(sessions);
+  const links = useAtomValue(playerDatabasesAtom);
+  const players = allPlayerNames(sessions, links);
   const playerDbNames = players.map((name) => ({
     name,
     databases: sessionsOfPlayer(sessions, name).map((s) =>
@@ -74,44 +77,48 @@ function Databases() {
             "lichess",
           ),
     ),
+    links: linksOfPlayer(links, name),
   }));
 
   const [name, setName] = useState("");
   useEffect(() => {
     // Keep the selected player unless it disappeared (e.g. merged into another).
-    setName((current) =>
-      sessions.length > 0 && !players.includes(current) ? sessionPlayerName(sessions[0]) : current,
-    );
-  }, [sessions]);
+    setName((current) => (players.length > 0 && !players.includes(current) ? players[0] : current));
+  }, [sessions, links]);
 
   const { data: databases } = useSWRImmutable<DatabaseInfo[]>(
-    sessions.length === 0 ? null : ["personalDatabases", sessions],
+    players.length === 0 ? null : ["personalDatabases", sessions],
     async () => {
       const dbs = (await getDatabases()).filter((db) => db.type === "success");
       return dbs.filter((db) => isDatabaseFromSession(db, sessions));
     },
   );
 
+  // The player's accounts and the databases added to them, read together
   const {
     data: personalInfo,
     isLoading,
     error,
   } = useSWRImmutable<PersonalInfo[]>(
-    databases && name ? ["personalInfo", name, databases] : null,
+    databases && name ? ["personalInfo", name, databases, links] : null,
     async () => {
-      const playerDbs = playerDbNames.find((p) => p.name === name)?.databases;
-      if (!databases || !playerDbs) return [];
-      const results = await Promise.allSettled(
-        databases
+      const player = playerDbNames.find((p) => p.name === name);
+      if (!databases || !player) return [];
+      const sources = [
+        ...databases
           .filter(
             (db) =>
               db.type === "success" &&
-              playerDbs.some((filename) => sameName(filename, db.filename)),
+              player.databases.some((filename) => sameName(filename, db.filename)),
           )
-          .map(async (db) => {
-            const info = unwrap(await commands.getPlayersGameInfo(db.file, db.username!));
-            return { db, info };
-          }),
+          .map((db) => ({ file: db.file, player: db.username! })),
+        ...player.links.map((l) => ({ file: l.file, player: l.name })),
+      ];
+      const results = await Promise.allSettled(
+        sources.map(async (source) => {
+          const info = unwrap(await commands.getPlayersGameInfo(source.file, source.player));
+          return { ...source, info };
+        }),
       );
       return results
         .filter((r) => r.status === "fulfilled")
@@ -209,8 +216,8 @@ function Databases() {
                 site_stats_data: personalInfo.flatMap((i) => i.info.site_stats_data),
               }}
               openingSources={personalInfo.map((i) => ({
-                file: i.db.file,
-                player: i.db.username || name,
+                file: i.file,
+                player: i.player || name,
               }))}
             />
           </DatabaseViewStateContext.Provider>

@@ -7,6 +7,7 @@ import {
   Loader,
   NumberInput,
   Paper,
+  Select,
   ScrollArea,
   SimpleGrid,
   Stack,
@@ -15,6 +16,8 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
+import { useAtom, useAtomValue } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useSWR from "swr";
@@ -27,12 +30,16 @@ import {
   lineText,
   type MoveStat,
 } from "@/utils/gamesTree";
+import { mainOwnerAtom, myPlayerAtom, playerDatabasesAtom, sessionsAtom } from "@/state/atoms";
+import { mainOwnerName } from "@/utils/mainOwner";
+import { allPlayerNames } from "@/utils/playerDatabases";
 import {
   hasLichessToken,
-  hasOwnGames,
+  hasPlayerGames,
   lichessMoveCounts,
-  ownGamesKey,
-  ownMoveCounts,
+  playerForOwner,
+  playerGamesKey,
+  playerMoveCounts,
 } from "@/utils/repertoireExplorer";
 import { type MoveCount, repertoireWeights } from "@/utils/repertoireTree";
 import type { Repertoire } from "@/utils/repertoires";
@@ -41,6 +48,31 @@ import { ColorDot } from "./RepertoireLabel";
 import TreeDiagram, { type DiagramNode, expandLine } from "./TreeDiagram";
 import { useOpenLine } from "./useOpenLine";
 import { usePositionData } from "./usePositionData";
+
+// The player chosen per repertoire owner; "*" for all accounts together.
+const ALL_PLAYERS = "*";
+const comparePlayerAtom = atomWithStorage<Record<string, string>>("repertoire-compare-player", {});
+
+/**
+ * Whose games the repertoire is compared with: a player from the accounts page with all their
+ * accounts and databases. Starts with the repertoire's owner (your own: the player marked
+ * "This is me") and remembers the choice per owner.
+ */
+function useComparePlayer(owner: string) {
+  const sessions = useAtomValue(sessionsAtom);
+  const links = useAtomValue(playerDatabasesAtom);
+  const myPlayer = useAtomValue(myPlayerAtom);
+  const mainOwner = mainOwnerName(useAtomValue(mainOwnerAtom));
+  const [chosen, setChosen] = useAtom(comparePlayerAtom);
+  const players = useMemo(() => allPlayerNames(sessions, links), [sessions, links]);
+  const fallback = playerForOwner(owner, players, mainOwner, myPlayer) ?? ALL_PLAYERS;
+  const stored = chosen[owner.toLowerCase()];
+  const value = stored === ALL_PLAYERS ? stored : (players.find((p) => p === stored) ?? fallback);
+  const player = value === ALL_PLAYERS ? null : value;
+  const setPlayer = (next: string) =>
+    setChosen((prev) => ({ ...prev, [owner.toLowerCase()]: next }));
+  return { players, value, player, setPlayer, myPlayer };
+}
 
 const LICHESS_COLOR = "var(--mantine-color-blue-5)";
 const OWN_COLOR = "var(--mantine-color-teal-5)";
@@ -140,9 +172,9 @@ export default function RepertoireCompareView({
   const { t } = useTranslation();
   const [minGames, setMinGames] = useState(2);
   const [expanded, setExpanded] = useState(() => new Set<string>());
-  const { data: ownAvailable } = useSWR(ownGamesKey(repertoire.owner), () =>
-    hasOwnGames(repertoire.owner),
-  );
+  const compare = useComparePlayer(repertoire.owner);
+  const { player } = compare;
+  const { data: ownAvailable } = useSWR(playerGamesKey(player), () => hasPlayerGames(player));
 
   const { root } = repertoire;
   const weights = useMemo(() => repertoireWeights(root), [root]);
@@ -153,7 +185,14 @@ export default function RepertoireCompareView({
 
   const { data: issues, isLoading } = useSWR(
     ownAvailable
-      ? ["compare-issues", repertoire.file.path, repertoire.stats.moves, root.fen, minGames]
+      ? [
+          "compare-issues",
+          repertoire.file.path,
+          repertoire.stats.moves,
+          root.fen,
+          minGames,
+          player ?? ALL_PLAYERS,
+        ]
       : null,
     () =>
       collectIssues(
@@ -161,7 +200,7 @@ export default function RepertoireCompareView({
         root.halfMoves,
         repertoire.color,
         repertoire.index,
-        (fen) => ownMoveCounts(fen, repertoire.color, repertoire.owner),
+        (fen) => playerMoveCounts(fen, repertoire.color, player),
         { minGames },
       ),
   );
@@ -178,8 +217,8 @@ export default function RepertoireCompareView({
   const openLine = useOpenLine(root.fen, root.halfMoves, repertoire.color);
 
   const loadStats = useCallback(
-    (fen: string) => ownMoveCounts(fen, repertoire.color, repertoire.owner),
-    [repertoire.color, repertoire.owner],
+    (fen: string) => playerMoveCounts(fen, repertoire.color, player),
+    [repertoire.color, player],
   );
   const [openFens, setOpenFens] = useState<string[]>([root.fen]);
   const stats = usePositionData<MoveStat[]>(openFens, loadStats, ownAvailable === true);
@@ -307,15 +346,32 @@ export default function RepertoireCompareView({
               </Badge>
             )}
           </Group>
-          <NumberInput
-            size="xs"
-            w={190}
-            min={1}
-            max={100}
-            value={minGames}
-            onChange={(v) => setMinGames(Math.max(1, Number(v) || 1))}
-            label={t("Repertoire.Compare.MinGames")}
-          />
+          <Group gap="sm" align="flex-end">
+            <Select
+              size="xs"
+              w={220}
+              allowDeselect={false}
+              label={t("Repertoire.Compare.Player")}
+              data={[
+                ...compare.players.map((p) => ({
+                  value: p,
+                  label: p === compare.myPlayer ? `${p} (${t("Home.Accounts.Me")})` : p,
+                })),
+                { value: ALL_PLAYERS, label: t("Repertoire.Compare.AllPlayers") },
+              ]}
+              value={compare.value}
+              onChange={(v) => v && compare.setPlayer(v)}
+            />
+            <NumberInput
+              size="xs"
+              w={190}
+              min={1}
+              max={100}
+              value={minGames}
+              onChange={(v) => setMinGames(Math.max(1, Number(v) || 1))}
+              label={t("Repertoire.Compare.MinGames")}
+            />
+          </Group>
         </Group>
         <Text size="sm" c="dimmed">
           {t("Repertoire.Compare.Help", { games: minGames })}

@@ -236,7 +236,10 @@ Klick geht zur nächsten.
   hast und wie sie ausgingen.
 - **Mit dem Repertoire vergleichen:** im selben Tab **Mit meinem
   Eröffnungsbuch vergleichen**, oder auf der Repertoire-Seite bei deinen
-  Repertoires **Mit meinen Partien vergleichen**. Es zählen nur Züge, die du
+  Repertoires **Mit meinen Partien vergleichen**. Oben rechts wählst du unter
+  **Partien von** den Spieler, etwa „Jannick Schwab“: gezählt werden alle
+  seine Konten und zugeordneten Datenbanken zusammen (siehe **Meine Spieler**
+  unten). Die Auswahl merkt sich die App pro Repertoire-Besitzer. Es zählen nur Züge, die du
   mindestens 2-mal gespielt hast (oben einstellbar). Oben stehen drei Listen:
   wo du überrascht wirst (Gegnerzug ohne Antwort im Repertoire), wo du
   abweichst (du spielst nicht deinen vorbereiteten Zug) und wo dein
@@ -270,6 +273,30 @@ Linie, ähnlich wie bei Chessable:
   anders ist.
 - **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
   **Alle Linien** das ganze Repertoire.
+
+## Meine Spieler: Konten und Datenbanken zusammenfassen
+
+Unter **Konten** (Personen-Symbol) stehen deine Lichess- und Chess.com-Konten
+nach Spieler gruppiert. Ein Konto ziehst du auf einen anderen Spieler, um beide
+zusammenzufassen. Pro Spieler gibt es oben rechts:
+
+- **Das bin ich** (Personen-Haken): markiert den Spieler als dich, er bekommt
+  das Abzeichen „Ich“. Deine eigenen Repertoires werden dann mit genau seinen
+  Partien verglichen. Ohne Markierung gilt wie bisher: der Spieler mit deinem
+  Namen aus den Einstellungen, sonst alle Konten zusammen.
+- **Datenbank zuordnen** (Datenbank mit Plus): nimmt Partien aus einer weiteren
+  Datenbank dazu, z. B. importierte Turnierpartien. Du wählst die Datenbank und
+  deinen Namen darin („Schwab, Jannick“); die App schlägt die Namen aus der
+  Datenbank vor. Die Datenbank erscheint als kleine Karte unter den Konten, das
+  **x** entfernt die Zuordnung (die Datenbank selbst bleibt).
+
+Dasselbe geht aus der Datenbank heraus: In der Spielerliste einer Datenbank
+steht über der Spielerkarte **Das bin ich / Spieler zuordnen**. Ist der Spieler
+schon zugeordnet, steht dort „Gehört zu …“.
+
+Alle Konten und Datenbanken eines Spielers zählen zusammen: in der Statistik
+rechts auf der Konten-Seite, im Repertoire-Vergleich und bei den eigenen
+Partien im Repertoire-Baum. Gespeichert wird das nur lokal.
 
 ## Datenbank als Baum
 

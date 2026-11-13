@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Badge,
   Divider,
   Group,
   Paper,
@@ -11,28 +12,42 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
-import { IconCheck, IconDownload, IconEdit, IconX } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconDatabasePlus,
+  IconDownload,
+  IconEdit,
+  IconUserCheck,
+  IconX,
+} from "@tabler/icons-react";
 import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DatabaseInfo } from "@/bindings";
-import { sessionsAtom } from "@/state/atoms";
+import { myPlayerAtom, playerDatabasesAtom, sessionsAtom } from "@/state/atoms";
 import { getChessComAccount, getStats } from "@/utils/chess.com/api";
 import { getLichessAccount } from "@/utils/lichess/api";
 import {
   detachSession,
   moveSessionToPlayer,
-  playerNames,
   renamePlayer,
   type Session,
   sessionKey,
   sessionPlayerName,
   sessionsOfPlayer,
 } from "@/utils/session";
-import { findAccountDatabase } from "@/utils/accountDatabase";
+import { findAccountDatabase, sameName } from "@/utils/accountDatabase";
+import {
+  allPlayerNames,
+  linksOfPlayer,
+  type PlayerDatabase,
+  removePlayerLinks,
+  renameLinks,
+} from "@/utils/playerDatabases";
 import { syncAccounts } from "@/utils/accountSync";
 import { AccountCard } from "../home/AccountCard";
 import { EmptyAccounts } from "../home/EmptyAccounts";
+import { LinkDatabaseModal, PlayerDatabaseCards } from "../home/PlayerDatabases";
 
 function AccountCards({
   databases,
@@ -45,14 +60,16 @@ function AccountCards({
 }) {
   const { t } = useTranslation();
   const [sessions, setSessions] = useAtom(sessionsAtom);
+  const [links] = useAtom(playerDatabasesAtom);
   const [dragging, setDragging] = useState<string | null>(null);
 
-  const playerSessions = playerNames(sessions).map((name) => ({
+  const playerSessions = allPlayerNames(sessions, links).map((name) => ({
     name,
     sessions: sessionsOfPlayer(sessions, name),
+    links: linksOfPlayer(links, name),
   }));
 
-  if (sessions.length === 0) {
+  if (sessions.length === 0 && links.length === 0) {
     return <EmptyAccounts onAddAccount={onAddAccount} />;
   }
 
@@ -79,11 +96,12 @@ function AccountCards({
         }}
       >
         <Stack>
-          {playerSessions.map(({ name, sessions }) => (
+          {playerSessions.map(({ name, sessions, links }) => (
             <PlayerSession
               key={name}
               name={name}
               sessions={sessions}
+              links={links}
               databases={databases}
               setDatabases={setDatabases}
               dragging={dragging}
@@ -129,17 +147,23 @@ const NEW_PLAYER = "new-player";
 function PlayerSession({
   name,
   sessions,
+  links,
   databases,
   setDatabases,
   dragging,
 }: {
   name: string;
   sessions: Session[];
+  links: PlayerDatabase[];
   databases: DatabaseInfo[];
   setDatabases: React.Dispatch<React.SetStateAction<DatabaseInfo[]>>;
   dragging: string | null;
 }) {
   const [, setSessions] = useAtom(sessionsAtom);
+  const [, setLinks] = useAtom(playerDatabasesAtom);
+  const [myPlayer, setMyPlayer] = useAtom(myPlayerAtom);
+  const isMe = sameName(myPlayer, name);
+  const [linking, setLinking] = useState(false);
   const ownsDragged = !!dragging && sessions.some((s) => sessionKey(s) === dragging);
   const isTarget = !!dragging && !ownsDragged;
   const { t } = useTranslation();
@@ -170,11 +194,33 @@ function PlayerSession({
             autoFocus
           />
         ) : (
-          <Text fz="lg" fw="bold">
-            {name}
-          </Text>
+          <Group gap="xs">
+            <Text fz="lg" fw="bold">
+              {name}
+            </Text>
+            {isMe && (
+              <Badge size="sm" variant="light">
+                {t("Home.Accounts.Me")}
+              </Badge>
+            )}
+          </Group>
         )}
         <Group>
+          <Tooltip label={isMe ? t("Home.Accounts.NotMe") : t("Home.Accounts.ThisIsMe")}>
+            <ActionIcon
+              size="sm"
+              variant={isMe ? "light" : "subtle"}
+              color={isMe ? undefined : "gray"}
+              onClick={() => setMyPlayer(isMe ? "" : name)}
+            >
+              <IconUserCheck />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t("Home.Accounts.LinkDatabase")}>
+            <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => setLinking(true)}>
+              <IconDatabasePlus />
+            </ActionIcon>
+          </Tooltip>
           {sessions.length > 1 && (
             <Tooltip label={t("Home.Accounts.DownloadAll")}>
               <ActionIcon
@@ -203,6 +249,8 @@ function PlayerSession({
               onClick={() => {
                 setEdit(false);
                 setSessions((prev) => renamePlayer(prev, name, text));
+                setLinks((prev) => renameLinks(prev, name, text));
+                if (isMe && text.trim()) setMyPlayer(text.trim());
               }}
             >
               <IconCheck />
@@ -223,9 +271,11 @@ function PlayerSession({
             size="sm"
             variant="subtle"
             color="red"
-            onClick={() =>
-              setSessions((sessions) => sessions.filter((s) => sessionPlayerName(s) !== name))
-            }
+            onClick={() => {
+              setSessions((sessions) => sessions.filter((s) => sessionPlayerName(s) !== name));
+              setLinks((prev) => removePlayerLinks(prev, name));
+              if (isMe) setMyPlayer("");
+            }}
           >
             <IconX />
           </ActionIcon>
@@ -280,6 +330,8 @@ function PlayerSession({
           </Group>
         )}
       </Droppable>
+      <PlayerDatabaseCards links={links} />
+      <LinkDatabaseModal opened={linking} onClose={() => setLinking(false)} player={name} />
     </Stack>
   );
 }
