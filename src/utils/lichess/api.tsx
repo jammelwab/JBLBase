@@ -2,6 +2,7 @@ import type { Color } from "@lichess-org/chessground/types";
 import { notifications } from "@mantine/notifications";
 import { IconX } from "@tabler/icons-react";
 import { resolve } from "@tauri-apps/api/path";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { fetch } from "@tauri-apps/plugin-http";
 import { error } from "@tauri-apps/plugin-log";
 import { parseUci } from "chessops";
@@ -16,6 +17,7 @@ import {
   type GoMode,
   type NormalizedGame,
 } from "@/bindings";
+import { isRejectedToken } from "@/utils/accountSync";
 import { parsePGN, uciNormalize } from "@/utils/chess";
 import { positionFromFen } from "@/utils/chessops";
 import { apiHeaders } from "@/utils/http";
@@ -215,6 +217,10 @@ export async function getLichessAccount({
       method: "GET",
       headers: apiHeaders({ Authorization: `Bearer ${token}` }),
     });
+    if (response.status === 401 && username) {
+      // Expired or revoked login: the public profile has the same numbers.
+      response = await fetch(`${baseURL}/user/${username}`, { headers: apiHeaders() });
+    }
   } else {
     const url = `${baseURL}/user/${username}`;
     response = await fetch(url, { headers: apiHeaders() });
@@ -383,7 +389,7 @@ export async function downloadLichess(
   player: string,
   timestamp: number | null,
   games: number,
-  setProgress: (progress: number) => void,
+  _setProgress: (progress: number) => void,
   token?: string,
 ) {
   let url = `${baseURL}/games/user/${encodeURIComponent(player)}?perfType=ultraBullet,bullet,blitz,rapid,classical,correspondence&sort=dateAsc`;
@@ -391,26 +397,36 @@ export async function downloadLichess(
     url += `&since=${timestamp}`;
   }
   const path = await resolve(await getDatabasesDir(), `${player}_lichess.pgn`);
+  // Start from an empty file: after a failed download the games of the
+  // previous download must not be imported again.
+  await writeTextFile(path, "", { append: false });
 
-  const res = await commands.downloadFile(
-    `lichess_${player}`,
-    url,
-    path,
-    token ?? null,
-    null,
-    games > 0 ? games * 900 : null, // approx. size of a game
-  );
+  const download = (withToken: string | null) =>
+    commands.downloadFile(
+      `lichess_${player}`,
+      url,
+      path,
+      withToken,
+      // The card is finished only after the games are in the database.
+      false,
+      games > 0 ? games * 900 : null, // approx. size of a game
+    );
+
+  let res = await download(token ?? null);
+  if (res.status === "error" && token && isRejectedToken(res.error)) {
+    // The games are public: an expired login must not block the download.
+    error(`Lichess rejected the token of ${player}, downloading without it`);
+    res = await download(null);
+  }
   if (res.status === "error") {
     error(`Failed to download Lichess games for ${player}: ${res.error}`);
-    notifications.show({
-      title: i18n.t("Home.Accounts.DownloadFailed"),
-      message: i18n.t("Home.Accounts.LichessDownloadFailed", {
+    throw new Error(
+      i18n.t("Home.Accounts.LichessDownloadFailed", {
         player,
         error: res.error,
         interpolation: { escapeValue: false },
       }),
-      color: "red",
-    });
+    );
   }
 }
 

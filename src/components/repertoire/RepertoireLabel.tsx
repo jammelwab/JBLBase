@@ -1,5 +1,6 @@
 import { Badge, Group, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import { folderLabel } from "@/utils/repertoireFolders";
 import type { Repertoire } from "@/utils/repertoires";
 
 export function ColorDot({ color }: { color: "white" | "black" }) {
@@ -26,7 +27,7 @@ export function RepertoireLabel({ repertoire }: { repertoire: Repertoire }) {
       <Text size="sm" fw={500}>
         {repertoire.folder && (
           <Text span size="sm" c="dimmed">
-            {repertoire.folder.replaceAll("/", " › ")} ›{" "}
+            {folderLabel(repertoire.folder)} ›{" "}
           </Text>
         )}
         {repertoire.name}

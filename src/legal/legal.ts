@@ -8,7 +8,7 @@ import privacyText from "./DATENSCHUTZ.md?raw";
 import termsText from "./NUTZUNGSBEDINGUNGEN.md?raw";
 
 export const TERMS_VERSION = "2026-11-10";
-export const PRIVACY_VERSION = "2026-11-10";
+export const PRIVACY_VERSION = "2026-11-12";
 
 /** Minimum age without the consent of a parent (Art. 8 GDPR, Germany). */
 export const MIN_AGE = 16;

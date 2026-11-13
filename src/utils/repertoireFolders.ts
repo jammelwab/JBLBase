@@ -240,3 +240,39 @@ export function findMainRepertoire<T extends MainCandidate>(
     };
     return group.find((r) => r.main) ?? group.find((r) => !normalizeFolder(r.folder) && named(r));
 }
+
+// Folders imported from disk often carry the raw names of course downloads, like
+// "chessable_Get_Romantic__Play_The_King's_Gambit". For showing them, a known source prefix
+// becomes a small badge, "__" becomes ": " and "_" a space. The stored name stays as it is,
+// so names chosen in the app (without underscores) show unchanged.
+const FOLDER_SOURCES: { prefix: RegExp; source: string }[] = [
+    { prefix: /^chessable[_\s-]+/i, source: "Chessable" },
+];
+
+export function prettyFolderName(name: string): { label: string; source: string | null } {
+    let rest = name.trim();
+    let source: string | null = null;
+    for (const s of FOLDER_SOURCES) {
+        if (s.prefix.test(rest) && rest.replace(s.prefix, "").trim()) {
+            rest = rest.replace(s.prefix, "");
+            source = s.source;
+            break;
+        }
+    }
+    const label = rest
+        .replace(/\s*_{2,}\s*/g, ": ")
+        .replace(/_/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/^[:\s]+|[:\s]+$/g, "")
+        .trim();
+    return { label: label || name, source };
+}
+
+// A folder path as people read it: "Weiß › Get Romantic: Play The King's Gambit"
+export function folderLabel(path: string): string {
+    return normalizeFolder(path)
+        .split("/")
+        .filter(Boolean)
+        .map((part) => prettyFolderName(part).label)
+        .join(" › ");
+}

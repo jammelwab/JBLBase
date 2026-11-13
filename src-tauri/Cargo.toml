@@ -1,6 +1,6 @@
 [package]
 name = "en-croissant"
-version = "1.0.17"
+version = "1.0.22"
 description = "A Modern Chess Database"
 authors = ["Francisco Salgueiro <fgcdbs@gmail.com>"]
 license = "GPL-3.0-only"
@@ -77,6 +77,17 @@ duckdb = { git = "https://github.com/duckdb/duckdb-rs", rev = "4acbea84794582c4c
 ] }
 r2d2 = "0.8.10"
 lazy-regex = "3.5"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [features]
 # by default Tauri runs in production mode

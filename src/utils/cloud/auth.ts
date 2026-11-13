@@ -14,6 +14,7 @@
 import type { FirebaseApp } from "firebase/app";
 import type { Auth, User } from "firebase/auth";
 import i18n from "i18next";
+import { trackUsage } from "../usageStats";
 import { FIREBASE_REGION, firebaseConfig } from "./firebaseConfig";
 
 export type CloudRole = "admin" | "user";
@@ -129,6 +130,7 @@ export async function signInWithEmail(email: string, password: string) {
     const auth = await cloudAuth();
     const { signInWithEmailAndPassword } = await import("firebase/auth");
     await signInWithEmailAndPassword(auth, email.trim(), password);
+    trackUsage("login", { method: "email" });
 }
 
 export async function registerWithEmail(email: string, password: string) {
@@ -137,6 +139,7 @@ export async function registerWithEmail(email: string, password: string) {
     const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
     setMailLanguage(auth);
     await sendEmailVerification(user).catch(() => {});
+    trackUsage("sign_up", { method: "email" });
 }
 
 export async function resetPassword(email: string) {
@@ -168,6 +171,7 @@ export async function signInWithLichessToken(
     );
     const { data } = await login({ token: lichessToken });
     const { user } = await signInWithCustomToken(auth, data.token);
+    trackUsage("login", { method: "lichess" });
     return { uid: user.uid, username: data.username };
 }
 
