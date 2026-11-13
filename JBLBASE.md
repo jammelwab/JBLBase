@@ -669,6 +669,17 @@ Datenbank liegen, ohne verbundenes Konto.
 - Übersehene Taktiken (du hattest einen einzigen Gewinnzug und hast ihn nicht
   gespielt) werden zu Aufgaben in `Partien-Taktiken.duckdb` und erscheinen im
   Puzzle-Tab, mit Motiv und geschätzter Elo wie bei der Repertoire-Suche.
+- **Tempo:** Statt einer Engine mit allen Threads rechnen mehrere Engines
+  nebeneinander, jede an einer eigenen Partie mit einem Thread (höchstens
+  acht Engines; Hash wird aufgeteilt). Bei „Hoch“ auf 12 Kernen sind das acht
+  Engines. Kurze Suchen
+  bis Tiefe 18 nutzen viele Threads einer Engine schlecht, mehrere Engines
+  schaffen deutlich mehr Stellungen. Jede Stellung wird mit einer Linie
+  bewertet; die zweite Linie (ist der Gewinnzug der einzige?) wird nur dort
+  gerechnet, wo du einen gewinnenden Zug ausgelassen hast. Tiefe und
+  Bewertung bleiben gleich, Stellungen aus dem Positionsspeicher werden wie
+  bisher nicht neu gerechnet. Die Engine für die Elo-Schätzung startet erst,
+  wenn eine Partie wirklich eine übersehene Taktik hat.
 
 Test mit echter Engine:
 
