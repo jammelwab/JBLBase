@@ -50,7 +50,9 @@ import {
   folderItems,
   inFolder,
   findMainRepertoire,
+  folderLabel,
   normalizeFolder,
+  prettyFolderName,
 } from "@/utils/repertoireFolders";
 import { mergeTree, missingMoves } from "@/utils/repertoireTree";
 import {
@@ -488,6 +490,7 @@ function FolderSection({
   // Folders start closed and open or close with one click on their header
   const [open, setOpen] = useState(false);
   const count = folderItems(node).length;
+  const pretty = prettyFolderName(node.name);
   return (
     <Paper withBorder p="xs" radius="md">
       <Group justify="space-between" wrap="nowrap">
@@ -507,12 +510,24 @@ function FolderSection({
             color="var(--mantine-color-yellow-6)"
             style={{ flexShrink: 0 }}
           />
-          {/* Long names (e.g. imported course folders) are cut, the full name shows on hover */}
-          <Tooltip label={node.name} openDelay={400} multiline maw={480}>
+          {/* Imported course folders show a readable name and their source as a badge;
+              long names are cut, the full name shows on hover */}
+          <Tooltip
+            label={pretty.label === node.name ? node.name : `${pretty.label}\n(${node.name})`}
+            openDelay={400}
+            multiline
+            maw={480}
+            style={{ whiteSpace: "pre-line" }}
+          >
             <Text fw={600} truncate="end" style={{ minWidth: 0 }}>
-              {node.name}
+              {pretty.label}
             </Text>
           </Tooltip>
+          {pretty.source && (
+            <Badge size="xs" variant="outline" color="orange" style={{ flexShrink: 0 }}>
+              {pretty.source}
+            </Badge>
+          )}
           <Badge size="sm" variant="light" color="gray" style={{ flexShrink: 0 }}>
             {count}
           </Badge>
@@ -668,7 +683,7 @@ export default function RepertoiresPage() {
     return (
       combineRepertoires(
         parts,
-        folder ? `${color} · ${folder.replaceAll("/", " › ")}` : `${viewOwner} ${color}`,
+        folder ? `${color} · ${folderLabel(folder)}` : `${viewOwner} ${color}`,
       ) ?? undefined
     );
   }, [view, repertoires, viewOwner, t]);
