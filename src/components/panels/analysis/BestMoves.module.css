@@ -5,3 +5,54 @@
 [data-mantine-color-scheme="dark"] .subtitle {
   color: var(--mantine-color-gray-5);
 }
+
+/* Engine header: play button, name, stats and action icons in one row.
+   When the panel gets narrow the stats move to their own line below the
+   name instead of pushing the whole panel wider than the window. */
+.headerContainer {
+  container-type: inline-size;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+}
+
+.control {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.stats {
+  flex-shrink: 0;
+  padding-inline: var(--mantine-spacing-xs);
+}
+
+.actions {
+  flex-shrink: 0;
+}
+
+@container (max-width: 34rem) {
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .stats {
+    order: 1;
+    flex-basis: 100%;
+    padding: 0 var(--mantine-spacing-md) var(--mantine-spacing-xs)
+      calc(3.25rem + var(--mantine-spacing-md));
+  }
+}
+
+/* Very narrow: the engine name matters more than its speed. */
+@container (max-width: 24rem) {
+  .nps {
+    display: none;
+  }
+}

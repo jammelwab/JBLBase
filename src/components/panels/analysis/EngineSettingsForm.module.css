@@ -1,0 +1,17 @@
+/* Label + Regler nebeneinander, bei schmalem Panel untereinander. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+}
+
+.row > :first-child {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.row > :last-child {
+  flex: 1 1 12rem;
+  min-width: 0;
+}

@@ -161,76 +161,81 @@ function BestMovesComponent({
 
   return (
     <>
-      <Box style={{ display: "flex" }}>
-        <Stack gap={0} py="1rem">
-          <ActionIcon
-            size="md"
-            variant={settings.enabled ? "filled" : "transparent"}
-            color={id < 4 ? arrowColors[id].strong : theme.primaryColor}
-            onClick={() => {
-              setSettings((prev) => ({ ...prev, enabled: !prev.enabled }));
-            }}
-            ml={12}
-          >
-            {settings.enabled ? <IconPlayerPause size="1rem" /> : <IconPlayerPlay size="1rem" />}
-          </ActionIcon>
-        </Stack>
-        <Accordion.Control>
-          <EngineTop
-            name={engine.name}
-            engineVariations={engineVariations}
-            isGameOver={isGameOver}
-            enabled={settings.enabled}
-            progress={progress}
-            error={error}
-          />
-        </Accordion.Control>
-        <ActionIcon.Group>
-          <Tooltip label="Check the opponent's threat">
+      <div className={classes.headerContainer}>
+        <Box className={classes.header}>
+          <Stack gap={0} py="1rem">
+            <ActionIcon
+              size="md"
+              variant={settings.enabled ? "filled" : "transparent"}
+              color={id < 4 ? arrowColors[id].strong : theme.primaryColor}
+              onClick={() => {
+                setSettings((prev) => ({ ...prev, enabled: !prev.enabled }));
+              }}
+              ml={12}
+            >
+              {settings.enabled ? <IconPlayerPause size="1rem" /> : <IconPlayerPlay size="1rem" />}
+            </ActionIcon>
+          </Stack>
+          <Accordion.Control className={classes.control}>
+            <EngineTop
+              name={engine.name}
+              engineVariations={engineVariations}
+              isGameOver={isGameOver}
+              enabled={settings.enabled}
+              progress={progress}
+              error={error}
+            />
+          </Accordion.Control>
+          {!isGameOver && engineVariations && engineVariations.length > 0 && (
+            <EngineStats engineVariations={engineVariations} />
+          )}
+          <ActionIcon.Group className={classes.actions}>
+            <Tooltip label="Check the opponent's threat">
+              <ActionIcon
+                size="lg"
+                onClick={() => setThreat(!threat)}
+                disabled={!settings.enabled}
+                variant="transparent"
+                mt="auto"
+                mb="auto"
+              >
+                <IconTargetArrow color={threat ? "red" : undefined} size="1rem" />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label={isDetached ? "Unpin from notation" : "Pin above notation"}>
+              <ActionIcon
+                size="lg"
+                onClick={() =>
+                  startTransition(() => {
+                    setDetachedEngineId(isDetached ? null : engine.id);
+                  })
+                }
+                variant={isDetached ? "light" : "transparent"}
+                mt="auto"
+                mb="auto"
+              >
+                {isDetached ? <IconPinnedOff size="1rem" /> : <IconPinned size="1rem" />}
+              </ActionIcon>
+            </Tooltip>
+            <ActionIcon size="lg" onClick={() => toggleSettingsOn()} mt="auto" mb="auto">
+              <IconSettings size="1rem" />
+            </ActionIcon>
             <ActionIcon
               size="lg"
-              onClick={() => setThreat(!threat)}
-              disabled={!settings.enabled}
-              variant="transparent"
+              mr={8}
               mt="auto"
               mb="auto"
+              style={{
+                cursor: "grab",
+              }}
+              {...dragHandleProps}
             >
-              <IconTargetArrow color={threat ? "red" : undefined} size="1rem" />
+              <IconGripVertical size="1rem" />
             </ActionIcon>
-          </Tooltip>
-          <Tooltip label={isDetached ? "Unpin from notation" : "Pin above notation"}>
-            <ActionIcon
-              size="lg"
-              onClick={() =>
-                startTransition(() => {
-                  setDetachedEngineId(isDetached ? null : engine.id);
-                })
-              }
-              variant={isDetached ? "light" : "transparent"}
-              mt="auto"
-              mb="auto"
-            >
-              {isDetached ? <IconPinnedOff size="1rem" /> : <IconPinned size="1rem" />}
-            </ActionIcon>
-          </Tooltip>
-          <ActionIcon size="lg" onClick={() => toggleSettingsOn()} mt="auto" mb="auto">
-            <IconSettings size="1rem" />
-          </ActionIcon>
-          <ActionIcon
-            size="lg"
-            mr={8}
-            mt="auto"
-            mb="auto"
-            style={{
-              cursor: "grab",
-            }}
-            {...dragHandleProps}
-          >
-            <IconGripVertical size="1rem" />
-          </ActionIcon>
-        </ActionIcon.Group>
-      </Box>
-      <Collapse expanded={settingsOn} px={30} pb={15}>
+          </ActionIcon.Group>
+        </Box>
+      </div>
+      <Collapse expanded={settingsOn} px="md" pb={15}>
         <EngineSettingsForm
           engine={engine}
           settings={settings}
@@ -341,59 +346,58 @@ function EngineTop({
 }) {
   const { t } = useTranslation();
   const isComputed = engineVariations && engineVariations.length > 0;
-  const depth = isComputed ? engineVariations[0].depth : 0;
-  const nodes = isComputed ? formatNodes(engineVariations[0].nodes, 2) : 0;
   const nps = isComputed ? formatNodes(engineVariations[0].nps, 1) : 0;
 
   return (
-    <Group justify="space-between" wrap="nowrap">
-      <Group align="center" wrap="nowrap">
-        <Text fw="bold" fz="lg" lineClamp={1}>
-          {name}
+    <Group align="center" gap="xs" wrap="nowrap" miw={0}>
+      <Text fw="bold" fz="lg" truncate miw={0}>
+        {name}
+      </Text>
+      {enabled && !isGameOver && !error && !engineVariations && (
+        <Code fz="xs" className={classes.badge}>
+          {t("Common.Loading")}
+        </Code>
+      )}
+      {progress < 100 && enabled && !isGameOver && isComputed && (
+        <Tooltip label={t("Board.Analysis.EngineSpeedHint")}>
+          <Code fz="xs" className={`${classes.badge} ${classes.nps}`}>
+            {nps}n/s
+          </Code>
+        </Tooltip>
+      )}
+    </Group>
+  );
+}
+
+/** Eval, depth and nodes. Sits next to the name, or on its own line when the panel is narrow. */
+function EngineStats({ engineVariations }: { engineVariations: BestMoves[] }) {
+  const best = engineVariations[0];
+  return (
+    <Group gap="md" wrap="nowrap" className={classes.stats}>
+      <Stack align="center" gap={0}>
+        <Text size="0.7rem" tt="uppercase" fw={700} className={classes.subtitle}>
+          Eval
         </Text>
-        {enabled && !isGameOver && !error && !engineVariations && (
-          <Code fz="xs">{t("Common.Loading")}</Code>
-        )}
-        {progress < 100 &&
-          enabled &&
-          !isGameOver &&
-          engineVariations &&
-          engineVariations.length > 0 && (
-            <Tooltip label={t("Board.Analysis.EngineSpeedHint")}>
-              <Code fz="xs">{nps}n/s</Code>
-            </Tooltip>
-          )}
-      </Group>
-      <Group gap="lg" wrap="nowrap">
-        {!isGameOver && engineVariations && engineVariations.length > 0 && (
-          <>
-            <Stack align="center" gap={0}>
-              <Text size="0.7rem" tt="uppercase" fw={700} className={classes.subtitle}>
-                Eval
-              </Text>
-              <Text fw="bold" fz="md">
-                {formatScore(engineVariations[0].score.value, 1) ?? 0}
-              </Text>
-            </Stack>
-            <Stack align="center" gap={0}>
-              <Text size="0.7rem" tt="uppercase" fw={700} className={classes.subtitle}>
-                Depth
-              </Text>
-              <Text fw="bold" fz="md">
-                {depth}
-              </Text>
-            </Stack>
-            <Stack align="center" gap={0}>
-              <Text size="0.7rem" tt="uppercase" fw={700} className={classes.subtitle}>
-                Nodes
-              </Text>
-              <Text fw="bold" fz="md">
-                {nodes}
-              </Text>
-            </Stack>
-          </>
-        )}
-      </Group>
+        <Text fw="bold" fz="md">
+          {formatScore(best.score.value, 1) ?? 0}
+        </Text>
+      </Stack>
+      <Stack align="center" gap={0}>
+        <Text size="0.7rem" tt="uppercase" fw={700} className={classes.subtitle}>
+          Depth
+        </Text>
+        <Text fw="bold" fz="md">
+          {best.depth}
+        </Text>
+      </Stack>
+      <Stack align="center" gap={0}>
+        <Text size="0.7rem" tt="uppercase" fw={700} className={classes.subtitle}>
+          Nodes
+        </Text>
+        <Text fw="bold" fz="md">
+          {formatNodes(best.nodes, 2)}
+        </Text>
+      </Stack>
     </Group>
   );
 }
