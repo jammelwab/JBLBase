@@ -23,7 +23,8 @@
 }
 
 .update {
-  animation: pulse 2.4s ease-in-out infinite;
+  /* A few pulses draw attention; an endless one costs CPU while idle. */
+  animation: pulse 2.4s ease-in-out 5;
 }
 
 @keyframes pulse {

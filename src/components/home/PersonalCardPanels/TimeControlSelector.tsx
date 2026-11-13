@@ -1,5 +1,5 @@
 import { Select } from "@mantine/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 const LICHESS_TIME_CONTROLS = [
@@ -32,10 +32,13 @@ const TimeControlSelector = ({
   showLabel = true,
 }: TimeControlSelectorProps) => {
   const { t } = useTranslation();
-  const timeControls =
-    website === "Chess.com"
-      ? [...(allowAll ? [{ value: "any", label: "Any" }] : []), ...CHESSCOM_TIME_CONTROLS]
-      : [...(allowAll ? [{ value: "any", label: "Any" }] : []), ...LICHESS_TIME_CONTROLS];
+  const timeControls = useMemo(
+    () => [
+      ...(allowAll ? [{ value: "any", label: "Any" }] : []),
+      ...(website === "Chess.com" ? CHESSCOM_TIME_CONTROLS : LICHESS_TIME_CONTROLS),
+    ],
+    [website, allowAll],
+  );
 
   const defaultTimeControl = allowAll ? "any" : "rapid";
   const [timeControl, setTimeControl] = useState<string | null>(defaultTimeControl);
