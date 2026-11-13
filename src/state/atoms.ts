@@ -35,6 +35,7 @@ import { notifyLocalChange } from "@/utils/cloud/syncSignal";
 import { deckId, loadDeck, repertoireId, saveDeck, tauriTrainingBackend } from "@/utils/training";
 import { genID, type Tab, tabSchema } from "@/utils/tabs";
 import { getEnginesDir } from "../utils/directories";
+import type { PlayerDatabase } from "@/utils/playerDatabases";
 import type { Session } from "../utils/session";
 import { createAsyncZodStorage, createZodStorage } from "./utils";
 
@@ -440,6 +441,13 @@ export const coverageMinGamesAtom = atomWithStorage<number>("coverage-min-games"
 
 // The user's own name for their repertoires. It only lives in the local settings, never in code.
 export const mainOwnerAtom = atomWithStorage<string>("repertoire-main-owner", "");
+
+// Further databases with games of a player (e.g. imported tournament games), each with the
+// name the player has there. They count together with the player's accounts.
+export const playerDatabasesAtom = atomWithStorage<PlayerDatabase[]>("player-databases", []);
+
+// The player marked "This is me": your own repertoires are compared with their games.
+export const myPlayerAtom = atomWithStorage<string>("my-player", "");
 
 export const puzzleTimerFamily = atomFamily((_tab: string) => atom<number | null>(null));
 export const currentPuzzleTimerAtom = tabValue(puzzleTimerFamily);

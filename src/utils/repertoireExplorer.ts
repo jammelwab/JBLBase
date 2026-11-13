@@ -2,13 +2,21 @@ import { resolve } from "@tauri-apps/api/path";
 import { getDefaultStore } from "jotai";
 import { mutate } from "swr";
 import { commands } from "@/bindings";
-import { lichessOptionsAtom, mainOwnerAtom, masterOptionsAtom, sessionsAtom } from "@/state/atoms";
+import {
+    lichessOptionsAtom,
+    mainOwnerAtom,
+    masterOptionsAtom,
+    myPlayerAtom,
+    playerDatabasesAtom,
+    sessionsAtom,
+} from "@/state/atoms";
 import { type Session, sessionPlayerName } from "@/utils/session";
 import { findAccountDatabase, sameName } from "./accountDatabase";
 import { getDatabases, searchPosition } from "./db";
 import { getDatabasesDir } from "./directories";
 import { getLichessGames, getMasterGames } from "./lichess/api";
 import { getMainOwner } from "./mainOwner";
+import { allPlayerNames, linksOfPlayer } from "./playerDatabases";
 import type { MoveStat } from "./gamesTree";
 import type { MoveCount } from "./repertoireTree";
 import type { RepertoireColor } from "./repertoires";
@@ -71,7 +79,7 @@ export function masterMoveCounts(fen: string): Promise<MoveCount[]> {
 
 type OwnAccount = { path: string; player: string };
 
-// Accounts per repertoire owner, so each player's repertoire is compared with their own games.
+// Accounts per player, so each player's repertoire is compared with their own games.
 const accountsCache = new Map<string, Promise<OwnAccount[]>>();
 
 /**
@@ -85,11 +93,49 @@ export function sessionsOfOwner(sessions: Session[], owner: string, mainOwner: s
     return sessions;
 }
 
-function accountsOf(owner: string): Promise<OwnAccount[]> {
-    const key = owner.toLowerCase();
+/**
+ * The player whose games a repertoire owner is compared with. Your own repertoires use the
+ * player marked "This is me", others the player with the owner's name. `null` stands for all
+ * accounts: the main user before a player was marked or named like them.
+ */
+export function playerForOwner(
+    owner: string,
+    players: string[],
+    mainOwner: string,
+    myPlayer: string,
+): string | null {
+    const main = sameName(owner, mainOwner);
+    const me = players.find((p) => sameName(p, myPlayer));
+    if (main && me) return me;
+    const named = players.find((p) => sameName(p, owner));
+    if (named) return named;
+    return main ? null : owner;
+}
+
+function currentPlayers(): string[] {
+    const store = getDefaultStore();
+    return allPlayerNames(store.get(sessionsAtom), store.get(playerDatabasesAtom));
+}
+
+/** The player for a repertoire owner with the current accounts and settings. */
+export function currentPlayerForOwner(owner: string): string | null {
+    return playerForOwner(
+        owner,
+        currentPlayers(),
+        getMainOwner(),
+        getDefaultStore().get(myPlayerAtom),
+    );
+}
+
+function playerKey(player: string | null) {
+    return player === null ? "*" : `p:${player.toLowerCase()}`;
+}
+
+function accountsOf(player: string | null): Promise<OwnAccount[]> {
+    const key = playerKey(player);
     let promise = accountsCache.get(key);
     if (!promise) {
-        promise = findOwnAccounts(owner);
+        promise = findOwnAccounts(player);
         promise.catch(() => accountsCache.delete(key));
         accountsCache.set(key, promise);
     }
@@ -106,8 +152,15 @@ async function playerName(path: string, username: string): Promise<string> {
     return res.data.data.find((p) => sameName(p.name, username))?.name ?? username;
 }
 
-async function findOwnAccounts(owner: string): Promise<OwnAccount[]> {
-    const sessions = sessionsOfOwner(getDefaultStore().get(sessionsAtom), owner, getMainOwner());
+async function findOwnAccounts(player: string | null): Promise<OwnAccount[]> {
+    const store = getDefaultStore();
+    const allSessions = store.get(sessionsAtom);
+    const allLinks = store.get(playerDatabasesAtom);
+    const sessions =
+        player === null
+            ? allSessions
+            : allSessions.filter((s) => sameName(sessionPlayerName(s), player));
+    const links = player === null ? allLinks : linksOfPlayer(allLinks, player);
     const databases = await getDatabases();
     const dir = await getDatabasesDir();
     const accounts: OwnAccount[] = [];
@@ -127,16 +180,35 @@ async function findOwnAccounts(owner: string): Promise<OwnAccount[]> {
             accounts.push({ path, player: await playerName(path, c.username) });
         }
     }
+    // Databases added to the player by hand, as long as they still exist
+    const files = new Set(
+        databases.map((db) => (db as { file?: string }).file?.replace(/\\/g, "/").toLowerCase()),
+    );
+    for (const link of links) {
+        if (!files.has(link.file.replace(/\\/g, "/").toLowerCase())) continue;
+        if (accounts.some((a) => a.path === link.file && sameName(a.player, link.name))) continue;
+        accounts.push({ path: link.file, player: link.name });
+    }
     return accounts;
 }
 
+/** Whether the repertoire owner has games to compare with. */
 export async function hasOwnGames(owner: string = getMainOwner()): Promise<boolean> {
-    return (await accountsOf(owner)).length > 0;
+    return hasPlayerGames(currentPlayerForOwner(owner));
+}
+
+export async function hasPlayerGames(player: string | null): Promise<boolean> {
+    return (await accountsOf(player)).length > 0;
 }
 
 // SWR key for hasOwnGames, refreshed together when accounts change.
 export function ownGamesKey(owner: string) {
     return ["own-games-available", owner.toLowerCase()] as const;
+}
+
+// SWR key for hasPlayerGames
+export function playerGamesKey(player: string | null) {
+    return ["own-games-available", "player", playerKey(player)] as const;
 }
 
 // Moves played from `fen` in the owner's own games where they had `color`, with results.
@@ -145,12 +217,21 @@ export function ownMoveCounts(
     color: RepertoireColor,
     owner: string = getMainOwner(),
 ): Promise<MoveStat[]> {
-    const key = `${owner.toLowerCase()} ${color} ${fen}`;
+    return playerMoveCounts(fen, color, currentPlayerForOwner(owner));
+}
+
+// The same for a player; `null` for all accounts.
+export function playerMoveCounts(
+    fen: string,
+    color: RepertoireColor,
+    player: string | null,
+): Promise<MoveStat[]> {
+    const key = `${playerKey(player)} ${color} ${fen}`;
     const cached = ownCache.get(key);
     if (cached) return cached;
     const promise = (async () => {
         const totals = new Map<string, MoveStat>();
-        for (const account of await accountsOf(owner)) {
+        for (const account of await accountsOf(player)) {
             const [openings] = await searchPosition(
                 {
                     path: account.path,
@@ -181,7 +262,7 @@ export function ownMoveCounts(
     // A failed lookup is tried again next time instead of staying empty
     promise.catch(() => {
         ownCache.delete(key);
-        accountsCache.delete(owner.toLowerCase());
+        accountsCache.delete(playerKey(player));
     });
     ownCache.set(key, promise);
     return promise;
@@ -204,3 +285,5 @@ export function refreshOwnGames() {
 
 getDefaultStore().sub(sessionsAtom, refreshOwnGames);
 getDefaultStore().sub(mainOwnerAtom, refreshOwnGames);
+getDefaultStore().sub(playerDatabasesAtom, refreshOwnGames);
+getDefaultStore().sub(myPlayerAtom, refreshOwnGames);
