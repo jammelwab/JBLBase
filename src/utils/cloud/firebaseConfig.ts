@@ -25,8 +25,11 @@ export const firebaseConfig = {
  * to Analytics ships it. See firebase/SETUP.md.
  */
 export const analyticsConfig = {
-    measurementId: "",
-    apiSecret: "",
+    measurementId: "G-5XZ6DKRS4Z",
+    // Not in the repository: the release build reads it from the GitHub
+    // secret GA_API_SECRET (see .github/workflows/release.yml). Local builds
+    // read VITE_GA_API_SECRET from .env.local; without it they send nothing.
+    apiSecret: (import.meta.env.VITE_GA_API_SECRET as string | undefined) ?? "",
 };
 
 /** Region of Firestore and all Cloud Functions. */

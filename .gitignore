@@ -28,3 +28,7 @@ tsconfig.tsbuildinfo
 *.sw?
 
 src-tauri/gen/
+
+# Local build secrets (e.g. VITE_GA_API_SECRET)
+.env.local
+.env.*.local
