@@ -154,6 +154,7 @@ function CompleteMoveCell({
   tableLayout?: boolean;
   scoreText?: string;
 }) {
+  const { t } = useTranslation();
   const store = useContext(TreeStateContext)!;
   const isStart = useStore(store, (s) => equal(movePath, s.headers.start));
 
@@ -218,7 +219,7 @@ function CompleteMoveCell({
             renderCell()
           ))}
         {transpositions.length > 0 && (
-          <Tooltip label="Transposition">
+          <Tooltip label={t("Board.Transposition")}>
             <ActionIcon size="xs" onClick={() => goToMove(transpositions[0])}>
               <IconArrowsJoin size="0.875rem" />
             </ActionIcon>

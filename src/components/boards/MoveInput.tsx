@@ -1,11 +1,13 @@
 import { Input } from "@mantine/core";
 import { useContext, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import { parseKeyboardMove } from "@/utils/chess";
 import type { TreeNode } from "@/utils/treeReducer";
 import { TreeStateContext } from "../common/TreeStateContext";
 
 export default function MoveInput({ currentNode }: { currentNode: TreeNode }) {
+  const { t } = useTranslation();
   const store = useContext(TreeStateContext)!;
   const makeMove = useStore(store, (s) => s.makeMove);
   const [move, setMove] = useState("");
@@ -13,7 +15,7 @@ export default function MoveInput({ currentNode }: { currentNode: TreeNode }) {
 
   return (
     <Input
-      placeholder="Enter move"
+      placeholder={t("Board.EnterMove")}
       size="xs"
       onChange={(e) => {
         setMove(e.currentTarget.value);

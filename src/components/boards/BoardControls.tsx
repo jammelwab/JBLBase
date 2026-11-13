@@ -171,7 +171,7 @@ function BoardControls({
         </ActionIcon>
       </Tooltip>
       {canTakeBack && onTakeBack && (
-        <Tooltip label="Take Back" position="right">
+        <Tooltip label={t("Board.TakeBack")} position="right">
           <ActionIcon onClick={() => onTakeBack()}>
             <IconArrowBack />
           </ActionIcon>

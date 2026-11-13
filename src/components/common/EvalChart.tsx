@@ -239,7 +239,7 @@ function EvalChart(props: EvalChartProps) {
         )}
         {chartType === "WDL" &&
           (isWDLDisabled ? (
-            <Alert variant="outline" title="Enable WDL" mt="sm">
+            <Alert variant="outline" title={t("Board.Analysis.EnableWDL.Title")} mt="sm">
               {t("Board.Analysis.EnableWDL")}
             </Alert>
           ) : (

@@ -1,6 +1,7 @@
 import { Combobox, Group, InputBase, Loader, ScrollArea, Text, useCombobox } from "@mantine/core";
 import { type FenError, parseFen } from "chessops/fen";
 import { use, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import useSWRImmutable from "swr/immutable";
 import { useStore } from "zustand";
 import ImportImageButton from "@/components/common/ImportImageButton";
@@ -9,6 +10,7 @@ import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { chessopsError } from "@/utils/chessops";
 
 export default function FenSearch({ currentFen: currentFenInput }: { currentFen?: string }) {
+  const { t } = useTranslation();
   const combobox = useCombobox({
     onDropdownClose: () => combobox.resetSelectedOption(),
   });
@@ -132,7 +134,7 @@ export default function FenSearch({ currentFen: currentFenInput }: { currentFen?
             }
             prev.current = event.nativeEvent.code;
           }}
-          placeholder="Enter FEN"
+          placeholder={t("Board.EnterFen")}
           rightSectionPointerEvents="auto"
         />
       </Combobox.Target>
