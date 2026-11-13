@@ -11,6 +11,8 @@ import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, playLine, sanToSquares, squaresToSan } from "@/utils/gamesTree";
 import { hasLichessToken, lichessMoveCounts } from "@/utils/repertoireExplorer";
 import { positionKey } from "@/utils/repertoireTree";
+import { formatScore, getWinChance } from "@/utils/score";
+import { type PreviewEvalState, PREVIEW_EVAL_DEPTH, usePreviewEval } from "./usePreviewEval";
 
 const REPERTOIRE_ARROW = "#15781b";
 const LICHESS_ARROW = "#1c7ed6";
@@ -24,6 +26,9 @@ const BRUSHES = {
 } as unknown as DrawBrushes;
 
 const MIN_SIZE = 180;
+// The eval bar left of the board, and the gap between them
+const BAR = 10;
+const BAR_GAP = 6;
 const MAX_SIZE = 720;
 const DEFAULT_SIZE = 252;
 // The board size is kept for next time
@@ -39,6 +44,88 @@ function Arrow({ color }: { color: string }) {
       <line x1="1" y1="5" x2="12" y2="5" stroke={color} strokeWidth="3" />
       <path d="M11,1 L17,5 L11,9 z" fill={color} />
     </svg>
+  );
+}
+
+// A thin bar like the big board's: White's share of the winning chances, White at the bottom
+// when White is at the bottom of the board.
+function SmallEvalBar({
+  evaluation,
+  orientation,
+  height,
+}: {
+  evaluation: PreviewEvalState;
+  orientation: "white" | "black";
+  height: number;
+}) {
+  const value = evaluation.state === "done" ? evaluation.eval.score.value : null;
+  const white = !value
+    ? 50
+    : value.type === "cp"
+      ? getWinChance(value.value)
+      : value.value > 0
+        ? 100
+        : 0;
+  const whiteBox = (
+    <Box
+      style={{
+        height: `${white}%`,
+        background: "var(--mantine-color-gray-1)",
+        transition: "height 0.25s ease",
+      }}
+    />
+  );
+  const blackBox = (
+    <Box
+      style={{
+        height: `${100 - white}%`,
+        background: "var(--mantine-color-dark-5)",
+        transition: "height 0.25s ease",
+      }}
+    />
+  );
+  return (
+    <Box
+      w={BAR}
+      h={height}
+      style={{
+        flexShrink: 0,
+        borderRadius: 3,
+        overflow: "hidden",
+        border: "1px solid var(--mantine-color-default-border)",
+        display: "flex",
+        flexDirection: "column",
+        opacity: value ? 1 : 0.45,
+      }}
+    >
+      {orientation === "white" ? [blackBox, whiteBox] : [whiteBox, blackBox]}
+    </Box>
+  );
+}
+
+function EvalLine({ evaluation }: { evaluation: PreviewEvalState }) {
+  const { t } = useTranslation();
+  let text: string | null = null;
+  if (evaluation.state === "done") {
+    const { score, engine, depth, stored } = evaluation.eval;
+    text = t(stored ? "Repertoire.Preview.EvalStored" : "Repertoire.Preview.EvalCalculated", {
+      score: formatScore(score.value),
+      engine,
+      depth,
+    });
+  } else if (evaluation.state === "calculating") {
+    text = t("Repertoire.Preview.EvalCalculating", {
+      engine: evaluation.engine,
+      depth: PREVIEW_EVAL_DEPTH,
+    });
+  } else if (evaluation.state === "none" && evaluation.reason === "noEngine") {
+    text = t("Repertoire.Preview.EvalNoEngine");
+  }
+  if (!text) return null;
+  return (
+    <Text size="xs" c={evaluation.state === "done" ? undefined : "dimmed"}>
+      {text}
+    </Text>
   );
 }
 
@@ -91,6 +178,7 @@ export default function BoardPreview({
   const { t } = useTranslation();
   const { fen, lastMove } = useMemo(() => playLine(rootFen, line), [rootFen, line]);
   const { turn, dests } = useMemo(() => boardMoves(fen), [fen]);
+  const evaluation = usePreviewEval(fen);
   // The newest move stays in sight when the line gets long
   const movesRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -145,7 +233,7 @@ export default function BoardPreview({
     // What the box needs besides the board, and room so it stays inside the tree
     const extra = paper ? paper.offsetHeight - size : 200;
     const limit = parent
-      ? Math.min(parent.clientWidth - 40, parent.clientHeight - extra - 24)
+      ? Math.min(parent.clientWidth - 40 - BAR - BAR_GAP, parent.clientHeight - extra - 24)
       : MAX_SIZE;
     const move = (ev: PointerEvent) => {
       const delta = Math.max(startX - ev.clientX, startY - ev.clientY);
@@ -171,7 +259,7 @@ export default function BoardPreview({
       pos="absolute"
       right={12}
       bottom={12}
-      w={size + 20}
+      w={size + 20 + BAR + BAR_GAP}
       style={{ zIndex: 2 }}
       onPointerDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
@@ -212,29 +300,32 @@ export default function BoardPreview({
           </ActionIcon>
         </Group>
       </Group>
-      <Box w={size} h={size} title={onMove ? t("Repertoire.Preview.PlayHint") : undefined}>
-        <Chessground
-          coordinates={false}
-          viewOnly={!onMove}
-          turnColor={turn}
-          movable={{
-            free: false,
-            color: onMove ? turn : undefined,
-            dests: dests as never,
-            showDests: true,
-            events: {
-              after: (orig, dest) => {
-                const san = squaresToSan(fen, orig, dest);
-                if (san) onMove?.(san);
+      <Group gap={BAR_GAP} wrap="nowrap" align="flex-start">
+        <SmallEvalBar evaluation={evaluation} orientation={orientation} height={size} />
+        <Box w={size} h={size} title={onMove ? t("Repertoire.Preview.PlayHint") : undefined}>
+          <Chessground
+            coordinates={false}
+            viewOnly={!onMove}
+            turnColor={turn}
+            movable={{
+              free: false,
+              color: onMove ? turn : undefined,
+              dests: dests as never,
+              showDests: true,
+              events: {
+                after: (orig, dest) => {
+                  const san = squaresToSan(fen, orig, dest);
+                  if (san) onMove?.(san);
+                },
               },
-            },
-          }}
-          fen={fen}
-          orientation={orientation}
-          lastMove={lastMove ? (lastMove as Key[]) : undefined}
-          drawable={{ enabled: false, visible: true, autoShapes: shapes, brushes: BRUSHES }}
-        />
-      </Box>
+            }}
+            fen={fen}
+            orientation={orientation}
+            lastMove={lastMove ? (lastMove as Key[]) : undefined}
+            drawable={{ enabled: false, visible: true, autoShapes: shapes, brushes: BRUSHES }}
+          />
+        </Box>
+      </Group>
       {status && (
         <Box mt={6}>
           <Group gap={6} wrap="nowrap">
@@ -267,6 +358,7 @@ export default function BoardPreview({
         </Box>
       )}
       <Box mt={6}>
+        <EvalLine evaluation={evaluation} />
         {weights && (
           <Group gap={6} wrap="nowrap" align="flex-start">
             <Arrow color={REPERTOIRE_ARROW} />
