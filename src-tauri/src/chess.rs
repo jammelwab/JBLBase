@@ -49,6 +49,13 @@ pub struct EngineProcess {
     options: EngineOptions,
     go_mode: GoMode,
     running: bool,
+    /// The engine has a search going whose `bestmove` has not been read yet.
+    searching: bool,
+    /// `bestmove`s still owed by searches that were stopped. Until they have
+    /// arrived, the engine's output belongs to an old position and is ignored.
+    stale_searches: u32,
+    /// A result of the current search has been shown already.
+    emitted_since_go: bool,
     real_multipv: u16,
     start: Instant,
     /// Engine name as reported by `id name`.
@@ -87,6 +94,9 @@ impl EngineProcess {
                 real_multipv: 0,
                 go_mode: GoMode::Infinite,
                 running: false,
+                searching: false,
+                stale_searches: 0,
+                emitted_since_go: false,
                 start: Instant::now(),
                 cache_engine: engine_name.clone(),
                 engine_name,
@@ -161,20 +171,37 @@ impl EngineProcess {
         self.go_mode = mode.clone();
         self.base.go(mode).await?;
         self.running = true;
+        self.searching = true;
+        self.emitted_since_go = false;
         self.start = Instant::now();
         Ok(())
     }
 
+    /// Stops the current search. Its remaining output, up to and including
+    /// its `bestmove`, is ignored, so it can never be shown for the next
+    /// position.
     async fn stop(&mut self) -> Result<(), Error> {
-        self.base.stop().await?;
         self.running = false;
+        if self.searching {
+            self.searching = false;
+            self.stale_searches += 1;
+            self.base.stop().await?;
+        }
         Ok(())
     }
 
-    async fn kill(&mut self) -> Result<(), Error> {
-        self.base.quit().await?;
+    /// Ends the engine process for good: asks it to quit and then terminates
+    /// it, so an engine that does not react to `quit` (Patricia waits for its
+    /// search threads) cannot keep running in the background.
+    async fn kill(&mut self) {
+        let polite = async {
+            let _ = self.base.stop().await;
+            let _ = self.base.quit().await;
+        };
+        let _ = tokio::time::timeout(std::time::Duration::from_millis(200), polite).await;
         self.running = false;
-        Ok(())
+        self.searching = false;
+        self.base.kill_sync();
     }
 
     pub fn kill_sync(&mut self) {
@@ -425,6 +452,30 @@ pub struct EngineOptions {
     pub extra_options: Vec<EngineOption>,
 }
 
+type EngineKey = (String, String);
+type SharedEngine = Arc<Mutex<EngineProcess>>;
+
+/// The analysis engine registered for `key`. The map guard is released right
+/// away, so it is never held across an `await`.
+fn registered_engine(state: &AppState, key: &EngineKey) -> Option<SharedEngine> {
+    state.engine_processes.get(key).map(|p| p.value().clone())
+}
+
+/// Forgets `process` if it is still the engine registered for `key` (a newer
+/// one may have replaced it in the meantime).
+fn unregister_engine(state: &AppState, key: &EngineKey, process: &SharedEngine) {
+    state
+        .engine_processes
+        .remove_if(key, |_, registered| Arc::ptr_eq(registered, process));
+}
+
+async fn kill_registered(state: &AppState, key: &EngineKey) {
+    if let Some(process) = registered_engine(state, key) {
+        process.lock().await.kill().await;
+        unregister_engine(state, key, &process);
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn kill_engines(tab: String, state: tauri::State<'_, AppState>) -> Result<(), Error> {
@@ -432,17 +483,14 @@ pub async fn kill_engines(tab: String, state: tauri::State<'_, AppState>) -> Res
         .engine_processes
         .iter()
         .map(|x| x.key().clone())
+        .filter(|key| key.0.starts_with(&tab))
         .collect();
-    for key in keys.clone() {
-        if key.0.starts_with(&tab) {
-            {
-                let process = state.engine_processes.get_mut(&key).unwrap();
-                let mut process = process.lock().await;
-                process.kill().await?;
-            }
-            state.engine_processes.remove(&key);
-        }
+    for key in keys {
+        kill_registered(&state, &key).await;
     }
+    state
+        .engine_start_locks
+        .retain(|key, _| !key.0.starts_with(&tab));
     Ok(())
 }
 
@@ -454,12 +502,13 @@ pub async fn kill_engine(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), Error> {
     let key = (tab, engine);
-    if let Some(process) = state.engine_processes.get(&key) {
-        let mut process = process.lock().await;
-        process.kill().await?;
-    }
+    // Wait for a start that is under way, so it cannot outlive the kill.
+    let start_lock = engine_start_lock(&state, &key);
+    let _start = start_lock.lock().await;
+    kill_registered(&state, &key).await;
     Ok(())
 }
+
 #[tauri::command]
 #[specta::specta]
 pub async fn stop_engine(
@@ -468,9 +517,11 @@ pub async fn stop_engine(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), Error> {
     let key = (tab, engine);
-    if let Some(process) = state.engine_processes.get(&key) {
-        let mut process = process.lock().await;
-        process.stop().await?;
+    // Wait for a start that is under way, so the new engine is stopped too.
+    let start_lock = engine_start_lock(&state, &key);
+    let _start = start_lock.lock().await;
+    if let Some(process) = registered_engine(&state, &key) {
+        process.lock().await.stop().await?;
     }
     Ok(())
 }
@@ -483,12 +534,48 @@ pub async fn get_engine_logs(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<EngineLog>, Error> {
     let key = (tab, engine);
-    if let Some(process) = state.engine_processes.get(&key) {
-        let process = process.lock().await;
-        Ok(process.base.get_logs())
+    if let Some(process) = registered_engine(&state, &key) {
+        Ok(process.lock().await.base.get_logs())
     } else {
         Ok(Vec::new())
     }
+}
+
+fn engine_start_lock(state: &AppState, key: &EngineKey) -> Arc<Mutex<()>> {
+    state
+        .engine_start_locks
+        .entry(key.clone())
+        .or_default()
+        .value()
+        .clone()
+}
+
+/// Moves a running engine to a new position. Returns the result to show right
+/// away when the engine is already analysing exactly this.
+async fn reuse_engine(
+    process: &SharedEngine,
+    id: &str,
+    tab: &str,
+    go_mode: &GoMode,
+    options: &EngineOptions,
+    app: &tauri::AppHandle,
+    state: &AppState,
+) -> Result<Option<(f32, Vec<BestMoves>)>, Error> {
+    let mut process = process.lock().await;
+    if *options == process.options && *go_mode == process.go_mode && process.running {
+        return Ok(Some((
+            process.last_progress,
+            process.last_best_moves.clone(),
+        )));
+    }
+    // UCI commands are handled in order: the engine finishes the old search
+    // (whose output is now ignored) before it reads the new position.
+    process.stop().await?;
+    process.set_options(options.clone()).await?;
+    if !process.serve_from_cache(go_mode, &state.eval_cache, app, id, tab)? {
+        process.go(go_mode).await?;
+    }
+    Ok(None)
 }
 
 #[tauri::command]
@@ -509,35 +596,29 @@ pub async fn get_best_moves(
     let setup_validation = parse_fen_and_apply_moves(&options.fen, &options.moves);
     if let Err(e) = setup_validation {
         warn!("Invalid position for engine: {:?}", e);
-        if let Some(process) = state.engine_processes.get(&key) {
+        if let Some(process) = registered_engine(&state, &key) {
             process.lock().await.stop().await?;
         }
         return Ok(None);
     }
 
-    if state.engine_processes.contains_key(&key) {
-        {
-            let process = state.engine_processes.get_mut(&key).unwrap();
-            let mut process = process.lock().await;
-            if options == process.options && go_mode == process.go_mode && process.running {
-                return Ok(Some((
-                    process.last_progress,
-                    process.last_best_moves.clone(),
-                )));
-            }
-            process.stop().await?;
-        }
-        // give time for engine to stop and process previous lines
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        {
-            let process = state.engine_processes.get_mut(&key).unwrap();
-            let mut process = process.lock().await;
-            process.set_options(options.clone()).await?;
-            if !process.serve_from_cache(&go_mode, &state.eval_cache, &app, &id, &tab)? {
-                process.go(&go_mode).await?;
+    // Held until the engine is registered: a second request that arrives
+    // while the engine is still starting waits here and then reuses it,
+    // instead of starting another process that would keep running unseen.
+    let start_lock = engine_start_lock(&state, &key);
+    let start_guard = start_lock.lock().await;
+
+    if let Some(process) = registered_engine(&state, &key) {
+        match reuse_engine(&process, &id, &tab, &go_mode, &options, &app, &state).await {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                // The engine no longer takes commands (crashed or exited):
+                // end it and start a fresh one below.
+                warn!("Engine {} stopped responding, restarting it: {:?}", id, e);
+                process.lock().await.kill().await;
+                unregister_engine(&state, &key, &process);
             }
         }
-        return Ok(None);
     }
 
     let (mut process, mut reader) = EngineProcess::new(path).await?;
@@ -547,95 +628,137 @@ pub async fn get_best_moves(
     }
 
     let process = Arc::new(Mutex::new(process));
-
-    state.engine_processes.insert(key.clone(), process.clone());
+    if let Some(replaced) = state.engine_processes.insert(key.clone(), process.clone()) {
+        replaced.lock().await.kill().await;
+    }
+    drop(start_guard);
 
     let lim = RateLimiter::direct(Quota::per_second(nonzero!(5u32)));
 
-    while let Some(line) = reader.next_line().await? {
-        let mut proc = process.lock().await;
-        match parse_one(&line) {
-            UciMessage::Info(attrs) => {
-                match parse_uci_attrs(attrs, &proc.options.fen.parse()?, &proc.options.moves) {
-                    Ok(best_moves) => {
-                        if best_moves.score.lower_bound == Some(true)
-                            || best_moves.score.upper_bound == Some(true)
-                        {
-                            continue;
-                        }
-                        let multipv = best_moves.multipv;
-                        let cur_depth = best_moves.depth;
-                        let cur_nodes = best_moves.nodes;
-                        if multipv as usize == proc.best_moves.len() + 1 {
-                            proc.best_moves.push(best_moves);
-                            if multipv == proc.real_multipv {
-                                let complete = proc.best_moves.iter().all(|x| x.depth == cur_depth)
-                                    && cur_depth >= proc.last_depth;
-                                if complete {
-                                    // Always persist and remember the deepest result, even
-                                    // when the UI update below is rate limited.
-                                    let lines = proc.best_moves.clone();
-                                    proc.cache_store(&state.eval_cache, &lines);
-                                    proc.last_depth = cur_depth;
-                                    proc.last_best_moves = lines;
-                                }
-                                if complete && lim.check().is_ok() {
-                                    let progress = match proc.go_mode {
-                                        GoMode::Depth(depth) => {
-                                            (cur_depth as f64 / depth as f64) * 100.0
-                                        }
-                                        GoMode::Time(time) => {
-                                            (proc.start.elapsed().as_millis() as f64 / time as f64)
-                                                * 100.0
-                                        }
-                                        GoMode::Nodes(nodes) => {
-                                            (cur_nodes as f64 / nodes as f64) * 100.0
-                                        }
-                                        GoMode::PlayersTime(_) => 99.99,
-                                        GoMode::Infinite => 99.99,
-                                    };
-                                    BestMovesPayload {
-                                        best_lines: proc.best_moves.clone(),
-                                        engine: id.clone(),
-                                        tab: tab.clone(),
-                                        fen: proc.options.fen.clone(),
-                                        moves: proc.options.moves.clone(),
-                                        progress,
-                                    }
-                                    .emit(&app)?;
-                                    proc.last_progress = progress as f32;
-                                }
-                                proc.best_moves.clear();
-                            }
-                        }
-                    }
-                    Err(e) => match e {
-                        Error::NoMovesFound => {}
-                        _ => {
-                            warn!("Failed to parse info line: {}, error: {:?}", line, e);
-                        }
-                    },
-                }
+    loop {
+        let line = match reader.next_line().await {
+            Ok(Some(line)) => line,
+            Ok(None) => break,
+            Err(e) => {
+                warn!("Failed to read engine output: {:?}", e);
+                break;
             }
-            UciMessage::BestMove { .. } => {
-                BestMovesPayload {
+        };
+        let mut proc = process.lock().await;
+        proc.base.log_engine(&line);
+        let mut emit = |payload: BestMovesPayload| payload.emit(&app).map_err(Error::from);
+        if let Err(e) = handle_engine_line(
+            &mut proc,
+            &line,
+            &lim,
+            &id,
+            &tab,
+            &state.eval_cache,
+            &mut emit,
+        ) {
+            warn!("Failed to handle engine output: {}, error: {:?}", line, e);
+        }
+    }
+    info!("Engine process finished: tab: {}, engine: {}", tab, engine);
+    process.lock().await.kill().await;
+    unregister_engine(&state, &key, &process);
+    Ok(None)
+}
+
+fn handle_engine_line(
+    proc: &mut EngineProcess,
+    line: &str,
+    lim: &governor::DefaultDirectRateLimiter,
+    id: &str,
+    tab: &str,
+    cache: &EvalCache,
+    emit: &mut dyn FnMut(BestMovesPayload) -> Result<(), Error>,
+) -> Result<(), Error> {
+    match parse_one(line) {
+        UciMessage::BestMove { .. } if proc.stale_searches > 0 => {
+            // The end of a stopped search; from here on the output is current.
+            proc.stale_searches -= 1;
+        }
+        _ if proc.stale_searches > 0 => {}
+        UciMessage::Info(attrs) => {
+            let best_moves =
+                match parse_uci_attrs(attrs, &proc.options.fen.parse()?, &proc.options.moves) {
+                    Ok(best_moves) => best_moves,
+                    Err(Error::NoMovesFound) => return Ok(()),
+                    Err(e) => {
+                        warn!("Failed to parse info line: {}, error: {:?}", line, e);
+                        return Ok(());
+                    }
+                };
+            if best_moves.score.lower_bound == Some(true)
+                || best_moves.score.upper_bound == Some(true)
+            {
+                return Ok(());
+            }
+            let multipv = best_moves.multipv;
+            let cur_depth = best_moves.depth;
+            let cur_nodes = best_moves.nodes;
+            if multipv as usize != proc.best_moves.len() + 1 {
+                return Ok(());
+            }
+            proc.best_moves.push(best_moves);
+            if multipv != proc.real_multipv {
+                return Ok(());
+            }
+            let complete = proc.best_moves.iter().all(|x| x.depth == cur_depth)
+                && cur_depth >= proc.last_depth;
+            if complete {
+                // Always persist and remember the deepest result, even when the
+                // UI update below is rate limited.
+                let lines = proc.best_moves.clone();
+                proc.cache_store(cache, &lines);
+                proc.last_depth = cur_depth;
+                proc.last_best_moves = lines;
+            }
+            // The first result of a search is always shown; later ones are
+            // rate limited.
+            if complete && (!proc.emitted_since_go || lim.check().is_ok()) {
+                let progress = match proc.go_mode {
+                    GoMode::Depth(depth) => (cur_depth as f64 / depth as f64) * 100.0,
+                    GoMode::Time(time) => {
+                        (proc.start.elapsed().as_millis() as f64 / time as f64) * 100.0
+                    }
+                    GoMode::Nodes(nodes) => (cur_nodes as f64 / nodes as f64) * 100.0,
+                    GoMode::PlayersTime(_) => 99.99,
+                    GoMode::Infinite => 99.99,
+                };
+                proc.emitted_since_go = true;
+                proc.last_progress = progress as f32;
+                proc.best_moves.clear();
+                emit(BestMovesPayload {
                     best_lines: proc.last_best_moves.clone(),
-                    engine: id.clone(),
-                    tab: tab.clone(),
+                    engine: id.to_string(),
+                    tab: tab.to_string(),
+                    fen: proc.options.fen.clone(),
+                    moves: proc.options.moves.clone(),
+                    progress,
+                })?;
+            } else {
+                proc.best_moves.clear();
+            }
+        }
+        UciMessage::BestMove { .. } => {
+            proc.searching = false;
+            proc.last_progress = 100.0;
+            if !proc.last_best_moves.is_empty() {
+                emit(BestMovesPayload {
+                    best_lines: proc.last_best_moves.clone(),
+                    engine: id.to_string(),
+                    tab: tab.to_string(),
                     fen: proc.options.fen.clone(),
                     moves: proc.options.moves.clone(),
                     progress: 100.0,
-                }
-                .emit(&app)?;
-                proc.last_progress = 100.0;
+                })?;
             }
-            _ => {}
         }
-        proc.base.log_engine(&line);
+        _ => {}
     }
-    info!("Engine process finished: tab: {}, engine: {}", tab, engine);
-    state.engine_processes.remove(&key);
-    Ok(None)
+    Ok(())
 }
 
 #[derive(Serialize, Debug, Default, Type)]
@@ -725,7 +848,7 @@ pub async fn analyze_game(
 
     for (i, (_, moves, _)) in fens.iter().enumerate() {
         if cancel_flag.load(Ordering::SeqCst) {
-            proc.kill().await?;
+            proc.kill().await;
             state.analysis_cancel_flags.remove(&id);
             return Err(Error::AnalysisCancelled);
         }
@@ -1175,6 +1298,94 @@ mod engine_cache_tests {
         let shallow = search(&mut proc, &mut reader, start, &["g1f3", "d7d5", "d2d4"], 6).await;
         proc.cache_store(&cache, &shallow);
         assert_eq!(proc.cache_lookup(&cache).unwrap().depth, 12);
-        proc.kill().await.unwrap();
+        proc.kill().await;
+    }
+}
+
+#[cfg(all(test, unix))]
+mod engine_switch_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// A UCI engine that always "finds" Nf3. On `stop` it still reports a
+    /// deeper line before its `bestmove`, like real engines do.
+    const FAKE_ENGINE: &str = r#"#!/bin/sh
+while read -r cmd rest; do
+  case "$cmd" in
+    uci) echo "id name FakeEngine"; echo "uciok" ;;
+    isready) echo "readyok" ;;
+    go) echo "info depth 3 multipv 1 score cp 10 nodes 100 nps 100 pv g1f3" ;;
+    stop) echo "info depth 21 multipv 1 score cp 99 nodes 100 nps 100 pv g1f3"; echo "bestmove g1f3" ;;
+    quit) exit 0 ;;
+  esac
+done
+"#;
+
+    const START: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    fn options(moves: &[&str]) -> EngineOptions {
+        EngineOptions {
+            fen: START.to_string(),
+            moves: moves.iter().map(|m| m.to_string()).collect(),
+            extra_options: vec![],
+        }
+    }
+
+    async fn feed(
+        proc: &mut EngineProcess,
+        reader: &mut EngineReader,
+        lines: usize,
+        cache: &EvalCache,
+        out: &mut Vec<BestMovesPayload>,
+    ) {
+        let lim = RateLimiter::direct(Quota::per_second(nonzero!(5u32)));
+        for _ in 0..lines {
+            let line = reader.next_line().await.unwrap().unwrap();
+            let mut emit = |p: BestMovesPayload| {
+                out.push(p);
+                Ok(())
+            };
+            handle_engine_line(proc, &line, &lim, "fake", "tab", cache, &mut emit).unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn output_of_a_stopped_search_is_not_shown_for_the_next_position() {
+        let path = std::env::temp_dir().join(format!("jbl-fake-engine-{}", std::process::id()));
+        std::fs::write(&path, FAKE_ENGINE).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let cache = EvalCache::open_in_memory();
+        let mut out = Vec::new();
+
+        let (mut proc, mut reader) = EngineProcess::new(path.clone()).await.unwrap();
+        proc.set_options(options(&[])).await.unwrap();
+        proc.go(&GoMode::Infinite).await.unwrap();
+        feed(&mut proc, &mut reader, 1, &cache, &mut out).await;
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].best_lines[0].depth, 3);
+        assert!(out[0].moves.is_empty());
+
+        // New position: the old search's late depth-21 line and bestmove
+        // (Nf3 is legal in the new position too) must be ignored.
+        proc.stop().await.unwrap();
+        proc.stop().await.unwrap(); // a second stop owes no bestmove
+        assert_eq!(proc.stale_searches, 1);
+        proc.set_options(options(&["e2e4", "e7e5"])).await.unwrap();
+        proc.go(&GoMode::Infinite).await.unwrap();
+        feed(&mut proc, &mut reader, 3, &cache, &mut out).await;
+        assert_eq!(proc.stale_searches, 0);
+        assert_eq!(out.len(), 2, "only the new search's line is shown");
+        assert_eq!(out[1].moves, vec!["e2e4", "e7e5"]);
+        assert_eq!(out[1].best_lines[0].depth, 3);
+        assert_eq!(out[1].best_lines[0].san_moves, vec!["Nf3"]);
+
+        // Killing ends the process even without waiting for it.
+        proc.kill().await;
+        assert!(reader
+            .next_line()
+            .await
+            .map(|l| l.is_none())
+            .unwrap_or(true));
+        let _ = std::fs::remove_file(path);
     }
 }
