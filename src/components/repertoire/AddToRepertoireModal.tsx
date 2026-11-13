@@ -8,7 +8,7 @@ import { useStore } from "zustand";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { currentTabAtom } from "@/state/atoms";
 import { nodesOnPath } from "@/utils/repertoireTree";
-import { findMainRepertoire } from "@/utils/repertoireFolders";
+import { findMainRepertoire, folderLabel } from "@/utils/repertoireFolders";
 import {
   addLineToRepertoire,
   DEFAULT_MAIN_OWNER,
@@ -91,7 +91,7 @@ export default function AddToRepertoireModal({
     for (const r of targets) {
       const color = r.color === "white" ? t("Repertoire.White") : t("Repertoire.Black");
       const group = r.owner === mainOwner ? color : `${r.owner} · ${color}`;
-      const label = [r.folder.replaceAll("/", " › "), r.name].filter(Boolean).join(" › ");
+      const label = [folderLabel(r.folder), r.name].filter(Boolean).join(" › ");
       groups.set(group, [...(groups.get(group) ?? []), { value: r.file.path, label }]);
     }
     return [...groups].map(([group, items]) => ({ group, items }));
