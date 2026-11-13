@@ -40,7 +40,7 @@ function EvalListener() {
     useShallow((s) => getVariationLine(s.root, s.position)),
   );
 
-  const [pos, error] = positionFromFen(fen);
+  const [pos] = positionFromFen(fen);
   if (pos) {
     for (const uci of moves) {
       const move = parseUci(uci);

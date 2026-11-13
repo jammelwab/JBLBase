@@ -130,7 +130,7 @@ function PuzzleBoard({
       <Box
         className={classes.chessboard}
         onClick={() => {
-          eraseDrawablesOnClick && clearShapes();
+          if (eraseDrawablesOnClick) clearShapes();
         }}
         style={{
           maxWidth: parentHeight,

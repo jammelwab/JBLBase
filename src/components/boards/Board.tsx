@@ -518,7 +518,7 @@ function Board({
               className={`${classes.chessboard} ${is3d ? "is3d" : ""}`}
               ref={boardRef}
               onClick={() => {
-                eraseDrawablesOnClick && clearShapes();
+                if (eraseDrawablesOnClick) clearShapes();
               }}
               onWheel={(e) => {
                 if (enableBoardScroll) {

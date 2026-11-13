@@ -19,7 +19,7 @@ import { commands, events } from "@/bindings";
 import { playerDatabasesAtom, sessionsAtom } from "@/state/atoms";
 import { activeDatabaseViewStore } from "@/state/store/database";
 import { accountDatabaseFilename, sameName } from "@/utils/accountDatabase";
-import { getDatabases, query_players } from "@/utils/db";
+import { getDatabases } from "@/utils/db";
 import { allPlayerNames, linksOfPlayer } from "@/utils/playerDatabases";
 import { type Session, sessionsOfPlayer } from "@/utils/session";
 import { unwrap } from "@/utils/unwrap";
