@@ -6,7 +6,7 @@ import { startTransition, useContext, useEffect, useMemo } from "react";
 import { match } from "ts-pattern";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { type EngineOptions, events, type GoMode } from "@/bindings";
+import { commands, type EngineOptions, events, type GoMode } from "@/bindings";
 import {
   activeTabAtom,
   currentThreatAtom,
@@ -23,6 +23,7 @@ import {
   type Engine,
   type LocalEngine,
   getBestMoves as localGetBestMoves,
+  killEngine,
   stopEngine,
 } from "@/utils/engines";
 import { getBestMoves as lichessGetBestMoves } from "@/utils/lichess/api";
@@ -146,7 +147,8 @@ function EngineListener({
         payload.fen === searchingFen &&
         equal(payload.moves, searchingMoves) &&
         settings.enabled &&
-        !isGameOver
+        !isGameOver &&
+        ev.length > 0
       ) {
         startTransition(() => {
           setEngineVariation((prev) => {
@@ -188,6 +190,17 @@ function EngineListener({
     finalFen,
   ]);
 
+  // Leaving the tab (or unloading the engine) stops its search; otherwise an
+  // infinite analysis keeps running in the background with nobody watching.
+  const isLocal = engine.type === "local";
+  const engineId = engine.id;
+  useEffect(() => {
+    if (!isLocal || !activeTab) return;
+    return () => {
+      commands.stopEngine(engineId, activeTab).catch(() => {});
+    };
+  }, [isLocal, engineId, activeTab]);
+
   const getBestMoves = useMemo(
     () =>
       match(engine.type)
@@ -220,7 +233,7 @@ function EngineListener({
             fen: searchingFen,
             extraOptions: options,
           }).then((moves) => {
-            if (moves) {
+            if (moves && moves[1].length > 0) {
               const [progress, bestMoves] = moves;
               setEngineVariation((prev) => {
                 const newMap = new Map(prev);
@@ -233,7 +246,8 @@ function EngineListener({
         }
       } else {
         if (engine.type === "local") {
-          stopEngine(engine, activeTab!);
+          // Switched off: end the process instead of leaving it idle.
+          killEngine(engine, activeTab!);
         }
       }
     },

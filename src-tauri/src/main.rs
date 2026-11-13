@@ -89,6 +89,9 @@ pub struct AppState {
     pgn_offsets: DashMap<String, Vec<u64>>,
 
     engine_processes: DashMap<(String, String), Arc<tokio::sync::Mutex<EngineProcess>>>,
+    /// One lock per (tab, engine) so that only one analysis engine process is
+    /// ever started for it, even when positions change faster than it starts.
+    engine_start_locks: DashMap<(String, String), Arc<tokio::sync::Mutex<()>>>,
     analysis_cancel_flags: DashMap<String, Arc<AtomicBool>>,
     auth: AuthState,
     game_manager: GameManager,
