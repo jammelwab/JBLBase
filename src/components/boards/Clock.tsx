@@ -62,7 +62,9 @@ function Clock({
         size="xs"
         w="100%"
         value={progress * 100}
-        animated={turn === color}
+        // Only a running clock animates; a clock read from an imported game
+        // would otherwise keep the GPU busy for as long as the board is open.
+        animated={turn === color && (whiteTime !== undefined || blackTime !== undefined)}
         styles={{
           section: {
             animationDirection: "reverse",
