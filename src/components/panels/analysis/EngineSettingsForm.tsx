@@ -18,6 +18,7 @@ import { activeTabAtom, enginesAtom } from "@/state/atoms";
 import { type Engine, type EngineSettings, killEngine } from "@/utils/engines";
 import CoresSlider from "./CoresSlider";
 import HashSlider from "./HashSlider";
+import classes from "./EngineSettingsForm.module.css";
 import LinesSlider from "./LinesSlider";
 
 export type Settings = {
@@ -70,7 +71,7 @@ function EngineSettingsForm({
       )}
 
       {!minimal && multipv && (
-        <Group grow>
+        <div className={classes.row}>
           <Text size="sm" fw="bold">
             {t("Engines.Settings.NumOfLines")}
           </Text>
@@ -88,12 +89,12 @@ function EngineSettingsForm({
             }
             color={color}
           />
-        </Group>
+        </div>
       )}
 
       {!remote && threads && (
         <>
-          <Group grow>
+          <div className={classes.row}>
             <Text size="sm" fw="bold">
               {t("Engines.Settings.NumOfThreads")}
             </Text>
@@ -109,10 +110,10 @@ function EngineSettingsForm({
               }
               color={color}
             />
-          </Group>
+          </div>
 
           {hash && (
-            <Group grow>
+            <div className={classes.row}>
               <Text size="sm" fw="bold">
                 {t("Engines.Settings.SizeOfHash")}
               </Text>
@@ -128,7 +129,7 @@ function EngineSettingsForm({
                 }
                 color={color}
               />
-            </Group>
+            </div>
           )}
         </>
       )}

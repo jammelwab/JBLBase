@@ -113,11 +113,14 @@ function AnalysisPanel() {
             overflow: "hidden",
             display: tab === "engines" ? "flex" : "none",
             flexDirection: "column",
+            flex: 1,
+            minWidth: 0,
           }}
           pt="sm"
         >
           <ScrollArea
             offsetScrollbars
+            scrollbars="y"
             onScrollPositionChange={() =>
               document.dispatchEvent(new Event("analysis-panel-scroll"))
             }
