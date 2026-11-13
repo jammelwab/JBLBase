@@ -4,9 +4,10 @@ import cx from "clsx";
 import equal from "fast-deep-equal";
 import { useAtom, useAtomValue } from "jotai";
 import React, { memo, useCallback, useContext, useMemo } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
-import { commands } from "@/bindings";
+import { commands, type GoMode } from "@/bindings";
 import EvalChart from "@/components/common/EvalChart";
 import ProgressButton from "@/components/common/ProgressButton";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
@@ -28,6 +29,7 @@ function ReportPanel() {
 
   const inProgress = useStore(store, (s) => s.report.inProgress);
   const setInProgress = useStore(store, (s) => s.setReportInProgress);
+  const source = useStore(store, (s) => s.report.source);
 
   const stats = useMemo(() => getGameStats(root), [root]);
   const classified = useMemo(() => hasClassifications(root), [root]);
@@ -72,6 +74,15 @@ function ReportPanel() {
           setInProgress={setInProgress}
         />
 
+        {source && !inProgress && (
+          <Text fz="xs" c="dimmed" ta="center">
+            {t("Board.Analysis.ReportSource", {
+              engine: source.engine,
+              limit: formatLimit(source.goMode, t),
+            })}
+          </Text>
+        )}
+
         {stats.whiteAccuracy > 0 && stats.blackAccuracy > 0 && (
           <Group grow>
             <AccuracyCard
@@ -102,6 +113,19 @@ function ReportPanel() {
       </Stack>
     </ScrollArea>
   );
+}
+
+function formatLimit(goMode: GoMode, t: TFunction): string {
+  switch (goMode.t) {
+    case "Time":
+      return t("Board.Analysis.LimitTime", { seconds: goMode.c / 1000 });
+    case "Depth":
+      return t("Board.Analysis.LimitDepth", { depth: goMode.c });
+    case "Nodes":
+      return t("Board.Analysis.LimitNodes", { nodes: goMode.c.toLocaleString() });
+    default:
+      return t("GoMode.Infinite");
+  }
 }
 
 type Stats = ReturnType<typeof getGameStats>;
