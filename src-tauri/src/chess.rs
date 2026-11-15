@@ -1515,11 +1515,8 @@ done
     const START: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     async fn engine(name: &str) -> (EngineProcess, EngineReader, PathBuf) {
-        let path = std::env::temp_dir().join(format!(
-            "jbl-stop-engine-{}-{}",
-            name,
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("jbl-stop-engine-{}-{}", name, std::process::id()));
         std::fs::write(&path, ENGINE).unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         let (mut proc, reader) = EngineProcess::new(path.clone()).await.unwrap();
@@ -1538,7 +1535,7 @@ done
             .get_logs()
             .into_iter()
             .filter_map(|l| match l {
-                EngineLog::Gui(cmd) => Some(cmd),
+                EngineLog::Gui(cmd) => Some(cmd.trim_end().to_string()),
                 _ => None,
             })
             .collect()
@@ -1585,7 +1582,10 @@ done
         assert_eq!(next(&mut reader).await, "readyok");
         proc.on_ready().await.unwrap();
         assert!(proc.searching);
-        assert_eq!(sent(&proc).iter().filter(|c| c.starts_with("go")).count(), 1);
+        assert_eq!(
+            sent(&proc).iter().filter(|c| c.starts_with("go")).count(),
+            1
+        );
         proc.kill().await;
         let _ = std::fs::remove_file(path);
     }
