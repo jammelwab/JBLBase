@@ -49,9 +49,13 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # The DuckDB extension is only bundled as a resource; the tests do not load it.
-      - name: Placeholder for the aix extension
-        run: touch aixchess.duckdb_extension
+      # The DuckDB extension is only bundled as a resource and the frontend is
+      # only embedded; the Rust tests need neither, but the build checks both exist.
+      - name: Placeholders for the aix extension and the frontend
+        run: |
+          touch aixchess.duckdb_extension
+          mkdir -p dist
+          echo '<!doctype html><title>JBLBase</title>' > dist/index.html
 
       - name: Run Rust tests
         working-directory: src-tauri
