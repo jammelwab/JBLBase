@@ -401,6 +401,7 @@
     "Engines.Add.ImageFile.Desc": "Kliknij, aby wybrać plik graficzny (zalecany rozmiar: 60x60)",
     "Engines.Add.Name": "Nazwa",
     "Engines.Add.Name.Autodetect": "Autodetekcja",
+    "Engines.Add.NotAnEngine": "",
     "Engines.Add.Title": "Dodaj silnik",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",

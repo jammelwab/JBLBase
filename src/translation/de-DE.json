@@ -405,6 +405,7 @@
     "Engines.Add.ImageFile.Desc": "Klicke, um die Bilddatei auszuwählen (empfohlene Größe: 60x60)",
     "Engines.Add.Name": "Name",
     "Engines.Add.Name.Autodetect": "Automatisch erkennen",
+    "Engines.Add.NotAnEngine": "Die Datei ist keine UCI-Engine.",
     "Engines.Add.Title": "Engine hinzufügen",
     "Engines.Empty.AddHint": "Füge eine Engine hinzu, um loszulegen",
     "Engines.Empty.NoInstalled": "Keine Engines installiert",

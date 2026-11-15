@@ -1571,7 +1571,10 @@ mod tests {
         let later = account_game("later", "2026.11.13", "20:00:00");
         // The update downloads the whole month again.
         let update = format!("{daily}{blitz}{later}");
-        assert_eq!(import_into(&db, &update, Some(known_games(&db).unwrap())), 2);
+        assert_eq!(
+            import_into(&db, &update, Some(known_games(&db).unwrap())),
+            2
+        );
         let white: Vec<String> = db
             .prepare("SELECT white FROM games ORDER BY utc_timestamp")
             .unwrap()
@@ -1582,7 +1585,10 @@ mod tests {
         assert_eq!(white, vec!["daily", "blitz", "later"]);
 
         // Running the same update again adds nothing.
-        assert_eq!(import_into(&db, &update, Some(known_games(&db).unwrap())), 0);
+        assert_eq!(
+            import_into(&db, &update, Some(known_games(&db).unwrap())),
+            0
+        );
     }
 
     #[test]

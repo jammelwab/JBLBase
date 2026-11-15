@@ -389,6 +389,7 @@
     "Engines.Add.ImageFile.Desc": "Click to select the image file (recommended size: 60x60)",
     "Engines.Add.Name": "Name",
     "Engines.Add.Name.Autodetect": "Autodetect",
+    "Engines.Add.NotAnEngine": "",
     "Engines.Add.Title": "Add Engine",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",

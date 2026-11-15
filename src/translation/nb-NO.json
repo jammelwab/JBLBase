@@ -389,6 +389,7 @@
     "Engines.Add.ImageFile.Desc": "Klikk for å velge bildefilen (anbefalt størrelse: 60x60)",
     "Engines.Add.Name": "Navn",
     "Engines.Add.Name.Autodetect": "Automatisk",
+    "Engines.Add.NotAnEngine": "",
     "Engines.Add.Title": "Legg til computer",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",

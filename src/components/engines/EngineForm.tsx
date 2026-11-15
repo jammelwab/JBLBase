@@ -7,7 +7,6 @@ import { match } from "ts-pattern";
 import { commands, type UciOptionConfig } from "@/bindings";
 import { type LocalEngine, requiredEngineSettings } from "@/utils/engines";
 import { usePlatform } from "@/utils/files";
-import { unwrap } from "@/utils/unwrap";
 import FileInput from "../common/FileInput";
 
 export default function EngineForm({
@@ -52,7 +51,14 @@ export default function EngineForm({
             filters,
           });
           if (!selected) return;
-          config.current = unwrap(await commands.getEngineConfig(selected as string));
+          const result = await commands.getEngineConfig(selected as string);
+          if (result.status === "error") {
+            // E.g. a program that is not a UCI engine (#95).
+            form.setFieldValue("path", "");
+            form.setFieldError("path", t("Engines.Add.NotAnEngine"));
+            return;
+          }
+          config.current = result.data;
           form.setFieldValue("path", selected as string);
           form.setFieldValue("name", config.current.name);
         }}

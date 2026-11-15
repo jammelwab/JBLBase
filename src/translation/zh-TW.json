@@ -383,6 +383,7 @@
     "Engines.Add.ImageFile.Desc": "點擊以選取圖片檔案 (建議尺寸: 60x60)",
     "Engines.Add.Name": "名稱",
     "Engines.Add.Name.Autodetect": "自動偵測",
+    "Engines.Add.NotAnEngine": "",
     "Engines.Add.Title": "新增引擎",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",
