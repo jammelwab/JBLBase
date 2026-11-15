@@ -39,7 +39,7 @@ function setup(local: SyncEval[], cloud: Partial<Record<EvalSource, SyncEval[]>>
     const meta = new Map<string, string>();
     const pushed: Record<EvalSource, SyncEval[]> = { own: [], shared: [] };
     let clock = 5000;
-    const pageSize = 2;
+    const pageSize = local.length > 100 ? 500 : 2;
     const b: EvalSyncBackend = {
         supported: async () => true,
         async pending(limit, minDepth, maxDepth) {
