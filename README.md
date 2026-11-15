@@ -18,20 +18,26 @@ nicht neu gerechnet werden.
 
 ## Funktionen
 
-**Schon da**
+**Schon da (Version 1.0)**
 
 - Brett, Notation, Varianten, PGN-Import und -Export
-- Partien von Chess.com und Lichess herunterladen
-- Bis zu zwei Engines nebeneinander, jede mit eigener Bewertung
+- Partien von Chess.com und Lichess herunterladen, Konten und Datenbanken pro Spieler zusammenfassen
+- Bis zu zwei Engines nebeneinander (Stockfish und Patricia), jede mit eigener Bewertung
 - Positionsspeicher (lokale SQLite-Datenbank) mit eigener Einstellungsseite
+- Repertoires für Weiß, Schwarz und für Freunde, mit Ordnern, Haupt-Repertoire, Kurs- und Ordner-Import und Import-Historie
+- Repertoire, eigene Partien und ganze Datenbanken als gezeichneter Eröffnungsbaum
+- Vergleich: Was spiele ich wirklich, was steht in meinem Repertoire?
+- Training des Repertoires (Linien und Wiederholungsplan)
+- Partiebericht mit Zugbewertungen wie bei Chess.com, Suche nach brillanten Zügen
+- Insight über alle eigenen Partien, Taktiksuche, Lichess-Puzzles und Puzzle-Streak
+- Konto mit Cloud-Sync von Repertoires und Trainingsfortschritt (E-Mail oder Lichess)
 - Updates direkt in der App
 
-**Geplant**
+**Als Nächstes**
 
-- Repertoire-Bäume für Weiß, Schwarz und für Freunde
-- Opening Tree aus meinen eigenen Partien
-- Vergleich: Was spiele ich wirklich, was steht in meinem Repertoire?
-- Training des Repertoires
+- Repertoire an Freunde freigeben, die mit eigenem Fortschritt trainieren
+- Bewertungen über die Cloud teilen, damit keine Stellung doppelt gerechnet wird
+- Stockfish und Patricia direkt mitliefern
 
 ## Installieren
 
