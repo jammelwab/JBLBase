@@ -393,6 +393,8 @@
     "Engines.Add.Title": "Add Engine",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",
+    "Engines.Exited": "",
+    "Engines.Exited.NoReason": "",
     "Engines.Remove.Message": "Are you sure you want to remove this engine from JBLBase?",
     "Engines.Remove.Title": "Remove Engine",
     "Engines.Selection.None": "",

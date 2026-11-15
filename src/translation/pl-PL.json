@@ -405,6 +405,8 @@
     "Engines.Add.Title": "Dodaj silnik",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",
+    "Engines.Exited": "",
+    "Engines.Exited.NoReason": "",
     "Engines.Remove.Message": "Czy na pewno chcesz usunąć ten silnik z JBLBase?",
     "Engines.Remove.Title": "Usuń silnik",
     "Engines.Selection.None": "",

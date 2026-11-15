@@ -18,6 +18,7 @@ use shakmaty::{
     Position, Role,
 };
 use specta::Type;
+use tauri::Emitter;
 use tauri_specta::Event;
 use tokio::sync::Mutex;
 use vampirc_uci::{
@@ -72,6 +73,8 @@ pub struct EngineProcess {
     waiting_since: Option<Instant>,
     /// A result of the current search has been shown already.
     emitted_since_go: bool,
+    /// The app ended the process (`kill`); otherwise it exited by itself.
+    killed: bool,
     real_multipv: u16,
     start: Instant,
     /// Engine name as reported by `id name`.
@@ -122,6 +125,7 @@ impl EngineProcess {
                 pending_ready: 0,
                 waiting_since: None,
                 emitted_since_go: false,
+                killed: false,
                 start: Instant::now(),
                 cache_engine: engine_name.clone(),
                 engine_name,
@@ -283,7 +287,28 @@ impl EngineProcess {
         self.running = false;
         self.searching = false;
         self.pending_go = None;
+        self.killed = true;
         self.base.kill_sync();
+    }
+
+    /// Why the engine exited by itself: its last `info string` (Stockfish:
+    /// "CRITICAL ERROR: ... Unsupported position ..."), else its last line.
+    fn exit_reason(&self) -> String {
+        let lines: Vec<String> = self
+            .base
+            .get_logs()
+            .into_iter()
+            .filter_map(|l| match l {
+                EngineLog::Engine(line) => Some(line),
+                _ => None,
+            })
+            .collect();
+        lines
+            .iter()
+            .rev()
+            .find_map(|l| l.strip_prefix("info string ").map(str::to_string))
+            .or_else(|| lines.last().cloned())
+            .unwrap_or_default()
     }
 
     pub fn kill_sync(&mut self) {
@@ -632,6 +657,24 @@ fn engine_start_lock(state: &AppState, key: &EngineKey) -> Arc<Mutex<()>> {
         .clone()
 }
 
+/// A position an analysis engine exited on by itself (#103).
+#[derive(Clone, Debug)]
+pub struct EngineExit {
+    fen: String,
+    moves: Vec<String>,
+    reason: String,
+}
+
+/// Sent when an analysis engine exited without the app ending it.
+#[derive(Clone, Serialize)]
+struct EngineExitedPayload {
+    engine: String,
+    tab: String,
+    reason: String,
+}
+
+const ENGINE_EXITED_EVENT: &str = "engine_exited";
+
 /// Moves a running engine to a new position. Returns the result to show right
 /// away when the engine is already analysing exactly this.
 async fn reuse_engine(
@@ -708,6 +751,15 @@ pub async fn get_best_moves(
         }
     }
 
+    // The engine exited by itself on this very position before: starting it
+    // again would only end the same way.
+    if let Some(exit) = state.engine_exits.get(&key).map(|e| e.clone()) {
+        if exit.fen == options.fen && exit.moves == options.moves {
+            return Err(Error::EngineExited(exit.reason));
+        }
+        state.engine_exits.remove(&key);
+    }
+
     let (mut process, mut reader) = EngineProcess::new(path).await?;
     process.set_options(options.clone()).await?;
     if !process.serve_from_cache(&go_mode, &state.eval_cache, &app, &id, &tab)? {
@@ -753,8 +805,28 @@ pub async fn get_best_moves(
         }
     }
     info!("Engine process finished: tab: {}, engine: {}", tab, engine);
-    process.lock().await.kill().await;
+    let mut proc = process.lock().await;
+    let exited_by_itself = !proc.killed;
+    let exit = EngineExit {
+        fen: proc.options.fen.clone(),
+        moves: proc.options.moves.clone(),
+        reason: proc.exit_reason(),
+    };
+    proc.kill().await;
+    drop(proc);
     unregister_engine(&state, &key, &process);
+    if exited_by_itself {
+        warn!("Engine {} exited by itself: {}", id, exit.reason);
+        let _ = app.emit(
+            ENGINE_EXITED_EVENT,
+            EngineExitedPayload {
+                engine: id.clone(),
+                tab: tab.clone(),
+                reason: exit.reason.clone(),
+            },
+        );
+        state.engine_exits.insert(key, exit);
+    }
     Ok(None)
 }
 
@@ -1658,5 +1730,61 @@ mod engine_handshake_tests {
     async fn a_program_that_exits_is_rejected() {
         let res = get_engine_config(PathBuf::from("/bin/true")).await;
         assert!(matches!(res, Err(Error::NotUciEngine)));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod engine_exit_tests {
+    //! An engine that exits by itself on a position says why (#103).
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// Like Stockfish 19 with too many pieces: complains and exits.
+    const ENGINE: &str = r#"#!/bin/sh
+while read -r cmd rest; do
+  case "$cmd" in
+    uci) echo "id name FakeEngine"; echo "uciok" ;;
+    isready) echo "readyok" ;;
+    position)
+      echo "info string CRITICAL ERROR: Command \`position $rest\` failed. Reason: Unsupported position. Too many pieces for WHITE."
+      exit 1 ;;
+  esac
+done
+"#;
+
+    #[tokio::test]
+    async fn the_reason_is_the_last_info_string() {
+        let path = std::env::temp_dir().join(format!("jbl-exit-engine-{}", std::process::id()));
+        std::fs::write(&path, ENGINE).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut attempt = 0;
+        let (mut proc, mut reader) = loop {
+            match EngineProcess::new(path.clone()).await {
+                Ok(started) => break started,
+                Err(Error::Io(e))
+                    if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < 50 =>
+                {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(e) => panic!("engine did not start: {e:?}"),
+            }
+        };
+        proc.set_options(EngineOptions {
+            fen: "NNNNNNNN/NNNNNNNN/N7/8/8/8/8/K6k w - - 0 1".into(),
+            moves: vec![],
+            extra_options: vec![],
+        })
+        .await
+        .expect("the app accepts the position");
+        while let Ok(Some(line)) = reader.next_line().await {
+            proc.base.log_engine(&line);
+        }
+        assert!(!proc.killed, "it exited by itself");
+        assert!(proc
+            .exit_reason()
+            .starts_with("CRITICAL ERROR: Command `position fen NNNNNNNN"));
+        assert!(proc.exit_reason().ends_with("Too many pieces for WHITE."));
+        let _ = std::fs::remove_file(path);
     }
 }
