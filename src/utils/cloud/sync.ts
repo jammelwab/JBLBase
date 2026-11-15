@@ -22,6 +22,8 @@ import {
     type EvalSyncResult,
     evalDocId,
     evalDocument,
+    formatEvalCursor,
+    parseEvalCursor,
     parseRemoteEval,
     syncEvals,
 } from "./evalSync";
@@ -173,28 +175,32 @@ function evalBackend(uid: string): EvalSyncBackend {
             }
             await batch.commit();
         },
-        async fetchPage(source, since, after) {
+        async fetchPage(source, after) {
             const { firestore: fs } = await cloudFirestore();
             const constraints: QueryConstraint[] = [
-                fs.where("updatedAt", ">", fs.Timestamp.fromMillis(since)),
                 fs.orderBy("updatedAt"),
-                fs.limit(EVAL_PAGE),
+                fs.orderBy(fs.documentId()),
             ];
-            if (after) constraints.push(fs.startAfter(after));
+            const start = parseEvalCursor(after);
+            if (start) {
+                constraints.push(
+                    fs.startAfter(new fs.Timestamp(start.seconds, start.nanos), start.id),
+                );
+            }
+            constraints.push(fs.limit(EVAL_PAGE));
             const snap = await fs.getDocs(fs.query(await collection(source), ...constraints));
-            let maxUpdatedAt = 0;
             const items = [];
+            let cursor: string | null = null;
             for (const d of snap.docs) {
                 const data = d.data();
-                maxUpdatedAt = Math.max(maxUpdatedAt, millis(data.updatedAt));
                 const e = parseRemoteEval(data);
                 if (e) items.push(e);
+                const at = data.updatedAt;
+                if (at instanceof fs.Timestamp) {
+                    cursor = formatEvalCursor(at.seconds, at.nanoseconds, d.id);
+                }
             }
-            return {
-                items,
-                maxUpdatedAt,
-                next: snap.docs.length < EVAL_PAGE ? null : snap.docs[snap.docs.length - 1],
-            };
+            return { items, cursor, more: snap.docs.length === EVAL_PAGE };
         },
     };
 }

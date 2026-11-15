@@ -8,12 +8,18 @@
 //       position (hex key), engine, depth, multipv, lines, updatedAt (server time)
 //
 // Order of a run: fetch what is new in the cloud and merge it (the deeper
-// result wins), then upload local results that are still marked. Uploads and
+// result wins), then upload local results that are still marked.
+//
+// Downloads continue exactly after the last document read, ordered by
+// (updatedAt, document id). A query reads a consistent snapshot, so a write
+// it did not see commits later and gets a later updatedAt: nothing is
+// missed, and a run without changes in the cloud reads nothing. (A time
+// overlap would read the same documents again on every run.) What a device
+// uploads itself comes back once with its next download. Uploads and
 // downloads are capped per run and per day, so a large store goes up over
 // several runs and stays within Firestore's free daily quota.
 
 import type { EvalSyncPending, StoredLine, SyncEval, SyncEvalKey } from "@/bindings";
-import { CURSOR_OVERLAP_MS } from "./repertoireSync";
 
 export type EvalSource = "own" | "shared";
 
@@ -32,10 +38,13 @@ export type EvalSyncOptions = {
 
 export type EvalPage = {
     items: SyncEval[];
-    /** Newest `updatedAt` on the page (ms). */
-    maxUpdatedAt: number;
-    /** Where the next page starts; null when this was the last one. */
-    next: unknown | null;
+    /**
+     * Position after the last document of the page (opaque, from the
+     * backend); null when the page was empty.
+     */
+    cursor: string | null;
+    /** A further page may follow. */
+    more: boolean;
 };
 
 export interface EvalSyncBackend {
@@ -44,7 +53,8 @@ export interface EvalSyncBackend {
     markSynced(keys: SyncEvalKey[]): Promise<void>;
     applyRemote(evals: SyncEval[]): Promise<number>;
     push(target: EvalSource, evals: SyncEval[]): Promise<void>;
-    fetchPage(source: EvalSource, since: number, after: unknown | null): Promise<EvalPage>;
+    /** Documents after `after` (null: from the start), oldest first. */
+    fetchPage(source: EvalSource, after: string | null): Promise<EvalPage>;
     metaGet(key: string): Promise<string | null>;
     metaSet(key: string, value: string | null): Promise<void>;
 }
@@ -70,6 +80,19 @@ export type EvalSyncResult = {
     /** The daily cap stopped the run; the rest follows tomorrow. */
     capped: boolean;
 };
+
+/** Download position: server time of the last document read and its id. */
+export function formatEvalCursor(seconds: number, nanos: number, id: string): string {
+    return `${seconds}.${String(nanos).padStart(9, "0")}|${id}`;
+}
+
+export function parseEvalCursor(
+    cursor: string | null,
+): { seconds: number; nanos: number; id: string } | null {
+    const m = cursor?.match(/^(\d+)\.(\d{9})\|(.+)$/);
+    if (!m) return null;
+    return { seconds: Number(m[1]), nanos: Number(m[2]), id: m[3] };
+}
 
 /** Firestore document id: engine, line count and position, path-safe. */
 export function evalDocId(e: { engine: string; multipv: number; position: string }): string {
@@ -174,25 +197,22 @@ export async function syncEvals(
     const sources: EvalSource[] = o.pullShared ? ["own", "shared"] : ["own"];
     for (const source of sources) {
         const cursorKey = source === "own" ? `evalCursor:own:${uid}` : "evalCursor:shared";
-        let cursor = Number((await b.metaGet(cursorKey)) ?? 0) || 0;
-        const since = Math.max(0, cursor - CURSOR_OVERLAP_MS);
-        let after: unknown | null = null;
+        let after = await b.metaGet(cursorKey);
         for (;;) {
             if (result.downloaded >= RUN_DOWNLOADS) break;
             if (downToday >= DAILY_DOWNLOADS) {
                 result.capped = true;
                 break;
             }
-            const page = await b.fetchPage(source, since, after);
+            const page = await b.fetchPage(source, after);
             if (page.items.length > 0) result.applied += await b.applyRemote(page.items);
             result.downloaded += page.items.length;
             downToday += page.items.length;
-            if (page.maxUpdatedAt > cursor) {
-                cursor = page.maxUpdatedAt;
-                await b.metaSet(cursorKey, String(cursor));
+            if (page.cursor) {
+                after = page.cursor;
+                await b.metaSet(cursorKey, after);
             }
-            if (!page.next) break;
-            after = page.next;
+            if (!page.more || !page.cursor) break;
         }
     }
     await b.metaSet(downKey, `${o.today} ${downToday}`);

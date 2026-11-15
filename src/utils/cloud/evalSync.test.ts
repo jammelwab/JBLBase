@@ -9,6 +9,8 @@ import {
     type EvalSyncOptions,
     evalDocId,
     evalDocument,
+    formatEvalCursor,
+    parseEvalCursor,
     parseRemoteEval,
     RUN_UPLOADS,
     syncEvals,
@@ -37,6 +39,7 @@ function setup(local: SyncEval[], cloud: Partial<Record<EvalSource, SyncEval[]>>
         shared: toMap(cloud.shared),
     };
     const meta = new Map<string, string>();
+    const reads = { calls: 0, docs: 0 };
     const pushed: Record<EvalSource, SyncEval[]> = { own: [], shared: [] };
     let clock = 5000;
     const pageSize = local.length > 100 ? 500 : 2;
@@ -71,16 +74,18 @@ function setup(local: SyncEval[], cloud: Partial<Record<EvalSource, SyncEval[]>>
             clock += 1;
             for (const e of evals) remote[target].set(key(e), { e, at: clock });
         },
-        async fetchPage(source, since, after): Promise<EvalPage> {
-            const list = [...remote[source].values()]
-                .filter((r) => r.at > since)
-                .sort((a, b2) => a.at - b2.at || key(a.e).localeCompare(key(b2.e)));
-            const start = after === null ? 0 : (after as number);
-            const page = list.slice(start, start + pageSize);
+        async fetchPage(source, after): Promise<EvalPage> {
+            reads.calls += 1;
+            const cursorOf = (r: Doc) => `${String(r.at).padStart(8, "0")}|${key(r.e)}`;
+            const page = [...remote[source].values()]
+                .filter((r) => after === null || cursorOf(r) > after)
+                .sort((a, b2) => cursorOf(a).localeCompare(cursorOf(b2)))
+                .slice(0, pageSize);
+            reads.docs += page.length;
             return {
                 items: page.map((r) => r.e),
-                maxUpdatedAt: Math.max(0, ...page.map((r) => r.at)),
-                next: page.length < pageSize ? null : start + pageSize,
+                cursor: page.length > 0 ? cursorOf(page[page.length - 1]) : null,
+                more: page.length === pageSize,
             };
         },
         metaGet: async (k) => meta.get(k) ?? null,
@@ -89,7 +94,7 @@ function setup(local: SyncEval[], cloud: Partial<Record<EvalSource, SyncEval[]>>
             else meta.set(k, v);
         },
     };
-    return { b, store, remote, pushed, meta };
+    return { b, store, remote, pushed, meta, reads };
 }
 
 const opts = (o: Partial<EvalSyncOptions> = {}): EvalSyncOptions => ({
@@ -173,12 +178,46 @@ describe("evaluation sync", () => {
     });
 
     it("continues where it stopped and does not download the same pages twice", async () => {
-        const { b, meta } = setup([], { shared: [ev(4), ev(5), ev(6)] });
+        const { b, remote, reads } = setup([], { shared: [ev(4), ev(5), ev(6)] });
+        const first = await syncEvals(b, "u1", opts());
+        expect(first.downloaded).toBe(3);
+        // Nothing new in the cloud: the next runs read nothing.
+        for (let i = 0; i < 5; i++) {
+            const again = await syncEvals(b, "u1", opts());
+            expect(again.downloaded).toBe(0);
+        }
+        expect(reads.docs).toBe(3);
+        // A new document is read once, and only that one.
+        remote.shared.set(key(ev(7)), { e: ev(7), at: 9000 });
+        const next = await syncEvals(b, "u1", opts());
+        expect(next.downloaded).toBe(1);
+        expect(reads.docs).toBe(4);
+    });
+
+    it("reads its own uploads back once, then nothing (issue #99)", async () => {
+        const many = Array.from({ length: RUN_UPLOADS }, (_, i) => ev(i + 1));
+        const { b, reads } = setup(many);
+        const first = await syncEvals(b, "u1", opts());
+        expect(first.uploaded).toBe(RUN_UPLOADS);
         await syncEvals(b, "u1", opts());
-        expect(Number(meta.get("evalCursor:shared"))).toBe(1002);
-        // Within the overlap the last documents are read again, nothing new is taken over.
-        const again = await syncEvals(b, "u1", opts());
-        expect(again.applied).toBe(0);
+        expect(reads.docs).toBe(RUN_UPLOADS);
+        for (let i = 0; i < 10; i++) {
+            const r = await syncEvals(b, "u1", opts());
+            expect(r).toMatchObject({ downloaded: 0, capped: false });
+        }
+        expect(reads.docs).toBe(RUN_UPLOADS);
+    });
+
+    it("keeps the download position in a form the backend can resume from", () => {
+        const c = formatEvalCursor(1763200000, 1234, "Stockfish%2019|1|00ab");
+        expect(c).toBe("1763200000.000001234|Stockfish%2019|1|00ab");
+        expect(parseEvalCursor(c)).toEqual({
+            seconds: 1763200000,
+            nanos: 1234,
+            id: "Stockfish%2019|1|00ab",
+        });
+        expect(parseEvalCursor(null)).toBeNull();
+        expect(parseEvalCursor("1002")).toBeNull();
     });
 
     it("uploads a large store over several runs and respects the daily cap", async () => {
