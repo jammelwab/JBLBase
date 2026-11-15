@@ -1788,3 +1788,184 @@ done
         let _ = std::fs::remove_file(path);
     }
 }
+
+/// The analysis with a real engine, driven like `get_best_moves` does it:
+/// one task reads the engine output, the test changes positions quickly.
+/// Run with:
+/// `JBLBASE_TEST_ENGINE=/path/to/patricia cargo test -- --ignored real_engine_moves`
+/// (`JBLBASE_TEST_HASH` sets the hash in MB, default 1024).
+#[cfg(test)]
+mod real_engine_moves_tests {
+    use super::*;
+
+    const START: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    const LINE: [&str; 8] = [
+        "e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "g8f6",
+    ];
+
+    struct Harness {
+        proc: Arc<Mutex<EngineProcess>>,
+        shown: Arc<std::sync::Mutex<Vec<BestMovesPayload>>>,
+        hash: String,
+    }
+
+    impl Harness {
+        async fn start() -> Option<Harness> {
+            let path = std::env::var("JBLBASE_TEST_ENGINE").ok()?;
+            let hash = std::env::var("JBLBASE_TEST_HASH").unwrap_or_else(|_| "1024".into());
+            let (proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
+            let proc = Arc::new(Mutex::new(proc));
+            let shown = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (p, s) = (proc.clone(), shown.clone());
+            tokio::spawn(async move {
+                let lim = RateLimiter::direct(Quota::per_second(nonzero!(5u32)));
+                let cache = EvalCache::open_in_memory();
+                while let Ok(Some(line)) = reader.next_line().await {
+                    let mut proc = p.lock().await;
+                    proc.base.log_engine(&line);
+                    if line.trim() == "readyok" {
+                        proc.on_ready().await.unwrap();
+                        continue;
+                    }
+                    let mut emit = |payload: BestMovesPayload| {
+                        s.lock().unwrap().push(payload);
+                        Ok(())
+                    };
+                    let _ = handle_engine_line(&mut proc, &line, &lim, "e", "t", &cache, &mut emit);
+                }
+            });
+            Some(Harness { proc, shown, hash })
+        }
+
+        fn options(&self, plies: usize) -> EngineOptions {
+            EngineOptions {
+                fen: START.into(),
+                moves: LINE[..plies].iter().map(|m| m.to_string()).collect(),
+                extra_options: vec![
+                    EngineOption {
+                        name: "Hash".into(),
+                        value: self.hash.clone(),
+                    },
+                    EngineOption {
+                        name: "Threads".into(),
+                        value: "4".into(),
+                    },
+                ],
+            }
+        }
+
+        /// What `reuse_engine` does for a new position (without the cache).
+        async fn show(&self, plies: usize) {
+            let mut proc = self.proc.lock().await;
+            assert!(!proc.stalled(), "engine stalled before ply {plies}");
+            proc.stop().await.unwrap();
+            proc.set_options(self.options(plies)).await.unwrap();
+            if std::env::var("JBLBASE_TEST_OLD_PROTOCOL").is_ok() {
+                // 1.0.28: go right away (to compare).
+                proc.go(&GoMode::Infinite).await.unwrap();
+            } else {
+                proc.request_go(&GoMode::Infinite).await.unwrap();
+            }
+        }
+
+        /// The engine shows lines for `plies` within `secs`, and answers.
+        async fn expect_lines_for(&self, plies: usize, secs: u64) {
+            let want: Vec<String> = LINE[..plies].iter().map(|m| m.to_string()).collect();
+            let deadline = Instant::now() + Duration::from_secs(secs);
+            loop {
+                if self.shown.lock().unwrap().iter().any(|p| p.moves == want) {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "no lines for ply {plies} after {secs} s (engine hangs?)"
+                );
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            let proc = self.proc.lock().await;
+            assert!(!proc.stalled());
+        }
+
+        async fn end(self) {
+            self.proc.lock().await.kill().await;
+        }
+    }
+
+    /// #103: Stockfish 19 exits on a position with too many pieces; the
+    /// reason the app shows is its last `info string`.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_too_many_pieces() {
+        let Ok(path) = std::env::var("JBLBASE_TEST_ENGINE") else {
+            return;
+        };
+        let (mut proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
+        proc.set_options(EngineOptions {
+            fen: "NNNNNNNN/NNNNNNNN/N7/8/8/8/8/K6k w - - 0 1".into(),
+            moves: vec![],
+            extra_options: vec![],
+        })
+        .await
+        .unwrap();
+        let _ = proc.go(&GoMode::Depth(8)).await;
+        let read = tokio::time::timeout(Duration::from_secs(20), async {
+            while let Ok(Some(line)) = reader.next_line().await {
+                proc.base.log_engine(&line);
+                if line.starts_with("bestmove") {
+                    return false;
+                }
+            }
+            true
+        })
+        .await;
+        match read {
+            Ok(true) => {
+                let reason = proc.exit_reason();
+                eprintln!("engine exited: {reason}");
+                assert!(reason.contains("Too many pieces"), "{reason}");
+            }
+            Ok(false) => eprintln!("engine analysed the position (no exit)"),
+            Err(_) => panic!("engine neither answered nor exited"),
+        }
+        proc.kill().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_moves_right_after_start_with_a_big_hash() {
+        let Some(h) = Harness::start().await else {
+            return;
+        };
+        // Like the app: options and position, go; then a move 0.2 s later.
+        h.show(0).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        h.show(1).await;
+        h.expect_lines_for(1, 15).await;
+        h.end().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_moves_through_a_line_quickly() {
+        let Some(h) = Harness::start().await else {
+            return;
+        };
+        h.show(0).await;
+        h.expect_lines_for(0, 15).await;
+        // Clicking through: stop, position, go back to back, and with gaps
+        // of 0 to 3 ms.
+        for round in 0..5 {
+            for plies in 1..=LINE.len() {
+                h.show(plies).await;
+                if (plies + round) % 3 != 0 {
+                    tokio::time::sleep(Duration::from_micros(((plies * 700) % 3000) as u64)).await;
+                }
+            }
+            h.expect_lines_for(LINE.len(), 15).await;
+            h.shown.lock().unwrap().clear();
+            h.show(0).await;
+            h.expect_lines_for(0, 15).await;
+        }
+        h.end().await;
+    }
+}

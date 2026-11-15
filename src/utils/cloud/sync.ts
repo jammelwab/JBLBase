@@ -3,7 +3,6 @@
 
 import { dirname, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readDir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
-import type { QueryConstraint } from "firebase/firestore/lite";
 import { atom, getDefaultStore } from "jotai";
 import { commands, type SyncCard, type SyncReview } from "@/bindings";
 import {
@@ -15,14 +14,12 @@ import { reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
 import { bumpRepertoires } from "@/utils/repertoires";
 import { type CloudAccount, cloudFirestore, watchCloudAccount } from "./auth";
-import { formatSyncCursor, parseSyncCursor } from "./cursor";
+import { cloudRepertoires, fetchAfter } from "./firestoreDocs";
 import { setLocalChangeListener } from "./syncSignal";
 import {
     type LocalRepertoire,
-    type RemoteRepertoire,
     type RepertoireSyncBackend,
     type RepertoireSyncResult,
-    parseRemoteRepertoire,
     relativePath,
     syncRepertoires,
 } from "./repertoireSync";
@@ -36,7 +33,6 @@ import {
 
 export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const CHANGE_DELAY_MS = 15 * 1000;
-const PAGE = 300;
 
 export type CloudSyncStatus = {
     state: "off" | "idle" | "syncing" | "error";
@@ -63,46 +59,6 @@ const meta = {
     },
 };
 
-/**
- * All documents of a collection written after the download position
- * `after` (see cursor.ts), page by page, and the position after the last one
- * (unchanged when there is nothing new).
- */
-async function fetchAfter(uid: string, name: string, after: string | null) {
-    const { db, firestore: fs } = await cloudFirestore();
-    const col = fs.collection(db, "users", uid, name);
-    const docs: { id: string; data: Record<string, unknown> }[] = [];
-    let start = parseSyncCursor(after);
-    let cursor = start ? formatSyncCursor(start.seconds, start.nanos, start.id) : null;
-    for (;;) {
-        const constraints: QueryConstraint[] = [];
-        if (start && start.id === "") {
-            // A time only (a position from 1.0.28 or older).
-            constraints.push(
-                fs.where("syncedAt", ">", new fs.Timestamp(start.seconds, start.nanos)),
-            );
-        }
-        constraints.push(fs.orderBy("syncedAt"), fs.orderBy(fs.documentId()));
-        if (start && start.id !== "") {
-            constraints.push(fs.startAfter(new fs.Timestamp(start.seconds, start.nanos), start.id));
-        }
-        constraints.push(fs.limit(PAGE));
-        const snap = await fs.getDocs(fs.query(col, ...constraints));
-        const before = cursor;
-        for (const d of snap.docs) {
-            const data = d.data();
-            docs.push({ id: d.id, data });
-            const at = data.syncedAt;
-            if (at instanceof fs.Timestamp) {
-                cursor = formatSyncCursor(at.seconds, at.nanoseconds, d.id);
-                start = { seconds: at.seconds, nanos: at.nanoseconds, id: d.id };
-            }
-        }
-        if (snap.docs.length < PAGE || cursor === before) break;
-    }
-    return { docs, cursor };
-}
-
 function trainingBackend(uid: string): TrainingSyncBackend {
     return {
         ...meta,
@@ -128,14 +84,19 @@ function trainingBackend(uid: string): TrainingSyncBackend {
             await batch.commit();
         },
         async fetchCards(after) {
-            const { docs, cursor } = await fetchAfter(uid, "cards", after);
+            const { docs, cursor } = await fetchAfter(await cloudFirestore(), uid, "cards", after);
             return {
                 items: docs.map((d) => parseRemoteCard(d.data)).filter((c) => c !== null),
                 cursor,
             };
         },
         async fetchReviews(after) {
-            const { docs, cursor } = await fetchAfter(uid, "reviews", after);
+            const { docs, cursor } = await fetchAfter(
+                await cloudFirestore(),
+                uid,
+                "reviews",
+                after,
+            );
             return {
                 items: docs.map((d) => parseRemoteReview(d.id, d.data)).filter((r) => r !== null),
                 cursor,
@@ -149,13 +110,6 @@ function flatten(entries: (FileMetadata | Directory)[]): FileMetadata[] {
 }
 
 const infoFile = (pgnFile: string) => pgnFile.replace(/\.pgn$/i, ".info");
-
-/** A document with its compressed content (Firestore bytes) as Uint8Array. */
-async function withBytes(d: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const { firestore: fs } = await cloudFirestore();
-    const { pgnGz, ...rest } = d;
-    return pgnGz instanceof fs.Bytes ? { ...rest, pgnGz: pgnGz.toUint8Array() } : rest;
-}
 
 async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
     const dir = await getDocumentDir();
@@ -218,31 +172,7 @@ async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
         },
         newId: () => crypto.randomUUID(),
         now: () => Date.now(),
-        async fetchChanged(after) {
-            const { docs, cursor } = await fetchAfter(uid, "repertoires", after);
-            const items: RemoteRepertoire[] = [];
-            for (const d of docs) {
-                const r = await parseRemoteRepertoire(d.id, await withBytes(d.data));
-                if (r) items.push(r);
-            }
-            return { items, cursor };
-        },
-        async fetchOne(id) {
-            const { db, firestore: fs } = await cloudFirestore();
-            const snap = await fs.getDoc(fs.doc(db, "users", uid, "repertoires", id));
-            return snap.exists() ? parseRemoteRepertoire(id, await withBytes(snap.data())) : null;
-        },
-        async put(id, state) {
-            const { db, firestore: fs } = await cloudFirestore();
-            const content =
-                "pgnGz" in state
-                    ? { ...state, pgnGz: fs.Bytes.fromUint8Array(state.pgnGz) }
-                    : state;
-            await fs.setDoc(fs.doc(db, "users", uid, "repertoires", id), {
-                ...content,
-                syncedAt: fs.serverTimestamp(),
-            });
-        },
+        ...cloudRepertoires(await cloudFirestore(), uid),
     };
 }
 

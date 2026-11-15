@@ -1558,6 +1558,89 @@ mod tests {
         assert_eq!(plies, vec![("a".into(), 5), ("b".into(), 2)]);
     }
 
+    /// "Partien aktualisieren" with a real account's games: for many update
+    /// times, the database after the update holds every game that had ended
+    /// by then, each once (#101). The PGN is a Chess.com download (games in
+    /// the order of their monthly archives, with EndDate/EndTime headers):
+    /// `JBLBASE_TEST_ACCOUNT_PGN=games.pgn cargo test -- --ignored real_account_updates`
+    #[test]
+    #[ignore]
+    fn real_account_updates() {
+        let Ok(path) = std::env::var("JBLBASE_TEST_ACCOUNT_PGN") else {
+            return;
+        };
+        let text = std::fs::read_to_string(path).unwrap();
+        let header = |game: &str, name: &str| -> Option<String> {
+            let tag = format!("[{name} \"");
+            let start = game.find(&tag)? + tag.len();
+            Some(game[start..start + game[start..].find('"')?].to_string())
+        };
+        // (start, end, month of end, pgn), all as sortable strings.
+        let mut games: Vec<(String, String, String, String)> = Vec::new();
+        for game in text.split("\n\n[Event ").filter(|g| !g.trim().is_empty()) {
+            let game = if game.starts_with("[Event ") {
+                game.to_string()
+            } else {
+                format!("[Event {game}")
+            };
+            let (Some(sd), Some(st), Some(ed), Some(et)) = (
+                header(&game, "UTCDate"),
+                header(&game, "UTCTime"),
+                header(&game, "EndDate"),
+                header(&game, "EndTime"),
+            ) else {
+                continue;
+            };
+            let month = ed[..7].to_string();
+            games.push((format!("{sd} {st}"), format!("{ed} {et}"), month, game));
+        }
+        assert!(games.len() > 50, "too few games: {}", games.len());
+        let pgn_of = |list: &[&(String, String, String, String)]| {
+            list.iter()
+                .map(|g| format!("{}\n\n", g.3.trim_end()))
+                .collect::<String>()
+        };
+        let count = |db: &Connection| -> i64 {
+            db.query_row("SELECT COUNT(*) FROM games", [], |r| r.get(0))
+                .unwrap()
+        };
+        let mut ends: Vec<&String> = games.iter().map(|g| &g.1).collect();
+        ends.sort();
+        let mut checked = 0;
+        let mut late_games = 0;
+        for cut in ends.iter().step_by((ends.len() / 40).max(1)) {
+            // First download: every game that had ended by `cut`.
+            let db = Connection::open_in_memory().unwrap();
+            prepare_pgn_import(&db, false, "account", None).unwrap();
+            let before: Vec<_> = games.iter().filter(|g| &g.1 <= *cut).collect();
+            import_into(&db, &pgn_of(&before), None);
+            let had = count(&db);
+            // The newest game by start, as AccountCard reads it.
+            let newest = before.iter().map(|g| &g.0).max().unwrap().clone();
+            let from_month = newest[..7].to_string();
+            // Update: the archives from the month of the newest game on.
+            let fetched: Vec<_> = games.iter().filter(|g| g.2 >= from_month).collect();
+            import_into(&db, &pgn_of(&fetched), Some(known_games(&db).unwrap()));
+            let all = count(&db);
+            // Every game is in the database after the update, each once.
+            assert_eq!(
+                all as usize,
+                games.len(),
+                "after an update at {cut} ({had} games before)"
+            );
+            late_games += games
+                .iter()
+                .filter(|g| g.0 <= newest && &g.1 > *cut)
+                .count();
+            checked += 1;
+        }
+        eprintln!(
+            "{} games, {checked} update times checked, {late_games} cases of a game that \
+             started before the newest one and ended after the update",
+            games.len()
+        );
+    }
+
     #[test]
     fn an_update_adds_games_that_started_before_the_newest_one() {
         // #101: a daily game started on 5 Nov, a blitz game on 10 Nov was
