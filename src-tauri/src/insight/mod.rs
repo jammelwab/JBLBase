@@ -47,7 +47,7 @@ const INACCURACY: f64 = 0.1;
 const MISTAKE: f64 = 0.2;
 const BLUNDER: f64 = 0.3;
 /// Games shorter than this many plies were aborted and say nothing.
-const MIN_PLIES: usize = 8;
+pub(crate) const MIN_PLIES: usize = 8;
 
 /// What we know about a game apart from its moves.
 #[derive(Debug, Clone)]
@@ -81,7 +81,7 @@ impl GameInfo {
         }
     }
 
-    fn color(&self) -> Color {
+    pub(crate) fn color(&self) -> Color {
         if self.white_side {
             Color::White
         } else {
@@ -392,10 +392,10 @@ pub async fn analyse_game(
 }
 
 /// A game as read from an account's database.
-struct StoredGame {
-    info: GameInfo,
-    fen: Option<String>,
-    movedata: Vec<u8>,
+pub(crate) struct StoredGame {
+    pub info: GameInfo,
+    pub fen: Option<String>,
+    pub movedata: Vec<u8>,
 }
 
 fn game_key(
@@ -416,7 +416,7 @@ fn game_key(
 }
 
 /// The games `player` played in the database behind `db`, newest first.
-fn load_games(
+pub(crate) fn load_games(
     db: &duckdb::Connection,
     source: &str,
     player: &str,
@@ -466,7 +466,7 @@ fn load_games(
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
-fn source_name(file: &std::path::Path) -> String {
+pub(crate) fn source_name(file: &std::path::Path) -> String {
     file.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| file.display().to_string())

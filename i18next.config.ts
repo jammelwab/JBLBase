@@ -38,6 +38,8 @@ export default defineConfig({
             "Insight.Speed.*",
             "Insight.Result.*",
             "EnginePower.*",
+            "Tactics.Strictness.*",
+            "GameTactics.Periods.*",
             "Puzzle.Report.Reasons.*",
             "Puzzle.Reports.Status.*",
             "Puzzle.Reports.Verdict.*",

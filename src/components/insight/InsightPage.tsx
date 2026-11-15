@@ -56,6 +56,7 @@ import { enginePowerAtom, engineOptions } from "@/utils/enginePower";
 import type { LocalEngine } from "@/utils/engines";
 import {
   DEFAULT_INSIGHT_DEPTH,
+  extraAccountsAtom,
   gameTacticsPath,
   INSIGHT_DEPTHS,
   accountKey,
@@ -84,8 +85,6 @@ const insightSettingsAtom = atomWithStorage("insight-settings", {
   maxGames: 50 as number | null,
 });
 
-// Players added by hand: someone whose games are in a database but who is no connected account.
-const extraAccountsAtom = atomWithStorage<InsightAccount[]>("insight-extra-accounts", []);
 // The player looked at; empty for every account together.
 const insightPlayerAtom = atomWithStorage<string>("insight-player", "");
 

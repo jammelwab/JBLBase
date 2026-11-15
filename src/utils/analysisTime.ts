@@ -2,8 +2,9 @@ import { atomWithStorage } from "jotai/utils";
 import type { PowerLevel } from "./enginePower";
 import { powerSettings } from "./enginePower";
 
-// What a long analysis is counted in: positions of a repertoire, games, reported puzzles.
-export type AnalysisKind = "tactics" | "insight" | "review";
+// What a long analysis is counted in: positions of a repertoire, games (Insight and the tactic
+// search in the own games), reported puzzles.
+export type AnalysisKind = "tactics" | "gameTactics" | "insight" | "review";
 
 // Measured seconds per unit, by kind, depth and power level.
 export type AnalysisSpeeds = Record<string, number>;
@@ -13,6 +14,7 @@ export const analysisSpeedsAtom = atomWithStorage<AnalysisSpeeds>("analysis-spee
 // Rough seconds per unit at depth 18 on four threads, until a run has been measured.
 const DEFAULT_SECONDS: Record<AnalysisKind, number> = {
     tactics: 1.2,
+    gameTactics: 8,
     insight: 45,
     review: 6,
 };

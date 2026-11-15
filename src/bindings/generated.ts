@@ -446,6 +446,22 @@ async findTacticsInLines(id: string, options: TacticSearchOptions) : Promise<Res
     else return { status: "error", error: e  as any };
 }
 },
+async findTacticsInGames(id: string, options: GameTacticOptions) : Promise<Result<GameTacticResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("find_tactics_in_games", { id, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async countTacticGames(filter: GameFilter) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("count_tactic_games", { filter }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async insightAnalyze(id: string, options: InsightOptions) : Promise<Result<InsightRunResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("insight_analyze", { id, options }) };
@@ -851,7 +867,12 @@ export type DrawReason = "stalemate" | "insufficientMaterial" | "threefoldRepeti
 export type EngineCacheStats = { engine: string; entries: number; maxDepth: number }
 export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
-export type TacticSearchOptions = { engine: string; uciOptions: EngineOption[]; depth: number; fen: string; lines: string[][]; solver: string; source: string; dest: string }
+export type GameFilter = { accounts: InsightAccount[]; color?: string | null; since?: string | null; until?: string | null; speeds?: string[]; results?: string[]; maxGames?: number | null }
+export type GameTacticOptions = { engine: string; uciOptions: EngineOption[]; depth: number; filter: GameFilter; kind?: TacticKind; strictness?: Strictness; minSolverMoves?: number | null; maxEngines?: number | null; dest: string }
+export type GameTacticResult = { games: number; positions: number; calculated: number; found: number; played: number; missed: number; added: number; duplicates: number; rejected: number; total: number }
+export type Strictness = "loose" | "normal" | "strict"
+export type TacticKind = "missed" | "played" | "both"
+export type TacticSearchOptions = { engine: string; uciOptions: EngineOption[]; depth: number; fen: string; lines: string[][]; solver: string; source: string; dest: string; strictness?: Strictness; minSolverMoves?: number | null; maxEngines?: number | null }
 export type TacticSearchResult = { positions: number; calculated: number; found: number; added: number; duplicates: number; rejected: number; total: number }
 export type NewPuzzleReport = { db: string; fen: string; moves: string; rating: number; reason: string; note: string }
 export type PuzzleReport = { id: number; db: string; fen: string; moves: string; rating: number; reason: string; note: string; createdAt: number; status: string; suggestion: string | null; checkReason: string | null; newMoves: string | null; newRating: number | null; checkDepth: number | null; checkEval: number | null; resolution: string | null }

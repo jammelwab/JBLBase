@@ -29,6 +29,7 @@ use super::{
     features_of, is_only_move, is_winning, motifs,
     rating::RatingModel,
     store::{apply_verdict, Verdict},
+    Criteria,
 };
 
 pub const REPORTS_FILE_NAME: &str = "puzzle_reports.sqlite3";
@@ -341,7 +342,9 @@ pub async fn check_puzzle(
         Some(best) if is_winning(best) && is_only_move(&first, legal) => {}
         _ => return Ok(rejected),
     }
-    let Some((solution, _)) = build_solution(analyzer, cache, depth, &start, &first).await? else {
+    let Some((solution, _)) =
+        build_solution(analyzer, cache, &Criteria::default(), depth, &start, &first).await?
+    else {
         return Ok(rejected);
     };
     let (verdict, reason) = compare_solutions(&stored, &solution);

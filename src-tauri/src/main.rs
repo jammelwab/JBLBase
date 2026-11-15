@@ -9,9 +9,9 @@ mod db;
 mod engine;
 mod error;
 mod eval_cache;
-mod training;
 mod game;
 mod insight;
+mod training;
 mod vision;
 
 mod fs;
@@ -196,6 +196,8 @@ fn main() {
             delete_puzzle_database,
             import_lichess_puzzles,
             tactics::find_tactics_in_lines,
+            tactics::games::find_tactics_in_games,
+            tactics::games::count_tactic_games,
             insight::insight_analyze,
             insight::insight_status,
             insight::insight_summary,
