@@ -1314,8 +1314,13 @@ while read -r cmd rest; do
   case "$cmd" in
     uci) echo "id name FakeEngine"; echo "uciok" ;;
     isready) echo "readyok" ;;
-    go) echo "info depth 3 multipv 1 score cp 10 nodes 100 nps 100 pv g1f3" ;;
-    stop) echo "info depth 21 multipv 1 score cp 99 nodes 100 nps 100 pv g1f3"; echo "bestmove g1f3" ;;
+    go) searching=1; echo "info depth 3 multipv 1 score cp 10 nodes 100 nps 100 pv g1f3" ;;
+    stop)
+      # Like a real engine: only a running search answers with bestmove.
+      if [ "$searching" = 1 ]; then
+        searching=0
+        echo "info depth 21 multipv 1 score cp 99 nodes 100 nps 100 pv g1f3"; echo "bestmove g1f3"
+      fi ;;
     quit) exit 0 ;;
   esac
 done
@@ -1380,12 +1385,51 @@ done
         assert_eq!(out[1].best_lines[0].san_moves, vec!["Nf3"]);
 
         // Killing ends the process even without waiting for it.
+        // `kill` sends "stop" first, so the engine may still answer with its
+        // bestmove; after that the output must end.
         proc.kill().await;
-        assert!(reader
-            .next_line()
-            .await
-            .map(|l| l.is_none())
-            .unwrap_or(true));
+        let drained = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while let Ok(Some(_)) = reader.next_line().await {}
+        })
+        .await;
+        assert!(drained.is_ok(), "engine output did not end after kill");
         let _ = std::fs::remove_file(path);
+    }
+}
+
+#[cfg(test)]
+mod engine_config_edge_case_tests {
+    //! Falsche Datei als Engine (automatischer Testlauf vor 1.1).
+    use super::*;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn program_that_exits_is_rejected() {
+        let res = tokio::time::timeout(
+            Duration::from_secs(5),
+            get_engine_config(PathBuf::from("/bin/true")),
+        )
+        .await
+        .expect("must not hang");
+        match res {
+            Ok(config) => panic!("accepted a non-engine: name={:?}", config.name),
+            Err(_) => {}
+        }
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "hangs")]
+    async fn program_that_never_answers_uci_does_not_hang() {
+        // Bekannter Fehler #95. Nach dem Fix `should_panic` entfernen.
+        // `cat` echoes "uci" back but never sends "uciok".
+        let res = tokio::time::timeout(
+            Duration::from_secs(5),
+            get_engine_config(PathBuf::from("/bin/cat")),
+        )
+        .await;
+        assert!(
+            res.is_ok(),
+            "get_engine_config hangs on a program that is not a UCI engine"
+        );
     }
 }
