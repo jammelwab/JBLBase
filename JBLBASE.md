@@ -493,8 +493,14 @@ kurz nach Änderungen und per Knopf):
   „letzte Änderung gewinnt“, Wiederholungen nur anhängen. Der lokale
   Speicher merkt sich, was noch hochgeladen werden muss (Schema 2 in
   `training.rs`).
-- PGN-Dateien über 900 KB werden nicht hochgeladen; die Einstellungsseite
-  sagt dann, welche.
+- PGN-Dateien über 900 KB gehen gzip-komprimiert in die Cloud (Feld
+  `pgnGz`, etwa ein Fünftel der Größe). Version 1.0.28 kennt das Feld nicht
+  und überspringt solche Repertoires. Wird eine Datei auch komprimiert größer
+  als 900 KB, wird sie nicht hochgeladen; die Einstellungsseite sagt dann,
+  welche.
+- Jeder Abgleich merkt sich Serverzeit und Dokument-ID des zuletzt gelesenen
+  Dokuments und liest beim nächsten Mal genau danach weiter
+  (`src/utils/cloud/cursor.ts`). Ein Lauf ohne Änderungen liest nichts.
 
 ## Bauen
 

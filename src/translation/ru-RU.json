@@ -401,6 +401,7 @@
     "Engines.Add.ImageFile.Desc": "Нажмите для выбора файла изображения (рекомендуется: 60x60)",
     "Engines.Add.Name": "Имя",
     "Engines.Add.Name.Autodetect": "Автоопределение",
+    "Engines.Add.NotAnEngine": "",
     "Engines.Add.Title": "Добавить движок",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",

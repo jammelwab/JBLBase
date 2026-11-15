@@ -389,6 +389,7 @@
     "Engines.Add.ImageFile.Desc": "Görsel dosyası seçmek için tıklayın (önerilen boyut: 60x60)",
     "Engines.Add.Name": "İsim",
     "Engines.Add.Name.Autodetect": "Otomatik bul",
+    "Engines.Add.NotAnEngine": "",
     "Engines.Add.Title": "Motor Ekle",
     "Engines.Empty.AddHint": "Başlamak için bir motor ekleyin",
     "Engines.Empty.NoInstalled": "Yüklü motor yok",

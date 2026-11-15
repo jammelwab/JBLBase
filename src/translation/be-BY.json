@@ -401,6 +401,7 @@
     "Engines.Add.ImageFile.Desc": "Націсніце для выбару файла выявы (рэкамендуецца: 60x60)",
     "Engines.Add.Name": "Імя",
     "Engines.Add.Name.Autodetect": "Аўтавызначэнне",
+    "Engines.Add.NotAnEngine": "",
     "Engines.Add.Title": "Дадаць рухавік",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",

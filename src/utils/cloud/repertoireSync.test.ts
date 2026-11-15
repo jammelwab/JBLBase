@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { formatSyncCursor, parseSyncCursor } from "./cursor";
 import {
     conflictPath,
     infoText,
     type LocalRepertoire,
+    MAX_PGN_LENGTH,
+    type PackedPgn,
+    packPgn,
+    parseRemoteRepertoire,
     planRepertoire,
     relativePath,
     type RemoteRepertoire,
@@ -10,6 +15,7 @@ import {
     type RepertoireSyncBackend,
     repertoireHash,
     syncRepertoires,
+    unpackPgn,
 } from "./repertoireSync";
 
 const l = (hash: string, modifiedAt = 0) => ({ hash, modifiedAt });
@@ -52,6 +58,29 @@ describe("planRepertoire", () => {
     });
 });
 
+describe("cloud content", () => {
+    it("keeps small files as text, which 1.0.28 can read", async () => {
+        expect(await packPgn("1. e4")).toEqual({ pgn: "1. e4" });
+    });
+
+    it("compresses big files and reads them back", async () => {
+        const text = "1. e4 e5 2. Nf3 { Spanisch } Nc6 ".repeat(40_000);
+        const packed = await packPgn(text);
+        expect(packed && "pgnGz" in packed).toBe(true);
+        const doc = { path: "a", info: "{}", hash: "h", updatedAt: 1, deleted: false, ...packed };
+        expect((await parseRemoteRepertoire("id", doc))?.pgn).toBe(text);
+    });
+
+    it("skips documents without content or with damaged content", async () => {
+        const doc = { path: "a", info: "{}", hash: "h", updatedAt: 1 };
+        expect(await parseRemoteRepertoire("id", doc)).toBeNull();
+        expect(
+            await parseRemoteRepertoire("id", { ...doc, pgnGz: new Uint8Array([1, 2, 3]) }),
+        ).toBeNull();
+        expect((await parseRemoteRepertoire("id", { ...doc, pgn: "" }))?.pgn).toBe("");
+    });
+});
+
 describe("paths and hashes", () => {
     it("builds relative paths on every platform", () => {
         expect(
@@ -83,11 +112,20 @@ describe("paths and hashes", () => {
 
 /** One device's files and the shared cloud. */
 class FakeCloud {
-    docs = new Map<string, RemoteRepertoire>();
+    docs = new Map<string, RemoteRepertoire & { syncedAt: number }>();
+    /** Ids of documents stored compressed. */
+    packed = new Set<string>();
+    /** Documents read by queries (what Firestore bills). */
+    reads = 0;
     clock = 1000;
     tick() {
         return ++this.clock;
     }
+}
+
+function withoutSyncedAt(d: RemoteRepertoire & { syncedAt: number }): RemoteRepertoire {
+    const { syncedAt: _syncedAt, ...r } = d;
+    return r;
 }
 
 class FakeDevice implements RepertoireSyncBackend {
@@ -151,14 +189,41 @@ class FakeDevice implements RepertoireSyncBackend {
     now() {
         return this.cloud.tick();
     }
-    async fetchChanged(since: number) {
-        return [...this.cloud.docs.values()].filter((d) => d.syncedAt > since);
+    async fetchChanged(after: string | null) {
+        // Ordered by (syncedAt, id) like the app; the fake's server time is in seconds.
+        const start = parseSyncCursor(after);
+        const docs = [...this.cloud.docs.values()]
+            .filter(
+                (d) =>
+                    !start ||
+                    d.syncedAt > start.seconds ||
+                    (d.syncedAt === start.seconds && start.id !== "" && d.id > start.id),
+            )
+            .sort((a, b) => a.syncedAt - b.syncedAt || a.id.localeCompare(b.id));
+        this.cloud.reads += docs.length;
+        const last = docs.at(-1);
+        return {
+            items: docs.map(withoutSyncedAt),
+            cursor: last ? formatSyncCursor(last.syncedAt, 0, last.id) : after,
+        };
     }
     async fetchOne(id: string) {
-        return this.cloud.docs.get(id) ?? null;
+        const d = this.cloud.docs.get(id);
+        return d ? withoutSyncedAt(d) : null;
     }
-    async put(id: string, state: RemoteState & { pgn: string }) {
-        this.cloud.docs.set(id, { ...state, id, syncedAt: this.cloud.tick() });
+    async put(id: string, state: RemoteState & PackedPgn) {
+        const {
+            pgn: _pgn,
+            pgnGz: _pgnGz,
+            ...rest
+        } = state as RemoteState & {
+            pgn?: string;
+            pgnGz?: Uint8Array;
+        };
+        const pgn = (await unpackPgn(state))!;
+        if ("pgnGz" in state) this.cloud.packed.add(id);
+        else this.cloud.packed.delete(id);
+        this.cloud.docs.set(id, { ...rest, pgn, id, syncedAt: this.cloud.tick() });
     }
     async metaGet(key: string) {
         return this.meta.get(key) ?? null;
@@ -275,10 +340,33 @@ describe("syncRepertoires", () => {
         expect(win.pgn("neu")).toBe("1. c4");
     });
 
-    it("does not upload files that are too big", async () => {
+    it("uploads big files compressed (#100)", async () => {
         const cloud = new FakeCloud();
         const mac = new FakeDevice(cloud, "mac");
-        mac.file("big", "x".repeat(900_001));
+        const win = new FakeDevice(cloud, "win");
+        const big = "1. e4 { Ein langer Kommentar mit Umlauten: äöü } e5 ".repeat(30_000);
+        expect(big.length).toBeGreaterThan(MAX_PGN_LENGTH);
+        mac.file("big", big);
+        mac.file("small", "1. d4");
+        const result = await syncRepertoires(mac, "u");
+        expect(result.tooBig).toEqual([]);
+        expect(cloud.docs.size).toBe(2);
+        expect(cloud.packed.size).toBe(1);
+        await syncRepertoires(win, "u");
+        expect(win.pgn("big")).toBe(big);
+        expect(win.pgn("small")).toBe("1. d4");
+    });
+
+    it("does not upload files that are too big even compressed", async () => {
+        const cloud = new FakeCloud();
+        const mac = new FakeDevice(cloud, "mac");
+        // Random text barely compresses.
+        let seed = 1;
+        const random = Array.from({ length: 2_000_000 }, () => {
+            seed = (seed * 48271) % 2147483647;
+            return String.fromCharCode(33 + (seed % 90));
+        }).join("");
+        mac.file("big", random);
         const result = await syncRepertoires(mac, "u");
         expect(result.tooBig).toEqual(["big"]);
         expect(cloud.docs.size).toBe(0);
@@ -326,5 +414,51 @@ describe("syncRepertoires", () => {
         expect(win.files.get("Ich White")!.info.id).toBe(id);
         expect(win.pgn("Ich White")).toBe("1. e4");
         expect(win.pgn("Ich White 2")).toBe("1. e4 e5");
+    });
+
+    it("reads nothing again when nothing changed in the cloud (#99)", async () => {
+        const cloud = new FakeCloud();
+        const a = new FakeDevice(cloud, "a");
+        const b = new FakeDevice(cloud, "b");
+        for (let i = 0; i < 20; i++) a.file(`r${i}`, `1. e4 ${i}`);
+        await syncRepertoires(a, "u");
+        await syncRepertoires(b, "u");
+        expect(b.files.size).toBe(20);
+
+        // Its own uploads come back once, then nothing.
+        cloud.reads = 0;
+        await syncRepertoires(a, "u");
+        expect(cloud.reads).toBe(20);
+        for (const d of [a, b, a, b]) {
+            cloud.reads = 0;
+            await syncRepertoires(d, "u");
+            expect(cloud.reads).toBe(0);
+        }
+
+        // A change is read once by each device.
+        a.files.get("r3")!.pgn = "1. d4";
+        await syncRepertoires(a, "u");
+        cloud.reads = 0;
+        await syncRepertoires(b, "u");
+        expect(cloud.reads).toBe(1);
+        expect(b.pgn("r3")).toBe("1. d4");
+        cloud.reads = 0;
+        await syncRepertoires(b, "u");
+        expect(cloud.reads).toBe(0);
+    });
+
+    it("continues from a position stored by 1.0.28", async () => {
+        const cloud = new FakeCloud();
+        const a = new FakeDevice(cloud, "a");
+        a.file("w", "1. e4");
+        await syncRepertoires(a, "u");
+        // Old format: milliseconds; the fake's seconds count as ms here.
+        a.meta.set("repCursor:u", "5000");
+        cloud.reads = 0;
+        await syncRepertoires(a, "u");
+        expect(a.meta.get("repCursor:u")).toMatch(/^\d+\.\d{9}\|/);
+        cloud.reads = 0;
+        await syncRepertoires(a, "u");
+        expect(cloud.reads).toBe(0);
     });
 });
