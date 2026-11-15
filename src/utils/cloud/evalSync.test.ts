@@ -29,9 +29,12 @@ const key = (e: SyncEval) => `${e.engine}|${e.multipv}|${e.position}`;
 /** A device's local store and the cloud, kept in memory. */
 function setup(local: SyncEval[], cloud: Partial<Record<EvalSource, SyncEval[]>> = {}) {
     const store = new Map(local.map((e) => [key(e), { e, dirty: true }]));
-    const remote: Record<EvalSource, { e: SyncEval; at: number }[]> = {
-        own: (cloud.own ?? []).map((e, i) => ({ e, at: 1000 + i })),
-        shared: (cloud.shared ?? []).map((e, i) => ({ e, at: 1000 + i })),
+    type Doc = { e: SyncEval; at: number };
+    const toMap = (list: SyncEval[] = []) =>
+        new Map<string, Doc>(list.map((e, i) => [key(e), { e, at: 1000 + i }]));
+    const remote: Record<EvalSource, Map<string, Doc>> = {
+        own: toMap(cloud.own),
+        shared: toMap(cloud.shared),
     };
     const meta = new Map<string, string>();
     const pushed: Record<EvalSource, SyncEval[]> = { own: [], shared: [] };
@@ -66,15 +69,10 @@ function setup(local: SyncEval[], cloud: Partial<Record<EvalSource, SyncEval[]>>
         async push(target, evals) {
             pushed[target].push(...evals);
             clock += 1;
-            for (const e of evals) {
-                const list = remote[target];
-                const i = list.findIndex((r) => key(r.e) === key(e));
-                if (i >= 0) list.splice(i, 1);
-                list.push({ e, at: clock });
-            }
+            for (const e of evals) remote[target].set(key(e), { e, at: clock });
         },
         async fetchPage(source, since, after): Promise<EvalPage> {
-            const list = remote[source]
+            const list = [...remote[source].values()]
                 .filter((r) => r.at > since)
                 .sort((a, b2) => a.at - b2.at || key(a.e).localeCompare(key(b2.e)));
             const start = after === null ? 0 : (after as number);
