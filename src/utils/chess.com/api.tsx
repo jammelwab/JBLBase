@@ -44,8 +44,22 @@ type Archive = {
 // Only the PGN is needed for the download. A lenient schema keeps one odd game
 // (missing rating, setup, ...) from dropping a whole month of games.
 const ChessComArchiveGames = z.object({
-  games: z.array(z.object({ pgn: z.string().nullish() }).passthrough()),
+  games: z.array(
+    z.object({ pgn: z.string().nullish(), rules: z.string().nullish() }).passthrough(),
+  ),
 });
+
+/**
+ * The PGNs of standard chess games. Variants (King of the Hill, odds games,
+ * Chess960, ...) would show up as normal games in the trees and in Insight
+ * (#102); a game without `rules` counts as standard.
+ */
+export function standardGamePgns(games: { pgn?: string | null; rules?: string | null }[]) {
+  return games
+    .filter((g) => (g.rules ?? "chess") === "chess")
+    .map((g) => g.pgn?.trim())
+    .filter((pgn): pgn is string => !!pgn);
+}
 
 export async function getChessComAccount(player: string): Promise<ChessComStats | null> {
   const url = `${baseURL}/pub/player/${player.toLowerCase()}/stats`;
@@ -178,9 +192,7 @@ export async function downloadChessCom(player: string, timestamp: number | null)
         failedMonths.push(archive);
         error(`Failed to fetch Chess.com games: ${response.status} ${archive}`);
       } else {
-        const pgns = games.data.games
-          .map((g) => g.pgn?.trim())
-          .filter((pgn): pgn is string => !!pgn);
+        const pgns = standardGamePgns(games.data.games);
         total += pgns.length;
         if (pgns.length > 0) {
           await writeTextFile(file, `${pgns.join("\n\n")}\n\n`, { append: true });

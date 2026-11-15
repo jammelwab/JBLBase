@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { chessComArchivesToFetch } from "../chess.com/api";
+import { chessComArchivesToFetch, standardGamePgns } from "../chess.com/api";
 import { CORRESPONDENCE_LOOKBACK_MS, lichessGameUrls } from "../lichess/api";
 
 // "Partien aktualisieren": what is fetched again (#92, #101).
@@ -45,5 +45,20 @@ describe("lichessGameUrls", () => {
         expect(live).not.toContain("correspondence");
         expect(corr).toContain("perfType=correspondence");
         expect(corr).toContain(`since=${newest - CORRESPONDENCE_LOOKBACK_MS}`);
+    });
+});
+
+describe("standardGamePgns", () => {
+    test("keeps standard chess only (#102)", () => {
+        expect(
+            standardGamePgns([
+                { pgn: " a ", rules: "chess" },
+                { pgn: "b", rules: "kingofthehill" },
+                { pgn: "c", rules: "chess960" },
+                { pgn: "d", rules: "oddschess" },
+                { pgn: null, rules: "bughouse" },
+                { pgn: "e" },
+            ]),
+        ).toEqual(["a", "e"]);
     });
 });
