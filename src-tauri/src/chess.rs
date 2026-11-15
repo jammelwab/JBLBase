@@ -1276,7 +1276,11 @@ pub struct EngineConfig {
 pub async fn get_engine_config(path: PathBuf) -> Result<EngineConfig, Error> {
     let mut base = BaseEngine::spawn(path.clone()).await?;
 
-    base.send("uci").await?;
+    // A program that already exited cannot take the command.
+    if base.send("uci").await.is_err() {
+        base.kill_sync();
+        return Err(Error::NotUciEngine);
+    }
 
     let mut config = EngineConfig::default();
 
@@ -1519,7 +1523,21 @@ done
             std::env::temp_dir().join(format!("jbl-stop-engine-{}-{}", name, std::process::id()));
         std::fs::write(&path, ENGINE).unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let (mut proc, reader) = EngineProcess::new(path.clone()).await.unwrap();
+        // Another test may fork while this file is still open for writing,
+        // which makes starting it fail with "Text file busy" for a moment.
+        let mut attempt = 0;
+        let (mut proc, reader) = loop {
+            match EngineProcess::new(path.clone()).await {
+                Ok(started) => break started,
+                Err(Error::Io(e))
+                    if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < 50 =>
+                {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(e) => panic!("engine did not start: {e:?}"),
+            }
+        };
         proc.set_options(EngineOptions {
             fen: START.to_string(),
             moves: vec![],
