@@ -94,9 +94,52 @@ async function getGameArchives(player: string): Promise<Archive | null> {
   return { archives: data.archives ?? [] };
 }
 
-export async function downloadChessCom(player: string, timestamp: number | null) {
-  const timestampDate = new Date(timestamp ?? 0);
-  const approximateDate = new Date(timestampDate.getFullYear(), timestampDate.getMonth(), 1);
+/** Months (archive URLs) that failed to download, to try again next time (#92). */
+function failedMonthsKey(player: string) {
+  return `chesscomFailedMonths:${player.toLowerCase()}`;
+}
+
+function loadFailedMonths(player: string): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(failedMonthsKey(player)) ?? "[]");
+    return Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFailedMonths(player: string, months: string[]) {
+  try {
+    if (months.length > 0) localStorage.setItem(failedMonthsKey(player), JSON.stringify(months));
+    else localStorage.removeItem(failedMonthsKey(player));
+  } catch {
+    // Without storage the months are not retried; the warning still shows.
+  }
+}
+
+/**
+ * The monthly archives to fetch: all of them on the first download, else the
+ * month of `timestamp` (start of the newest game in the database) and later
+ * ones, plus months that failed last time. Chess.com files a game under the
+ * month it ended in; games already in the database are skipped on import.
+ */
+export function chessComArchivesToFetch(
+  archives: string[],
+  timestamp: number | null,
+  failedBefore: string[],
+): string[] {
+  if (timestamp === null) return archives;
+  const d = new Date(timestamp);
+  const from = d.getUTCFullYear() * 12 + d.getUTCMonth();
+  const retry = new Set(failedBefore);
+  return archives.filter((archive) => {
+    const [year, month] = archive.split("/").slice(-2).map(Number);
+    return year * 12 + (month - 1) >= from || retry.has(archive);
+  });
+}
+
+/** Downloads the games into a PGN file and returns it. */
+export async function downloadChessCom(player: string, timestamp: number | null): Promise<string> {
   const file = await resolve(await getDatabasesDir(), `${player}_chesscom.pgn`);
   await writeTextFile(file, "", { append: false });
 
@@ -111,17 +154,17 @@ export async function downloadChessCom(player: string, timestamp: number | null)
       color: "red",
       icon: <IconX />,
     });
-    return;
+    return file;
   }
   info(`Found ${archives.archives.length} archives for ${player}`);
 
-  const filteredArchives = archives.archives.filter((archive) => {
-    const [year, month] = archive.split("/").slice(-2);
-    const archiveDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1);
-    return archiveDate >= approximateDate;
-  });
+  const filteredArchives = chessComArchivesToFetch(
+    archives.archives,
+    timestamp,
+    loadFailedMonths(player),
+  );
 
-  let failed = 0;
+  const failedMonths: string[] = [];
   let total = 0;
   for (const [i, archive] of filteredArchives.entries()) {
     info(`Fetching games for ${player} from ${archive}`);
@@ -132,7 +175,7 @@ export async function downloadChessCom(player: string, timestamp: number | null)
         : ({ success: false } as const);
       if (!games.success) {
         // Skip this month instead of aborting the whole download.
-        failed++;
+        failedMonths.push(archive);
         error(`Failed to fetch Chess.com games: ${response.status} ${archive}`);
       } else {
         const pgns = games.data.games
@@ -144,7 +187,7 @@ export async function downloadChessCom(player: string, timestamp: number | null)
         }
       }
     } catch (e) {
-      failed++;
+      failedMonths.push(archive);
       error(`Failed to fetch Chess.com games from ${archive}: ${e}`);
     }
     events.progressEvent.emit({
@@ -153,6 +196,8 @@ export async function downloadChessCom(player: string, timestamp: number | null)
       progress: ((i + 1) / filteredArchives.length) * 100,
     });
   }
+  const failed = failedMonths.length;
+  saveFailedMonths(player, failedMonths);
   info(`Downloaded ${total} Chess.com games for ${player} (${failed} months failed)`);
   if (failed > 0) {
     notifications.show({
@@ -171,6 +216,7 @@ export async function downloadChessCom(player: string, timestamp: number | null)
     id: `chesscom_${player}`,
     progress: 100,
   });
+  return file;
 }
 
 const chessComGameSchema = z.object({

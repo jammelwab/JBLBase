@@ -16,7 +16,7 @@ use r2d2::Pool;
 use serde::{Deserialize, Serialize};
 use shakmaty::fen::Fen;
 use specta::Type;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufWriter, Write};
 use std::sync::{Arc, Mutex};
 use std::{
@@ -251,6 +251,9 @@ pub fn load_aixchess_extension(
     Ok(())
 }
 
+/// Imports PGN files into a database. `timestamp` is set when games of an
+/// account are added to its database (the start of its newest game); then
+/// games already in the database are skipped and all others are added.
 #[tauri::command]
 #[specta::specta]
 pub async fn convert_pgn(
@@ -275,8 +278,13 @@ pub async fn convert_pgn(
     prepare_pgn_import(&db, db_exists, &title, description.as_deref())?;
 
     let start = Instant::now();
+    // Adding to an account database: skip what it has, add everything else.
+    let known = match timestamp {
+        Some(_) if db_exists => Some(known_games(&db)?),
+        _ => None,
+    };
     let appender = game_appender(&db)?;
-    let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, timestamp);
+    let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, known);
     let mut next_progress_emit = 10_000u32;
 
     for file_path in files {
@@ -337,6 +345,16 @@ pub async fn convert_pgn(
     );
 
     Ok(())
+}
+
+/// Players and start time of every game in the database that has a start time.
+fn known_games(db: &Connection) -> duckdb::Result<HashSet<pgn::GameKey>> {
+    let mut stmt = db.prepare(
+        "SELECT coalesce(white, ''), coalesce(black, ''), epoch_us(utc_timestamp)
+         FROM games WHERE utc_timestamp IS NOT NULL",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    rows.collect()
 }
 
 fn prepare_pgn_import(
@@ -1505,6 +1523,48 @@ pub async fn merge_players(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn import_into(db: &Connection, pgn: &str, known: Option<HashSet<pgn::GameKey>>) -> u32 {
+        let appender = game_appender(db).unwrap();
+        let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, known);
+        let mut reader = pgn_reader::Reader::new(pgn.as_bytes());
+        while proc.read_batch(&mut reader).unwrap() > 0 {}
+        proc.flush().unwrap();
+        proc.count()
+    }
+
+    fn account_game(white: &str, date: &str, time: &str) -> String {
+        format!(
+            "[White \"{white}\"]\n[Black \"me\"]\n[UTCDate \"{date}\"]\n[UTCTime \"{time}\"]\n\n1. e4 e5 *\n\n"
+        )
+    }
+
+    #[test]
+    fn an_update_adds_games_that_started_before_the_newest_one() {
+        // #101: a daily game started on 5 Nov, a blitz game on 10 Nov was
+        // downloaded, the daily game ended on 12 Nov.
+        let db = Connection::open_in_memory().unwrap();
+        prepare_pgn_import(&db, false, "me Chess.com", None).unwrap();
+        let blitz = account_game("blitz", "2026.11.10", "18:00:00");
+        assert_eq!(import_into(&db, &blitz, None), 1);
+
+        let daily = account_game("daily", "2026.11.05", "09:00:00");
+        let later = account_game("later", "2026.11.13", "20:00:00");
+        // The update downloads the whole month again.
+        let update = format!("{daily}{blitz}{later}");
+        assert_eq!(import_into(&db, &update, Some(known_games(&db).unwrap())), 2);
+        let white: Vec<String> = db
+            .prepare("SELECT white FROM games ORDER BY utc_timestamp")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(white, vec!["daily", "blitz", "later"]);
+
+        // Running the same update again adds nothing.
+        assert_eq!(import_into(&db, &update, Some(known_games(&db).unwrap())), 0);
+    }
 
     #[test]
     fn game_ids_survive_checkpoints_reopening_and_compaction() {

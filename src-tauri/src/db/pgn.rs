@@ -6,14 +6,22 @@ use duckdb::types::{TimeUnit, Value};
 use duckdb::{appender_params_from_iter, Appender};
 use pgn_reader::{Nag, RawComment, RawTag, Reader, SanPlus, Skip, Visitor};
 use shakmaty::{fen::Fen as ShakmatyFen, CastlingMode, Chess, FromSetup, Position};
+use std::collections::HashSet;
 use std::ops::ControlFlow;
+
+/// A game by its players and start time (UTC, microseconds): the same game
+/// downloaded again has the same key.
+pub type GameKey = (String, String, i64);
 
 pub struct PgnProcessor<'a> {
     appender: Appender<'a>,
     count: u32,
     level: CompressionLevel,
     continue_on_invalid_move: bool,
-    timestamp: Option<i32>,
+    /// When adding to an account database: the games it has already. Those
+    /// are skipped, every other game is added, however long ago it started
+    /// (a correspondence game is only published once it has ended, #101).
+    known: Option<HashSet<GameKey>>,
     skipped: u32,
 }
 
@@ -44,14 +52,14 @@ impl<'a> PgnProcessor<'a> {
         appender: Appender<'a>,
         level: CompressionLevel,
         continue_on_invalid_move: bool,
-        timestamp: Option<i32>,
+        known: Option<HashSet<GameKey>>,
     ) -> PgnProcessor<'a> {
         PgnProcessor {
             appender,
             count: 0,
             level,
             continue_on_invalid_move,
-            timestamp,
+            known,
             skipped: 0,
         }
     }
@@ -88,6 +96,14 @@ pub struct StoredGame {
 }
 
 impl StoredGame {
+    pub fn key(&self) -> Option<GameKey> {
+        Some((
+            self.headers.white.clone().unwrap_or_default(),
+            self.headers.black.clone().unwrap_or_default(),
+            self.timestamp()?,
+        ))
+    }
+
     pub fn timestamp(&self) -> Option<i64> {
         build_utc_timestamp(
             self.headers
@@ -512,8 +528,8 @@ impl<'a> PgnProcessor<'a> {
         movetext: <Self as Visitor>::Movetext,
     ) -> <Self as Visitor>::Output {
         let game = movetext.finish();
-        if let (Some(cutoff), Some(timestamp)) = (self.timestamp, game.timestamp()) {
-            if timestamp <= i64::from(cutoff) * 1_000_000 {
+        if let (Some(known), Some(key)) = (self.known.as_mut(), game.key()) {
+            if !known.insert(key) {
                 return Ok(());
             }
         }
