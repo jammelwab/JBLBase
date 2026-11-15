@@ -614,6 +614,44 @@ Stellung mit demselben Gegnerzug, wird sie nicht noch einmal angelegt. Alle
 Bewertungen gehen in den Positionsspeicher, eine zweite Suche rechnet also nur
 neue Stellungen.
 
+## Strenge, Tempo und die Suche in eigenen Partien
+
+**Strenge** (bei beiden Taktiksuchen wählbar):
+
+|                                                       | Locker | Normal      | Streng      |
+| ----------------------------------------------------- | ------ | ----------- | ----------- |
+| Vorsprung nach dem ersten Zug                         | +1,5   | +2,0        | +3,0        |
+| Abstand zum zweitbesten Zug (Gewinnchancen)           | 0,4    | 0,5         | 0,6         |
+| Zweitbester Zug höchstens                             | +1,5   | +1,0        | +0,5        |
+| Fehler des Gegners mindestens (Gewinnchancen)         | 0,25   | 0,3         | 0,4         |
+| Einfaches Zurückschlagen, hängende Figur nehmen       | zählt  | zählt nicht | zählt nicht |
+| Einzüger braucht ein Motiv (Gabel, Fesselung, Matt …) | nein   | nein        | ja          |
+| Nachprüfung tiefer                                    | –      | +4 Halbzüge | +6 Halbzüge |
+
+Dazu kommt „Mindestens eigene Züge in der Lösung“ (ab 2 nur Kombinationen).
+Insight nutzt für übersehene Taktiken die Stufe Normal.
+
+**Tempo:** Jede Stellung wird zuerst mit nur einer Linie bewertet (meist
+direkt aus dem Positionsspeicher). Nur wo du danach klar besser stehst und der
+letzte Zug des Gegners ein echter Fehler war, rechnet die Engine zwei Linien.
+Die Antworten des Gegners in der Lösung brauchen ebenfalls nur eine Linie. Statt
+einer Engine mit allen Threads rechnen mehrere Engines mit je einem Thread
+nebeneinander (höchstens 8, je nach Leistung), jede an ihrer eigenen Stellung
+bzw. Partie. Die Engine für die Elo-Schätzung startet erst, wenn wirklich eine
+Taktik gefunden ist. Gemessen auf 4 Kernen, Tiefe 14, 16 Partien: vorher 219 s,
+jetzt 42 s; ein zweiter Lauf kommt ganz aus dem Speicher (unter 1 s).
+
+**Repertoire:** „Taktiken für Mich / Den Gegner“. Mit „Den Gegner“ findet die
+Suche Fallen, die dein Gegner in deinen Linien stellen kann.
+
+**Eigene Partien:** Im Puzzle-Tab öffnet das Zielscheiben-Symbol „Taktiken in
+eigenen Partien suchen“. Wählbar sind Spieler (Konten und in Insight
+hinzugefügte Spieler), Farbe, Zeitraum, Bedenkzeit, Ergebnis, höchstens N
+Partien (neueste zuerst) und ob übersehene, gefundene oder beide Arten von
+Taktiken gesammelt werden. Die Aufgaben landen in `Partien-Taktiken.duckdb`,
+Partie für Partie, ein Abbruch verliert also nichts. Was Insight in derselben
+Partie schon gefunden hat, wird nicht doppelt angelegt.
+
 ## Leistung und Restzeit
 
 Taktiksuche, Insight und die Prüfung gemeldeter Aufgaben haben eine gemeinsame

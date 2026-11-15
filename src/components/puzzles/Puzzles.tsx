@@ -28,6 +28,7 @@ import {
   IconListCheck,
   IconPlus,
   IconSettings,
+  IconTargetArrow,
   IconTrash,
   IconX,
   IconZoomCheck,
@@ -70,6 +71,7 @@ import PuzzleBoard from "./PuzzleBoard";
 import PuzzleStatsModal from "./PuzzleStatsModal";
 import { getPuzzleStats, recordPuzzleAttempt, usePuzzleStats } from "./usePuzzleStats";
 import { ReportedPuzzlesModal, ReportPuzzleModal } from "./PuzzleReports";
+import GameTacticSearchModal from "./GameTacticSearchModal";
 
 function Puzzles({ id }: { id: string }) {
   const { t } = useTranslation();
@@ -266,6 +268,7 @@ function Puzzles({ id }: { id: string }) {
   const [addOpened, setAddOpened] = useState(false);
   const [reportOpened, setReportOpened] = useState(false);
   const [reportsOpened, setReportsOpened] = useState(false);
+  const [gameTacticsOpened, setGameTacticsOpened] = useState(false);
   const [deleteModalOpened, setDeleteModalOpened] = useState(false);
   const [isPlayingSolution, setIsPlayingSolution] = useState(false);
 
@@ -407,6 +410,12 @@ function Puzzles({ id }: { id: string }) {
               onChanged={async () => setPuzzleDbs(await getPuzzleDatabases())}
             />
           )}
+          {gameTacticsOpened && (
+            <GameTacticSearchModal
+              onClose={() => setGameTacticsOpened(false)}
+              onDone={async () => setPuzzleDbs(await getPuzzleDatabases())}
+            />
+          )}
           <Group justify="space-between" pb="sm">
             <Select
               style={{ flex: 1 }}
@@ -428,6 +437,11 @@ function Puzzles({ id }: { id: string }) {
               }}
             />
             <Group gap="xs">
+              <Tooltip label={t("GameTactics.Title")}>
+                <ActionIcon onClick={() => setGameTacticsOpened(true)}>
+                  <IconTargetArrow size={20} />
+                </ActionIcon>
+              </Tooltip>
               <Tooltip label={t("Puzzle.Reports.Title")}>
                 <ActionIcon onClick={() => setReportsOpened(true)}>
                   <IconListCheck size={20} />

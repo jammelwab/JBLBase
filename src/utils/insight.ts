@@ -1,4 +1,5 @@
 import { resolve } from "@tauri-apps/api/path";
+import { atomWithStorage } from "jotai/utils";
 import type { DatabaseInfo, InsightAccount } from "@/bindings";
 import { findAccountDatabase } from "./accountDatabase";
 import { getPuzzlesDir } from "./directories";
@@ -7,6 +8,10 @@ import { type Session, sessionUsername } from "./session";
 // The puzzle database Insight writes the missed tactics of the own games to. It sits next to
 // the Lichess puzzles, so the puzzle trainer lists it by itself.
 export const GAME_TACTICS_FILE = "Partien-Taktiken.duckdb";
+
+// Players added by hand: someone whose games are in a database but who is no connected account.
+// Insight and the tactic search in the own games share them.
+export const extraAccountsAtom = atomWithStorage<InsightAccount[]>("insight-extra-accounts", []);
 
 export const INSIGHT_DEPTHS = [18, 24] as const;
 export const DEFAULT_INSIGHT_DEPTH = 18;

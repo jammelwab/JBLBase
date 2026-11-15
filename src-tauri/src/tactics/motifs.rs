@@ -327,6 +327,41 @@ pub fn detect(start: &Chess, moves: &[Move]) -> Vec<&'static str> {
     themes
 }
 
+/// Motifs that make a puzzle more than taking what is there: a fork, a pin,
+/// a mate and so on.
+const REAL_MOTIFS: [&str; 10] = [
+    "fork",
+    "pin",
+    "skewer",
+    "discoveredAttack",
+    "discoveredCheck",
+    "doubleCheck",
+    "sacrifice",
+    "mate",
+    "promotion",
+    "underPromotion",
+];
+
+/// Does a solution with these themes have a real tactical motif?
+pub fn has_real_motif(themes: &[&str]) -> bool {
+    themes.iter().any(|t| REAL_MOTIFS.contains(t))
+}
+
+/// A one-move solution that only takes back what the opponent just took, or
+/// only takes a piece left hanging, is no tactic worth training: anyone sees
+/// it. `lead` is the opponent's move into the position, `solution` the
+/// solver's answer from there and `themes` its motifs.
+pub fn is_trivial(lead: &Move, solution: &[Move], themes: &[&str]) -> bool {
+    let Some(first) = solution.first() else {
+        return true;
+    };
+    if solution.len() > 1 || themes.contains(&"mate") || has_real_motif(themes) {
+        return false;
+    }
+    let recapture = lead.is_capture() && first.is_capture() && first.to() == lead.to();
+    recapture || themes.contains(&"hangingPiece")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

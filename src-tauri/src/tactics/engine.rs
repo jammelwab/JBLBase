@@ -313,3 +313,130 @@ impl Analyzer {
         let _ = self.engine.quit().await;
     }
 }
+
+/// The engine that measures how hard a found tactic is. It runs on one
+/// thread, so that its depths mean the same every time, and is only started
+/// once a tactic is really found, so most runs never need the extra process.
+pub struct Prober {
+    path: PathBuf,
+    engine: Option<Analyzer>,
+}
+
+impl Prober {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path, engine: None }
+    }
+
+    pub async fn get(&mut self) -> Result<&mut Analyzer, Error> {
+        if self.engine.is_none() {
+            let options = [
+                EngineOption {
+                    name: "Threads".into(),
+                    value: "1".into(),
+                },
+                EngineOption {
+                    name: "Hash".into(),
+                    value: "16".into(),
+                },
+            ];
+            self.engine = Some(Analyzer::new(self.path.clone(), &options).await?);
+        }
+        Ok(self.engine.as_mut().expect("just started"))
+    }
+
+    pub async fn quit(&mut self) {
+        if let Some(engine) = self.engine.as_mut() {
+            engine.quit().await;
+        }
+    }
+}
+
+/// At most this many engines search side by side.
+pub const MAX_WORKERS: u32 = 8;
+
+/// How the power the user chose (the `Threads` and `Hash` of `options`) is
+/// split between engines running side by side: (engines, threads each, hash
+/// each in MB). `jobs` is how much work there is to share.
+///
+/// A search to a fixed depth of around 18 takes well under a second, and for
+/// such short searches the threads of one engine get in each other's way.
+/// Several engines with one thread each, every one on its own position or
+/// game, get through far more in the same time, and every position is still
+/// searched to the full depth.
+pub fn split_power(options: &[EngineOption], jobs: usize, max_workers: u32) -> (u32, u32, u32) {
+    let value = |name: &str| {
+        options
+            .iter()
+            .find(|o| o.name.eq_ignore_ascii_case(name))
+            .and_then(|o| o.value.trim().parse::<u32>().ok())
+    };
+    let threads = value("Threads").unwrap_or(1).max(1);
+    let hash = value("Hash").unwrap_or(16).max(1);
+    let workers = threads
+        .clamp(1, max_workers.clamp(1, MAX_WORKERS))
+        .min(jobs.max(1) as u32);
+    (
+        workers,
+        (threads / workers).max(1),
+        (hash / workers).max(16),
+    )
+}
+
+/// The engine options with threads and hash replaced.
+pub fn with_threads_and_hash(
+    options: &[EngineOption],
+    threads: u32,
+    hash: u32,
+) -> Vec<EngineOption> {
+    let mut out: Vec<EngineOption> = options
+        .iter()
+        .filter(|o| !o.name.eq_ignore_ascii_case("Threads") && !o.name.eq_ignore_ascii_case("Hash"))
+        .cloned()
+        .collect();
+    out.push(EngineOption {
+        name: "Threads".into(),
+        value: threads.to_string(),
+    });
+    out.push(EngineOption {
+        name: "Hash".into(),
+        value: hash.to_string(),
+    });
+    out
+}
+
+/// Starts `count` engines at `path` with `options`. Should one fail to
+/// start, the others are dropped, and dropping an engine ends its process.
+pub async fn start_analyzers(
+    path: &std::path::Path,
+    options: &[EngineOption],
+    count: u32,
+) -> Result<Vec<Analyzer>, Error> {
+    let started = futures_util::future::join_all(
+        (0..count.max(1)).map(|_| Analyzer::new(path.to_path_buf(), options)),
+    )
+    .await;
+    started.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn opt(name: &str, value: &str) -> EngineOption {
+        EngineOption {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+
+    #[test]
+    fn power_is_split_between_engines() {
+        let options = [opt("Threads", "11"), opt("Hash", "512")];
+        assert_eq!(split_power(&options, 100, 8), (8, 1, 64));
+        // Never more engines than there is work.
+        assert_eq!(split_power(&options, 3, 8), (3, 3, 170));
+        // One engine asked for: all threads in it.
+        assert_eq!(split_power(&options, 100, 1), (1, 11, 512));
+        assert_eq!(split_power(&[], 100, 8), (1, 1, 16));
+    }
+}
