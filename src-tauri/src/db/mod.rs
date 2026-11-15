@@ -1540,6 +1540,25 @@ mod tests {
     }
 
     #[test]
+    fn an_invalid_move_in_a_variation_drops_only_that_variation() {
+        // #94: a typo in a side line used to cut the whole game off there.
+        let db = Connection::open_in_memory().unwrap();
+        prepare_pgn_import(&db, false, "test", None).unwrap();
+        let pgn = "[White \"a\"]\n\n1. e4 (1. d4 Qxh7 { weg } $1 (1... Nf6 2. c4) 2. c4) 1... e5 \
+                   { bleibt } 2. Nf3 (2. Bc4 Nf6) 2... Nc6 3. Bb5 *\n\n\
+                   [White \"b\"]\n\n1. d4 d5 *\n";
+        assert_eq!(import_into(&db, pgn, None), 2);
+        let plies: Vec<(String, i64)> = db
+            .prepare("SELECT white, ply_count FROM games ORDER BY white")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(plies, vec![("a".into(), 5), ("b".into(), 2)]);
+    }
+
+    #[test]
     fn an_update_adds_games_that_started_before_the_newest_one() {
         // #101: a daily game started on 5 Nov, a blitz game on 10 Nov was
         // downloaded, the daily game ended on 12 Nov.

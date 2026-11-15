@@ -268,6 +268,10 @@ pub struct GameInProcessing<'a> {
     ply_before_last_move: u16,
     /// Whether this encoder supports variations (only Low compression).
     supports_variations: bool,
+    /// An invalid move ended the innermost variation: its remaining moves,
+    /// comments and NAGs are dropped until its `)`. Counts the variations
+    /// opened inside it since (#94).
+    dead_variation: Option<u32>,
 }
 
 struct VariationState {
@@ -299,6 +303,7 @@ impl GameInProcessing<'_> {
             pos_before_last_move: None,
             ply_before_last_move: 0,
             supports_variations: level == CompressionLevel::Low,
+            dead_variation: None,
         })
     }
 
@@ -400,9 +405,16 @@ impl<'a> Visitor for PgnProcessor<'a> {
         movetext: &mut Self::Movetext,
         san_plus: SanPlus,
     ) -> ControlFlow<Self::Output> {
+        if movetext.dead_variation.is_some() {
+            return ControlFlow::Continue(());
+        }
         if let Err(err) = movetext.play_san(&san_plus) {
             let error_msg = format!("{err} in game with headers {:?}", movetext.headers);
-            if self.continue_on_invalid_move {
+            if self.continue_on_invalid_move && !movetext.position_stack.is_empty() {
+                // Only this variation ends here; the line it branches off goes on.
+                eprintln!("{error_msg}; dropping the rest of the variation");
+                movetext.dead_variation = Some(0);
+            } else if self.continue_on_invalid_move {
                 eprintln!("{error_msg}");
 
                 let mut swap =
@@ -425,6 +437,10 @@ impl<'a> Visitor for PgnProcessor<'a> {
         &mut self,
         movetext: &mut Self::Movetext,
     ) -> ControlFlow<Self::Output, Skip> {
+        if let Some(nested) = movetext.dead_variation.as_mut() {
+            *nested += 1;
+            return ControlFlow::Continue(Skip(true));
+        }
         if movetext.begin_variation() {
             ControlFlow::Continue(Skip(false))
         } else {
@@ -433,6 +449,15 @@ impl<'a> Visitor for PgnProcessor<'a> {
     }
 
     fn end_variation(&mut self, movetext: &mut Self::Movetext) -> ControlFlow<Self::Output> {
+        match movetext.dead_variation {
+            // The `)` of a variation skipped inside the dead one.
+            Some(nested) if nested > 0 => {
+                movetext.dead_variation = Some(nested - 1);
+                return ControlFlow::Continue(());
+            }
+            Some(_) => movetext.dead_variation = None,
+            None => {}
+        }
         movetext.end_variation();
 
         ControlFlow::Continue(())
@@ -464,6 +489,9 @@ impl<'a> Visitor for PgnProcessor<'a> {
     }
 
     fn nag(&mut self, movetext: &mut Self::Movetext, nag: Nag) -> ControlFlow<Self::Output> {
+        if movetext.dead_variation.is_some() {
+            return ControlFlow::Continue(());
+        }
         movetext
             .annotations
             .push(movetext.event, Annotation::Nag(nag.0));
@@ -475,6 +503,9 @@ impl<'a> Visitor for PgnProcessor<'a> {
         movetext: &mut Self::Movetext,
         comment: RawComment<'_>,
     ) -> ControlFlow<Self::Output> {
+        if movetext.dead_variation.is_some() {
+            return ControlFlow::Continue(());
+        }
         movetext
             .pending_comment
             .push_str(&String::from_utf8_lossy(comment.as_bytes()));
@@ -486,6 +517,9 @@ impl<'a> Visitor for PgnProcessor<'a> {
         movetext: &mut Self::Movetext,
         comment: pgn_reader::RawComment<'_>,
     ) -> ControlFlow<Self::Output> {
+        if movetext.dead_variation.is_some() {
+            return ControlFlow::Continue(());
+        }
         apply_comment(movetext, comment);
 
         ControlFlow::Continue(())
