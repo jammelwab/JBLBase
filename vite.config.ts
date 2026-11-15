@@ -13,6 +13,9 @@ export default defineConfig({
     plugins: [
         tanstackRouter({
             target: "react",
+            // Each page (Datenbanken, Insight, Einstellungen, ...) becomes its own
+            // chunk that loads on first visit, so the start parses less code.
+            autoCodeSplitting: true,
         }),
         react({ compiler: true }),
     ],

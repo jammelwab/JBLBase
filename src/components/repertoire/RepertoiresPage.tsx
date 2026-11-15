@@ -50,7 +50,9 @@ import {
   folderItems,
   inFolder,
   findMainRepertoire,
+  folderLabel,
   normalizeFolder,
+  prettyFolderName,
 } from "@/utils/repertoireFolders";
 import { mergeTree, missingMoves } from "@/utils/repertoireTree";
 import {
@@ -59,6 +61,7 @@ import {
   defaultRepertoires,
   DEFAULT_MAIN_OWNER,
   deleteFolder,
+  deleteRepertoire,
   type Repertoire,
   type RepertoireColor,
   type RepertoireView,
@@ -107,9 +110,17 @@ function RepertoireCard({
   const [showHistory, setShowHistory] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [searchingTactics, setSearchingTactics] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <Card withBorder padding="md">
+      {confirmDelete && (
+        <DeleteRepertoireModal
+          repertoire={repertoire}
+          main={!!main}
+          onClose={() => setConfirmDelete(false)}
+        />
+      )}
       {searchingTactics && (
         <TacticSearchModal repertoire={repertoire} onClose={() => setSearchingTactics(false)} />
       )}
@@ -136,6 +147,17 @@ function RepertoireCard({
               onClick={() => setShowHistory(true)}
             >
               <IconHistory size="1rem" />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t("Repertoire.Delete.Button")}>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              size="sm"
+              aria-label={t("Repertoire.Delete.Button")}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <IconTrash size="1rem" />
             </ActionIcon>
           </Tooltip>
         </Group>
@@ -219,6 +241,81 @@ function RepertoireCard({
         )}
       </Stack>
     </Card>
+  );
+}
+
+// Asks before a repertoire is deleted. Names its folder and file, so of two repertoires
+// with the same name the right one goes.
+function DeleteRepertoireModal({
+  repertoire,
+  main,
+  onClose,
+}: {
+  repertoire: Repertoire;
+  main: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const { documentDir } = useLoaderData({ from: "/repertoires" });
+  const [deleting, setDeleting] = useState(false);
+  const norm = (p: string) => p.replace(/\\/g, "/");
+  const dir = norm(documentDir).replace(/\/+$/, "");
+  const path = norm(repertoire.file.path);
+  const file = path.toLowerCase().startsWith(`${dir.toLowerCase()}/`)
+    ? path.slice(dir.length + 1)
+    : path;
+
+  async function remove() {
+    setDeleting(true);
+    try {
+      await deleteRepertoire(repertoire.file);
+      notifications.show({
+        color: "gray",
+        title: t("Repertoire.Delete.Done"),
+        message: repertoire.name,
+      });
+      onClose();
+    } catch (e) {
+      notifications.show({
+        color: "red",
+        title: t("Repertoire.Delete.Failed"),
+        message: e instanceof Error ? e.message : String(e),
+      });
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Modal opened onClose={onClose} title={t("Repertoire.Delete.Title")}>
+      <Stack gap="sm">
+        <Text>
+          {t("Repertoire.Delete.Message", {
+            name: repertoire.name,
+            count: repertoire.stats.moves,
+          })}
+        </Text>
+        <Text size="sm" c="dimmed">
+          {repertoire.folder ? `${folderLabel(repertoire.folder)} › ` : ""}
+          {repertoire.name} · {repertoire.owner} · {t("Repertoire.Delete.File", { file })}
+        </Text>
+        {main && (
+          <Alert color="yellow" variant="light">
+            {t("Repertoire.Delete.Main")}
+          </Alert>
+        )}
+        <Text size="sm" c="dimmed">
+          {t("Repertoire.Delete.Hint")}
+        </Text>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose} data-autofocus>
+            {t("Common.Cancel")}
+          </Button>
+          <Button color="red" loading={deleting} onClick={remove}>
+            {t("Common.Delete")}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }
 
@@ -488,6 +585,7 @@ function FolderSection({
   // Folders start closed and open or close with one click on their header
   const [open, setOpen] = useState(false);
   const count = folderItems(node).length;
+  const pretty = prettyFolderName(node.name);
   return (
     <Paper withBorder p="xs" radius="md">
       <Group justify="space-between" wrap="nowrap">
@@ -507,12 +605,24 @@ function FolderSection({
             color="var(--mantine-color-yellow-6)"
             style={{ flexShrink: 0 }}
           />
-          {/* Long names (e.g. imported course folders) are cut, the full name shows on hover */}
-          <Tooltip label={node.name} openDelay={400} multiline maw={480}>
+          {/* Imported course folders show a readable name and their source as a badge;
+              long names are cut, the full name shows on hover */}
+          <Tooltip
+            label={pretty.label === node.name ? node.name : `${pretty.label}\n(${node.name})`}
+            openDelay={400}
+            multiline
+            maw={480}
+            style={{ whiteSpace: "pre-line" }}
+          >
             <Text fw={600} truncate="end" style={{ minWidth: 0 }}>
-              {node.name}
+              {pretty.label}
             </Text>
           </Tooltip>
+          {pretty.source && (
+            <Badge size="xs" variant="outline" color="orange" style={{ flexShrink: 0 }}>
+              {pretty.source}
+            </Badge>
+          )}
           <Badge size="sm" variant="light" color="gray" style={{ flexShrink: 0 }}>
             {count}
           </Badge>
@@ -668,7 +778,7 @@ export default function RepertoiresPage() {
     return (
       combineRepertoires(
         parts,
-        folder ? `${color} · ${folder.replaceAll("/", " › ")}` : `${viewOwner} ${color}`,
+        folder ? `${color} · ${folderLabel(folder)}` : `${viewOwner} ${color}`,
       ) ?? undefined
     );
   }, [view, repertoires, viewOwner, t]);

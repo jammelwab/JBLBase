@@ -17,7 +17,13 @@ import { IconFolderOpen } from "@tabler/icons-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { joinFolder, normalizeFolder, planFolderImport } from "@/utils/repertoireFolders";
+import {
+  folderLabel,
+  joinFolder,
+  normalizeFolder,
+  planFolderImport,
+  prettyFolderName,
+} from "@/utils/repertoireFolders";
 import {
   createFolder,
   type FolderImportProgress,
@@ -47,8 +53,10 @@ export function FolderNameModal({
 }) {
   const { t } = useTranslation();
   const current = edit.mode === "rename" ? (edit.path.split("/").pop() ?? "") : "";
+  // Renaming an imported course folder starts from its readable name
+  const shown = prettyFolderName(current).label;
   const parent = edit.mode === "rename" ? edit.path.split("/").slice(0, -1).join("/") : edit.parent;
-  const [name, setName] = useState(current);
+  const [name, setName] = useState(edit.mode === "rename" ? shown : "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -81,7 +89,7 @@ export function FolderNameModal({
       title={
         edit.mode === "new"
           ? t("Repertoire.Folder.NewFolderTitle")
-          : t("Repertoire.Folder.RenameTitle", { name: current })
+          : t("Repertoire.Folder.RenameTitle", { name: shown })
       }
     >
       <form
@@ -93,7 +101,7 @@ export function FolderNameModal({
         <Stack>
           {parent && (
             <Text size="sm" c="dimmed">
-              {t("Repertoire.Folder.Inside", { folder: parent.replaceAll("/", " › ") })}
+              {t("Repertoire.Folder.Inside", { folder: folderLabel(parent) })}
             </Text>
           )}
           <TextInput
@@ -236,7 +244,7 @@ export function ImportFolderModal({
               <Code block mah={160} style={{ overflow: "auto" }}>
                 {plan.items
                   .slice(0, 40)
-                  .map((i) => [i.folder.replaceAll("/", " › "), i.name].filter(Boolean).join(" › "))
+                  .map((i) => [folderLabel(i.folder), i.name].filter(Boolean).join(" › "))
                   .join("\n")}
                 {plan.items.length > 40 ? `\n… +${plan.items.length - 40}` : ""}
               </Code>

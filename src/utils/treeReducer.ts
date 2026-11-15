@@ -1,7 +1,7 @@
 import type { DrawShape } from "@lichess-org/chessground/draw";
 import type { Move } from "chessops";
 import { INITIAL_FEN } from "chessops/fen";
-import type { Outcome, Score } from "@/bindings";
+import type { GoMode, Outcome, Score } from "@/bindings";
 import type { Annotation } from "./annotation";
 import type { MoveClassification } from "./moveClassification";
 import { positionFromFen } from "./chessops";
@@ -204,4 +204,11 @@ export function getTreeStructureHash(node: TreeNode): string {
 
 export interface ReportState {
     inProgress: boolean;
+    // How the last report was computed, shown in the report panel.
+    source?: ReportSource;
+}
+
+export interface ReportSource {
+    engine: string;
+    goMode: GoMode;
 }

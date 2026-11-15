@@ -14,6 +14,7 @@
 import type { FirebaseApp } from "firebase/app";
 import type { Auth, User } from "firebase/auth";
 import i18n from "i18next";
+import { trackUsage } from "../usageStats";
 import { FIREBASE_REGION, firebaseConfig } from "./firebaseConfig";
 
 export type CloudRole = "admin" | "user";
@@ -129,28 +130,69 @@ export async function signInWithEmail(email: string, password: string) {
     const auth = await cloudAuth();
     const { signInWithEmailAndPassword } = await import("firebase/auth");
     await signInWithEmailAndPassword(auth, email.trim(), password);
+    trackUsage("login", { method: "email" });
 }
 
 export async function registerWithEmail(email: string, password: string) {
     const auth = await cloudAuth();
-    const { createUserWithEmailAndPassword, sendEmailVerification } = await import("firebase/auth");
-    const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
-    setMailLanguage(auth);
-    await sendEmailVerification(user).catch(() => {});
+    const { createUserWithEmailAndPassword } = await import("firebase/auth");
+    await createUserWithEmailAndPassword(auth, email.trim(), password);
+    await sendVerification().catch(() => {});
+    trackUsage("sign_up", { method: "email" });
 }
 
 export async function resetPassword(email: string) {
-    const auth = await cloudAuth();
-    const { sendPasswordResetEmail } = await import("firebase/auth");
-    setMailLanguage(auth);
-    await sendPasswordResetEmail(auth, email.trim());
+    try {
+        await callMailFunction("sendPasswordResetMail", { email: email.trim() });
+    } catch (e) {
+        if (!useStandardMail(e)) throw e;
+        const auth = await cloudAuth();
+        const { sendPasswordResetEmail } = await import("firebase/auth");
+        setMailLanguage(auth);
+        await sendPasswordResetEmail(auth, email.trim());
+    }
 }
 
 export async function resendVerification() {
+    await sendVerification();
+}
+
+/**
+ * The confirmation mail in the JBLBase design (Cloud Function
+ * `sendVerificationMail`), or Firebase's standard mail while the function
+ * is not deployed or not set up.
+ */
+async function sendVerification() {
     const auth = await cloudAuth();
-    const { sendEmailVerification } = await import("firebase/auth");
-    setMailLanguage(auth);
-    if (auth.currentUser) await sendEmailVerification(auth.currentUser);
+    if (!auth.currentUser) return;
+    try {
+        await callMailFunction("sendVerificationMail", {});
+    } catch (e) {
+        if (!useStandardMail(e)) throw e;
+        const { sendEmailVerification } = await import("firebase/auth");
+        setMailLanguage(auth);
+        await sendEmailVerification(auth.currentUser);
+    }
+}
+
+async function callMailFunction(name: string, data: Record<string, string>) {
+    const app = await firebaseApp();
+    const { getFunctions, httpsCallable } = await import("firebase/functions");
+    const lang = (i18n.language || "de").slice(0, 2);
+    await httpsCallable(getFunctions(app, FIREBASE_REGION), name, { timeout: 20_000 })({
+        ...data,
+        lang,
+    });
+}
+
+/**
+ * Own mail not available (function missing, mail service not set up or
+ * failing): send Firebase's standard mail instead. Rate limits and invalid
+ * input are passed on.
+ */
+function useStandardMail(error: unknown): boolean {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    return !["functions/resource-exhausted", "functions/invalid-argument"].includes(code);
 }
 
 /** Signs in with a Lichess OAuth access token (see `lichessLogin`). */
@@ -168,6 +210,7 @@ export async function signInWithLichessToken(
     );
     const { data } = await login({ token: lichessToken });
     const { user } = await signInWithCustomToken(auth, data.token);
+    trackUsage("login", { method: "lichess" });
     return { uid: user.uid, username: data.username };
 }
 
@@ -257,6 +300,7 @@ export function cloudErrorKey(error: unknown): string {
         case "auth/weak-password":
             return "Settings.Cloud.Error.WeakPassword";
         case "auth/too-many-requests":
+        case "functions/resource-exhausted":
             return "Settings.Cloud.Error.TooManyRequests";
         case "auth/network-request-failed":
         case "functions/unavailable":

@@ -61,7 +61,7 @@ function EvalChart(props: EvalChartProps) {
       return 2 / (1 + Math.exp(-0.004 * cp)) - 1;
     }
     if (node.children.length === 0) {
-      const [pos, error] = positionFromFen(node.fen);
+      const [pos] = positionFromFen(node.fen);
       if (pos) {
         if (pos.isCheckmate()) {
           return pos?.turn === "white" ? -1 : 1;
@@ -86,7 +86,7 @@ function EvalChart(props: EvalChartProps) {
       }
     }
     if (node.children.length === 0) {
-      const [pos, error] = positionFromFen(node.fen);
+      const [pos] = positionFromFen(node.fen);
       if (pos) {
         if (pos.isCheckmate()) return t("Common.Checkmate");
         if (pos.isStalemate()) return t("Common.Stalemate");
@@ -239,7 +239,7 @@ function EvalChart(props: EvalChartProps) {
         )}
         {chartType === "WDL" &&
           (isWDLDisabled ? (
-            <Alert variant="outline" title="Enable WDL" mt="sm">
+            <Alert variant="outline" title={t("Board.Analysis.EnableWDL.Title")} mt="sm">
               {t("Board.Analysis.EnableWDL")}
             </Alert>
           ) : (

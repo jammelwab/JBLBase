@@ -17,18 +17,32 @@ Knoten, Bewertung (Centipawn, Matt, WDL) und die kompletten Hauptvarianten.
 
 So wird der Speicher genutzt:
 
-1. **Schlüssel ist die Stellung, nicht der Zugweg.** Die FEN ohne Zugzähler,
-   ein En-passant-Feld zählt nur, wenn der Schlag wirklich möglich ist.
+1. **Schlüssel ist die Stellung, nicht der Zugweg.** Ein 128-Bit-Fingerabdruck
+   (Zobrist) aus Figurenstellung, Zugrecht, Rochaderechten und En-passant-Feld
+   (nur wenn der Schlag wirklich möglich ist), ohne Zugzähler.
    `1.Sf3 d5 2.d4` und `1.d4 d5 2.Sf3` teilen sich also einen Eintrag.
-2. **Getrennt pro Engine.** Stockfish und Patricia haben eigene Einträge
-   (erkannt am `id name` der Engine), damit sich ihre Bewertungen nicht mischen.
+2. **Getrennt pro Engine und Einstellung.** Stockfish und Patricia haben eigene
+   Einträge (erkannt am `id name` der Engine). Optionen, die das Spiel der
+   Engine ändern (z. B. `Skill Level`, `UCI_LimitStrength`/`UCI_Elo`, ein
+   anderes Netz), kommen mit in den Namen, etwa
+   `Stockfish 17.1 [Skill Level=5]`. Threads, Hash, MultiPV, WDL-Anzeige,
+   Syzygy-Pfad und Ähnliches zählen nicht.
 3. **Getrennt pro Linienanzahl.** Eine Suche mit 3 Linien kann eine Anfrage mit
-   1, 2 oder 3 Linien bedienen, aber nicht eine mit 5.
+   1, 2 oder 3 Linien bedienen, aber nicht eine mit 5. Ein Eintrag, den ein
+   anderer mit mehr Linien und mindestens gleicher Tiefe ersetzt, wird gelöscht.
 4. **Nur tiefer überschreibt.** Ein flacheres Ergebnis ersetzt nie ein tieferes.
-5. **Matts zählen extra.** Hat eine Engine ein Matt sicher, meldet sie eine
+5. **Kein Ballast.** Ergebnisse unter Tiefe 10 werden nicht gespeichert (die
+   rechnet die Engine in Sekundenbruchteilen neu), Matts immer.
+6. **Nur, was für jede Zugfolge gilt.** Kam die Stellung im Partieverlauf seit
+   dem letzten Bauernzug oder Schlag schon einmal vor, sieht die Engine ein
+   Remis durch Wiederholung, das es auf anderem Weg nicht gibt. Ab einem
+   50-Züge-Zähler über 30 Halbzügen ziehen Engines die Bewertung Richtung
+   Remis. Solche Stellungen werden weder aus dem Speicher gelesen noch
+   gespeichert.
+7. **Matts zählen extra.** Hat eine Engine ein Matt sicher, meldet sie eine
    künstliche Höchsttiefe (Stockfish 245). Solche Einträge bleiben immer
    erhalten, zählen in der Statistik aber nicht als „maximale Tiefe“.
-6. **Speichergrenze für Nutzerkonten.** Bist du mit einem normalen Konto
+8. **Speichergrenze für Nutzerkonten.** Bist du mit einem normalen Konto
    angemeldet, rechnet die Engine so tief wie immer, dauerhaft gespeichert wird
    aber höchstens Tiefe 28. Das tiefere Ergebnis bleibt bis zum Schließen der
    App im Arbeitsspeicher und wird in dieser Sitzung weiter genutzt. Matts
@@ -41,11 +55,16 @@ Beim Analysieren:
 - **Live-Analyse:** Gibt es einen Eintrag, wird er sofort angezeigt. Ist bei
   „Tiefe N“ der Eintrag schon mindestens N tief, startet die Engine gar nicht.
   Sonst rechnet die Engine weiter, und ihre Ausgabe ersetzt die gespeicherte
-  Anzeige erst, wenn sie mindestens genauso tief ist. Unendliche Analyse läuft
-  also ab der gespeicherten Tiefe sichtbar weiter.
-- **Partieanalyse:** Stellungen, die schon tief genug im Speicher sind, werden
-  übersprungen. Bei Zeit- oder Knotenlimit wird das tiefere von Speicher und
-  neuer Rechnung genommen.
+  Anzeige erst, wenn sie mindestens genauso tief ist.
+- **Bericht (Partieanalyse):** Bei „Tiefe N“ werden Stellungen übersprungen,
+  die schon mindestens N tief gespeichert sind. Bei Zeit- oder Knotenlimit
+  merkt sich der Bericht, wie tief die Engine in diesem Lauf im Schnitt kommt,
+  und überspringt Stellungen, die schon mindestens so tief gespeichert sind;
+  beim Knotenlimit reicht auch ein Eintrag mit genug Knoten. Sonst wird das
+  tiefere von Speicher und neuer Rechnung genommen.
+- **Taktiksuche und Insight:** Jede Stellung wird zuerst im Speicher gesucht;
+  ist sie tief genug, rechnet die Engine nicht. Neue Ergebnisse werden mit
+  Knoten und WDL gespeichert.
 
 Eine Grenze: Die Engine selbst fängt intern bei einer neuen Suche von vorne an
 (ihr Hash lebt nur im Arbeitsspeicher). Der Gewinn ist, dass du gespeicherte
@@ -53,11 +72,18 @@ Ergebnisse sofort siehst und tief genug bewertete Stellungen gar nicht mehr
 gerechnet werden müssen.
 
 Unter **Einstellungen → Positionsspeicher** siehst du Anzahl Stellungen,
-Dateigröße und maximale Tiefe pro Engine und kannst den Speicher leeren.
+Dateigröße und maximale Tiefe pro Engine, wie oft der Speicher seit dem Start
+eine Rechnung erspart hat, und kannst den Speicher leeren.
+
+**Format:** Die Züge der Hauptvarianten werden binär gespeichert (2 Byte pro
+Zug), die Engine als Nummer, die Stellung als 16-Byte-Fingerabdruck. Das ist
+etwa ein Drittel der früheren Größe. Ein Speicher aus älteren Versionen wird
+beim ersten Start einmalig umgestellt (dabei fallen überholte und zu flache
+Einträge weg); bei großen Dateien kann das einige Sekunden dauern, die Analyse
+läuft währenddessen ohne Speicher.
 
 Das Schreibprotokoll (`eval_cache.sqlite3-wal`) wird beim Start in die
-Hauptdatei übernommen und danach auf höchstens 1 MB begrenzt. Vorher blieb es
-dauerhaft bei etwa 4 MB stehen.
+Hauptdatei übernommen und danach auf höchstens 1 MB begrenzt.
 
 Für spätere Phasen (Repertoire, Vergleich der Eröffnungsbäume) gibt es schon
 den Befehl `getCachedEvals(fen)`, der alle gespeicherten Bewertungen einer
@@ -210,7 +236,10 @@ Klick geht zur nächsten.
   hast und wie sie ausgingen.
 - **Mit dem Repertoire vergleichen:** im selben Tab **Mit meinem
   Eröffnungsbuch vergleichen**, oder auf der Repertoire-Seite bei deinen
-  Repertoires **Mit meinen Partien vergleichen**. Es zählen nur Züge, die du
+  Repertoires **Mit meinen Partien vergleichen**. Oben rechts wählst du unter
+  **Partien von** den Spieler, etwa „Jannick Schwab“: gezählt werden alle
+  seine Konten und zugeordneten Datenbanken zusammen (siehe **Meine Spieler**
+  unten). Die Auswahl merkt sich die App pro Repertoire-Besitzer. Es zählen nur Züge, die du
   mindestens 2-mal gespielt hast (oben einstellbar). Oben stehen drei Listen:
   wo du überrascht wirst (Gegnerzug ohne Antwort im Repertoire), wo du
   abweichst (du spielst nicht deinen vorbereiteten Zug) und wo dein
@@ -245,6 +274,30 @@ Linie, ähnlich wie bei Chessable:
 - **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
   **Alle Linien** das ganze Repertoire.
 
+## Meine Spieler: Konten und Datenbanken zusammenfassen
+
+Unter **Konten** (Personen-Symbol) stehen deine Lichess- und Chess.com-Konten
+nach Spieler gruppiert. Ein Konto ziehst du auf einen anderen Spieler, um beide
+zusammenzufassen. Pro Spieler gibt es oben rechts:
+
+- **Das bin ich** (Personen-Haken): markiert den Spieler als dich, er bekommt
+  das Abzeichen „Ich“. Deine eigenen Repertoires werden dann mit genau seinen
+  Partien verglichen. Ohne Markierung gilt wie bisher: der Spieler mit deinem
+  Namen aus den Einstellungen, sonst alle Konten zusammen.
+- **Datenbank zuordnen** (Datenbank mit Plus): nimmt Partien aus einer weiteren
+  Datenbank dazu, z. B. importierte Turnierpartien. Du wählst die Datenbank und
+  deinen Namen darin („Schwab, Jannick“); die App schlägt die Namen aus der
+  Datenbank vor. Die Datenbank erscheint als kleine Karte unter den Konten, das
+  **x** entfernt die Zuordnung (die Datenbank selbst bleibt).
+
+Dasselbe geht aus der Datenbank heraus: In der Spielerliste einer Datenbank
+steht über der Spielerkarte **Das bin ich / Spieler zuordnen**. Ist der Spieler
+schon zugeordnet, steht dort „Gehört zu …“.
+
+Alle Konten und Datenbanken eines Spielers zählen zusammen: in der Statistik
+rechts auf der Konten-Seite, im Repertoire-Vergleich und bei den eigenen
+Partien im Repertoire-Baum. Gespeichert wird das nur lokal.
+
 ## Datenbank als Baum
 
 Unter **Datenbanken** eine Datenbank anklicken und **Als Baum öffnen** wählen, oder nach
@@ -276,6 +329,42 @@ Die Bewertung erscheint als Plakette auf dem Zielfeld, im Bericht als Tabelle
 pro Farbe (ein Klick springt zum nächsten solchen Zug) und mit dem Hinweis,
 welcher Zug besser gewesen wäre. Die Bewertungen werden nicht in die PGN
 geschrieben, die klassischen Zeichen (!!, ?, ?? …) schon.
+
+## Brillante Züge suchen
+
+Im Analysebrett gibt es neben **Engines**, **Bericht** und **Protokolle** den
+Tab **Brillant**. Er sucht ab der aktuellen Stellung nach Zügen, die ein „!!“
+verdienen würden. Voreingestellt ist Patricia, jede andere lokale Engine geht
+auch.
+
+So wird gesucht:
+
+1. Die Engine rechnet einen kleinen Variantenbaum (Einstellung **Halbzüge
+   voraus**, höchstens **Stellungen** viele Stellungen).
+2. **Auf deiner Seite** (Seite am Zug, Weiß, Schwarz oder beide) wird jede
+   Engine-Linie geprüft:
+   - **Opfer:** Der Zug gibt Material her (Bauer 0,9, Qualität 2, Leichtfigur 3,
+     Turm 5; die Grenze für „!!“ stellst du unter _Weitere Einstellungen_ ein)
+     und ist trotzdem korrekt, also höchstens 0,4 schlechter als der beste Zug
+     und nicht klar schlechter für dich.
+   - **Versteckt:** Eine flache Suche auf **Club-Niveau** (Standard Tiefe 8)
+     findet den Zug nicht.
+   - **Einziger Zug:** Alles andere ist mindestens 1,5 schlechter.
+     „!!“ gibt es für ein korrektes Opfer ab der Grenze, das die Engine als
+     besten Zug sieht oder das versteckt ist, und für einen versteckten ruhigen
+     einzigen Zug. Kleinere Funde bekommen „!“.
+3. **Beim Gegner** folgt die Suche nicht nur dem Engine-Zug, sondern auch
+   realistischen Club-Antworten: den Lieblingszügen der flachen Suche, Zügen
+   bis **Realistisch bis** Centipawns hinter dem besten und dem Annehmen eines
+   gerade angebotenen Opfers. Funde nach so einer Antwort tragen die Plakette
+   „Nach Club-Antwort“.
+
+Jeder Fund zeigt Zug, Bewertung, die Variante dorthin und die Fortsetzung.
+**Aufs Brett** fügt die Variante mit „!!“ bzw. „!“ in die Partie ein und
+springt zum Zug.
+
+Die tiefen Rechnungen landen im Positionsspeicher (mit der Grenze Tiefe 28
+für normale Konten), die flachen Club-Rechnungen nicht.
 
 ## Engines einrichten
 
@@ -480,6 +569,28 @@ Puzzle-Ordner. Wer die Datei schon hat, nimmt „Aus Datei importieren“
 (`.csv.zst` oder entpackte `.csv`). Ein erneuter Import ersetzt die alte
 Fassung, Lichess aktualisiert die Datei monatlich.
 
+## Puzzle-Streak und Puzzle-Elo
+
+Im Puzzle-Tab schaltest du oben zwischen **Training** und **Streak** um.
+
+- **Streak:** Die erste Aufgabe liegt 400 Punkte unter deiner Puzzle-Elo
+  (mindestens 600), jede gelöste Aufgabe macht die nächste um 50 Punkte
+  schwerer. Ein falscher Zug, ein Hinweis oder das Anzeigen der Lösung beendet
+  die Streak, die Schwierigkeit fällt auf den Startwert zurück. Die
+  Wertungsspanne und „Steigernd“ sind in der Streak ohne Wirkung. Hat die
+  Datenbank bei der Zielwertung keine Aufgabe (kleine eigene Datenbanken), wird
+  die nächstliegende genommen.
+- **Puzzle-Elo:** Jede Aufgabe zählt beim ersten Versuch, im Training wie in
+  der Streak. Du startest bei 1500, gerechnet wird wie beim Schach-Elo gegen
+  die Wertung der Aufgabe (K = 40 für die ersten 20 Aufgaben, danach 20).
+- **Statistik:** Das Diagramm-Symbol neben den Einstellungen zeigt Elo,
+  Höchstwert, beste und aktuelle Streak, Trefferquote, Ø Zeit, den Elo-Verlauf
+  und die letzten Streaks. Dort lässt sich alles zurücksetzen.
+
+Gespeichert wird lokal in `puzzle_stats.json` im App-Datenordner (derselbe
+Ordner wie der Positionsspeicher). Eine laufende Streak übersteht auch einen
+Neustart der App.
+
 ## Taktiksuche im Repertoire
 
 Jede Repertoire-Karte hat den Knopf **Taktiken suchen**. Die Engine prüft jede
@@ -499,12 +610,83 @@ Stellung, in der der Repertoire-Besitzer am Zug ist (Standardtiefe 18):
   importierten Lichess-Puzzles mit deiner Engine und passt die Gewichte per
   kleinsten Quadraten an deren Wertungen an (`rating_model.json` im
   App-Datenordner). Die Seite zeigt, wie weit die Schätzung im Schnitt
-  danebenliegt.
+  danebenliegt. Sie findet die Lichess-Puzzles selbst (sonst die größte
+  andere Puzzle-Datenbank) und bietet, wenn keine da ist, den Download an.
 
 Die Aufgaben landen in `Repertoire-Taktiken.duckdb` im Puzzle-Ordner und
 erscheinen im Puzzle-Tab als eigene Datenbank. Eine neue Suche ersetzt die
-Aufgaben desselben Repertoires. Alle Bewertungen gehen in den
-Positionsspeicher, eine zweite Suche rechnet also nur neue Stellungen.
+Aufgaben desselben Repertoires. Jede Aufgabe steht nur einmal in der
+Datenbank: Führt ein anderes Repertoire (oder eine Zugumstellung) zur selben
+Stellung mit demselben Gegnerzug, wird sie nicht noch einmal angelegt. Alle
+Bewertungen gehen in den Positionsspeicher, eine zweite Suche rechnet also nur
+neue Stellungen.
+
+## Strenge, Tempo und die Suche in eigenen Partien
+
+**Strenge** (bei beiden Taktiksuchen wählbar):
+
+|                                                       | Locker | Normal      | Streng      |
+| ----------------------------------------------------- | ------ | ----------- | ----------- |
+| Vorsprung nach dem ersten Zug                         | +1,5   | +2,0        | +3,0        |
+| Abstand zum zweitbesten Zug (Gewinnchancen)           | 0,4    | 0,5         | 0,6         |
+| Zweitbester Zug höchstens                             | +1,5   | +1,0        | +0,5        |
+| Fehler des Gegners mindestens (Gewinnchancen)         | 0,25   | 0,3         | 0,4         |
+| Einfaches Zurückschlagen, hängende Figur nehmen       | zählt  | zählt nicht | zählt nicht |
+| Einzüger braucht ein Motiv (Gabel, Fesselung, Matt …) | nein   | nein        | ja          |
+| Nachprüfung tiefer                                    | –      | +4 Halbzüge | +6 Halbzüge |
+
+Dazu kommt „Mindestens eigene Züge in der Lösung“ (ab 2 nur Kombinationen).
+Insight nutzt für übersehene Taktiken die Stufe Normal.
+
+**Tempo:** Jede Stellung wird zuerst mit nur einer Linie bewertet (meist
+direkt aus dem Positionsspeicher). Nur wo du danach klar besser stehst und der
+letzte Zug des Gegners ein echter Fehler war, rechnet die Engine zwei Linien.
+Die Antworten des Gegners in der Lösung brauchen ebenfalls nur eine Linie. Statt
+einer Engine mit allen Threads rechnen mehrere Engines mit je einem Thread
+nebeneinander (höchstens 8, je nach Leistung), jede an ihrer eigenen Stellung
+bzw. Partie. Die Engine für die Elo-Schätzung startet erst, wenn wirklich eine
+Taktik gefunden ist. Gemessen auf 4 Kernen, Tiefe 14, 16 Partien: vorher 219 s,
+jetzt 42 s; ein zweiter Lauf kommt ganz aus dem Speicher (unter 1 s).
+
+**Repertoire:** „Taktiken für Mich / Den Gegner“. Mit „Den Gegner“ findet die
+Suche Fallen, die dein Gegner in deinen Linien stellen kann.
+
+**Eigene Partien:** Im Puzzle-Tab öffnet das Zielscheiben-Symbol „Taktiken in
+eigenen Partien suchen“. Wählbar sind Spieler (Konten und in Insight
+hinzugefügte Spieler), Farbe, Zeitraum, Bedenkzeit, Ergebnis, höchstens N
+Partien (neueste zuerst) und ob übersehene, gefundene oder beide Arten von
+Taktiken gesammelt werden. Die Aufgaben landen in `Partien-Taktiken.duckdb`,
+Partie für Partie, ein Abbruch verliert also nichts. Was Insight in derselben
+Partie schon gefunden hat, wird nicht doppelt angelegt.
+
+## Leistung und Restzeit
+
+Taktiksuche, Insight und die Prüfung gemeldeter Aufgaben haben eine gemeinsame
+Einstellung **Leistung**: Gering (ein Viertel der Kerne, 64 MB Hash), Mittel
+(die Hälfte, 256 MB), Hoch (alle bis auf einen, 512 MB) und Maximal. Sie setzt
+nur Threads und Hash, die übrigen Engine-Einstellungen bleiben. Vor dem Start
+steht eine geschätzte Dauer, während des Laufs die Restzeit. Die Schätzung ist
+anfangs grob und richtet sich nach jedem fertigen Lauf (je Tiefe und Stufe)
+nach der gemessenen Geschwindigkeit dieses Rechners.
+
+## Gemeldete Aufgaben
+
+Im Puzzle-Tab meldet das Fähnchen eine Aufgabe als falsch (falsche Lösung,
+anderer Zug gewinnt auch, Elo passt nicht, Sonstiges). Die Meldungen liegen
+getrennt von den Puzzle-Datenbanken in `puzzle_reports.sqlite3` im
+App-Datenordner und erscheinen unter **Gemeldete Aufgaben** (Symbol neben der
+Datenbankauswahl). Dort prüft Stockfish sie in Tiefe 30 (einstellbar) und
+schlägt vor:
+
+- **Doch richtig**: Die gespeicherte Lösung ist auch tief gerechnet die
+  einzige gewinnende (oder die Engine würde sie nur weiterführen).
+- **Korrigieren**: Ein anderer erster Zug gewinnt, die Fortsetzung weicht ab
+  oder die Aufgabe geht zu weit. Die neue Lösung und Elo stehen dabei.
+- **Löschen**: Es gibt keinen eindeutig gewinnenden Zug.
+
+Entschieden wird von Hand. Die Entscheidung wird in der Puzzle-Datenbank
+vermerkt (Tabelle `reviews`), damit eine spätere Taktiksuche eine gelöschte
+Aufgabe nicht zurückbringt und eine korrigierte korrigiert lässt.
 
 Test mit echter Engine:
 
@@ -516,7 +698,10 @@ JBLBASE_TEST_ENGINE=/pfad/zu/stockfish cargo test -- --ignored tactics
 ## Insight
 
 Die Seite **Insight** (Seitenleiste) analysiert alle Partien der verbundenen
-Lichess- und Chess.com-Konten, die neuesten zuerst.
+Lichess- und Chess.com-Konten, die neuesten zuerst. Oben wählst du den
+Spieler: alle Konten zusammen oder eines davon, für Analyse und Statistik.
+„Spieler hinzufügen“ nimmt auch jemanden auf, dessen Partien in einer
+Datenbank liegen, ohne verbundenes Konto.
 
 - Tiefe 18 (Standard) oder 24, wahlweise nur eine bestimmte Zahl Partien pro
   Lauf. Anhalten verliert nichts: Fertige Partien stehen in
@@ -529,6 +714,17 @@ Lichess- und Chess.com-Konten, die neuesten zuerst.
 - Übersehene Taktiken (du hattest einen einzigen Gewinnzug und hast ihn nicht
   gespielt) werden zu Aufgaben in `Partien-Taktiken.duckdb` und erscheinen im
   Puzzle-Tab, mit Motiv und geschätzter Elo wie bei der Repertoire-Suche.
+- **Tempo:** Statt einer Engine mit allen Threads rechnen mehrere Engines
+  nebeneinander, jede an einer eigenen Partie mit einem Thread (höchstens
+  acht Engines; Hash wird aufgeteilt). Bei „Hoch“ auf 12 Kernen sind das acht
+  Engines. Kurze Suchen
+  bis Tiefe 18 nutzen viele Threads einer Engine schlecht, mehrere Engines
+  schaffen deutlich mehr Stellungen. Jede Stellung wird mit einer Linie
+  bewertet; die zweite Linie (ist der Gewinnzug der einzige?) wird nur dort
+  gerechnet, wo du einen gewinnenden Zug ausgelassen hast. Tiefe und
+  Bewertung bleiben gleich, Stellungen aus dem Positionsspeicher werden wie
+  bisher nicht neu gerechnet. Die Engine für die Elo-Schätzung startet erst,
+  wenn eine Partie wirklich eine übersehene Taktik hat.
 
 Test mit echter Engine:
 

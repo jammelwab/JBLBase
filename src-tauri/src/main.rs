@@ -3,14 +3,15 @@
     windows_subsystem = "windows"
 )]
 
+mod brilliance;
 mod chess;
 mod db;
 mod engine;
 mod error;
 mod eval_cache;
-mod training;
 mod game;
 mod insight;
+mod training;
 mod vision;
 
 mod fs;
@@ -88,6 +89,9 @@ pub struct AppState {
     pgn_offsets: DashMap<String, Vec<u64>>,
 
     engine_processes: DashMap<(String, String), Arc<tokio::sync::Mutex<EngineProcess>>>,
+    /// One lock per (tab, engine) so that only one analysis engine process is
+    /// ever started for it, even when positions change faster than it starts.
+    engine_start_locks: DashMap<(String, String), Arc<tokio::sync::Mutex<()>>>,
     analysis_cancel_flags: DashMap<String, Arc<AtomicBool>>,
     auth: AuthState,
     game_manager: GameManager,
@@ -96,6 +100,7 @@ pub struct AppState {
     training: training::TrainingStore,
     insight: insight::InsightStore,
     rating: tactics::calibration::RatingStore,
+    reports: tactics::review::ReportStore,
 }
 
 #[tauri::command]
@@ -138,9 +143,11 @@ fn main() {
             get_best_moves,
             analyze_game,
             cancel_analysis,
+            brilliance::find_brilliancies,
             stop_engine,
             kill_engine,
             kill_engines,
+            kill_all_engines,
             get_engine_logs,
             memory_size,
             get_puzzle,
@@ -189,6 +196,8 @@ fn main() {
             delete_puzzle_database,
             import_lichess_puzzles,
             tactics::find_tactics_in_lines,
+            tactics::games::find_tactics_in_games,
+            tactics::games::count_tactic_games,
             insight::insight_analyze,
             insight::insight_status,
             insight::insight_summary,
@@ -196,6 +205,11 @@ fn main() {
             tactics::calibration::calibrate_rating,
             tactics::calibration::get_rating_calibration,
             tactics::calibration::reset_rating_calibration,
+            tactics::review::report_puzzle,
+            tactics::review::list_puzzle_reports,
+            tactics::review::check_puzzle_reports,
+            tactics::review::resolve_puzzle_report,
+            tactics::review::delete_puzzle_report,
             start_game,
             get_game_state,
             make_game_move,
@@ -294,7 +308,13 @@ fn main() {
                     if let Err(err) = std::fs::create_dir_all(&dir) {
                         log::warn!("Failed to create app data dir: {err}");
                     }
-                    state.eval_cache.open(dir.join(eval_cache::CACHE_FILE_NAME));
+                    // Opening may convert an older cache format, which can take a
+                    // while on a big file; analysis runs without the cache meanwhile.
+                    let handle = app.handle().clone();
+                    let cache_path = dir.join(eval_cache::CACHE_FILE_NAME);
+                    std::thread::spawn(move || {
+                        handle.state::<AppState>().eval_cache.open(cache_path);
+                    });
                     state.training.open(dir.join(training::TRAINING_FILE_NAME));
                     state
                         .insight
@@ -302,8 +322,13 @@ fn main() {
                     state
                         .rating
                         .open(dir.join(tactics::calibration::RATING_FILE_NAME));
+                    state
+                        .reports
+                        .open(dir.join(tactics::review::REPORTS_FILE_NAME));
                 }
-                Err(err) => log::warn!("No app data dir, evaluation cache and training store disabled: {err}"),
+                Err(err) => log::warn!(
+                    "No app data dir, evaluation cache and training store disabled: {err}"
+                ),
             }
 
             *state
@@ -350,16 +375,37 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { .. } => {
                 let state = app.state::<AppState>();
                 for entry in state.engine_processes.iter() {
                     if let Ok(mut process) = entry.value().try_lock() {
                         process.kill_sync();
                     }
                 }
+                // Also covers engines that are busy (locked) or not owned by
+                // the analysis tabs (tactics search, insight, checks, games).
+                engine::reaper::kill_all();
             }
+            tauri::RunEvent::Exit => engine::reaper::kill_all(),
+            tauri::RunEvent::WindowEvent {
+                event: tauri::WindowEvent::Destroyed,
+                ..
+            } => {
+                if app.webview_windows().is_empty() {
+                    engine::reaper::kill_all();
+                }
+            }
+            _ => {}
         });
+}
+
+/// Stops every running engine process (analysis, tactics search, insight,
+/// checks, engine games). Called before an update is installed.
+#[tauri::command]
+#[specta::specta]
+fn kill_all_engines() {
+    engine::reaper::kill_all();
 }
 
 #[tauri::command]

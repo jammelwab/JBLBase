@@ -20,6 +20,7 @@ import {
     type GameHeaders,
     getNodeAtPath,
     type TreeNode,
+    type ReportSource,
     type TreeState,
     treeIteratorMainLine,
 } from "@/utils/treeReducer";
@@ -491,6 +492,9 @@ export const createTreeStore = (id?: string, initialTree?: TreeState) => {
                 produce((state) => {
                     state.dirty = true;
                     addAnalysis(state, analysis, options);
+                    if (options?.source) {
+                        state.report.source = options.source;
+                    }
                 }),
             ),
 
@@ -699,6 +703,8 @@ function setShapes(state: TreeState, shapes: DrawShape[]) {
 
 export type AnalysisOptions = {
     showVariations: boolean;
+    // Engine and limit the report was computed with.
+    source?: ReportSource;
     // Leading plies of the main line that are known opening theory.
     bookPlies?: number;
 };

@@ -10,23 +10,20 @@ type ProgressPayload = {
 
 function DatabaseLoader({ isLoading, tab }: { isLoading: boolean; tab: string | null }) {
   const [progress, setProgress] = useState(0);
-  const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
-    async function getProgress() {
-      const unlisten = await listen<ProgressPayload>("search_progress", async ({ payload }) => {
-        if (payload.id !== tab) return;
-        if (payload.finished) {
-          setCompleted(true);
-          setProgress(0);
-          unlisten();
-        } else {
-          setProgress(payload.progress);
-        }
-      });
-    }
-    getProgress();
-  }, []);
+    // Stop listening when the panel unmounts or switches tabs. Before, each
+    // mount left a listener behind that kept running for the whole session.
+    let active = true;
+    const unlistenPromise = listen<ProgressPayload>("search_progress", ({ payload }) => {
+      if (!active || payload.id !== tab) return;
+      setProgress(payload.finished ? 0 : payload.progress);
+    });
+    return () => {
+      active = false;
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [tab]);
 
   const isLoadingFromMemory = isLoading && progress === 0;
 

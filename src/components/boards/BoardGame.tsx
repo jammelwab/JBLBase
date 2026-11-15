@@ -459,7 +459,11 @@ function BoardGame() {
 
   const onTakeBack = useCallback(async () => {
     if (!gameId || gameState !== "playing") return;
-    const result = await commands.takeBackGameMove(gameId, null);
+    try {
+      unwrap(await commands.takeBackGameMove(gameId, null));
+    } catch {
+      // unwrap already logged the error and showed a notification
+    }
   }, [gameId, gameState]);
 
   useEffect(() => {

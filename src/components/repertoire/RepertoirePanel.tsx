@@ -16,7 +16,7 @@ import { useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
-import { findMainRepertoire } from "@/utils/repertoireFolders";
+import { findMainRepertoire, folderLabel } from "@/utils/repertoireFolders";
 import { positionKey } from "@/utils/repertoireTree";
 import {
   DEFAULT_MAIN_OWNER,
@@ -78,7 +78,7 @@ function RepertoireRow({
 }) {
   const { t } = useTranslation();
   const mine = repertoire.color === sideToMove;
-  const path = [repertoire.folder.replaceAll("/", " › "), repertoire.name].filter(Boolean);
+  const path = [folderLabel(repertoire.folder), repertoire.name].filter(Boolean);
   return (
     <Group gap="xs" wrap="nowrap" align="center" mih={28}>
       <ColorDot color={repertoire.color} />

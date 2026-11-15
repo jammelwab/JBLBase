@@ -11,7 +11,7 @@ import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { moveNotationTypeAtom, repertoireDbSourceAtom } from "@/state/atoms";
 import { addPieceSymbol } from "@/utils/annotation";
 import { formatNumber } from "@/utils/format";
-import { combineTrees, findMainRepertoire } from "@/utils/repertoireFolders";
+import { combineTrees, findMainRepertoire, folderLabel } from "@/utils/repertoireFolders";
 import { lichessMoveCounts, masterMoveCounts } from "@/utils/repertoireExplorer";
 import {
   explorerHints,
@@ -65,7 +65,7 @@ function weightsOf(root: TreeNode) {
 }
 
 function repertoireLabel(r: Repertoire, mainOwner: string) {
-  const folder = r.folder ? `${r.folder.replaceAll("/", " › ")} › ` : "";
+  const folder = r.folder ? `${folderLabel(r.folder)} › ` : "";
   const owner = r.owner === mainOwner ? "" : ` (${r.owner})`;
   return `${folder}${r.name}${owner}`;
 }

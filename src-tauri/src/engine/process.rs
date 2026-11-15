@@ -46,6 +46,7 @@ impl BaseEngine {
         command.creation_flags(CREATE_NO_WINDOW);
 
         let mut child = command.spawn()?;
+        super::reaper::register(&child);
 
         let stdin = child.stdin.take().ok_or(Error::NoStdin)?;
         let stdout = child.stdout.take().ok_or(Error::NoStdout)?;
@@ -162,12 +163,14 @@ impl BaseEngine {
     }
 
     pub fn kill_sync(&mut self) {
+        let pid = self.child.id();
         let _ = self.child.start_kill();
+        super::reaper::unregister(pid);
     }
 }
 
 impl Drop for BaseEngine {
     fn drop(&mut self) {
-        let _ = self.child.start_kill();
+        self.kill_sync();
     }
 }

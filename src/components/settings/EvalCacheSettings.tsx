@@ -91,6 +91,16 @@ export default function EvalCacheSettings() {
       )}
 
       {stats && (
+        <Text size="sm">
+          {t("Settings.EvalCache.Session", {
+            lookups: stats.sessionLookups.toLocaleString(),
+            hits: stats.sessionHits.toLocaleString(),
+            saved: stats.sessionSaved.toLocaleString(),
+          })}
+        </Text>
+      )}
+
+      {stats && (
         <Text size="xs" c="dimmed" style={{ wordBreak: "break-all" }}>
           {t("Settings.EvalCache.Location")}: {stats.path}
         </Text>

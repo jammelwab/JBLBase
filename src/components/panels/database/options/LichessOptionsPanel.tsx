@@ -107,8 +107,8 @@ const LichessOptionsPanel = () => {
       />
       <Group grow>
         <MonthPickerInput
-          label="Since"
-          placeholder="Pick date"
+          label={t("Common.Since")}
+          placeholder={t("Common.PickDate")}
           value={options.since}
           minDate={MIN_DATE}
           maxDate={new Date()}
@@ -121,8 +121,8 @@ const LichessOptionsPanel = () => {
           clearable
         />
         <MonthPickerInput
-          label="Until"
-          placeholder="Pick date"
+          label={t("Common.Until")}
+          placeholder={t("Common.PickDate")}
           value={options.until}
           minDate={MIN_DATE}
           maxDate={new Date()}
@@ -137,17 +137,17 @@ const LichessOptionsPanel = () => {
       </Group>
       <Group grow>
         <TextInput
-          label="Player"
-          placeholder="Player's username"
+          label={t("Board.Database.Local.Player")}
+          placeholder={t("Board.Database.Lichess.PlayerPlaceholder")}
           value={options.player ?? ""}
           onChange={(e) => setOptions({ ...options, player: e.currentTarget.value })}
         />
         <Select
-          label="Color"
-          placeholder="Select color"
+          label={t("Board.Database.Lichess.Color")}
+          placeholder={t("Board.Database.Lichess.SelectColor")}
           data={[
-            { label: "White", value: "white" },
-            { label: "Black", value: "black" },
+            { label: t("Fen.White"), value: "white" },
+            { label: t("Fen.Black"), value: "black" },
           ]}
           value={options.color}
           onChange={(v) => setOptions({ ...options, color: v as "white" | "black" })}

@@ -21,8 +21,8 @@ import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import type { PlayerGameInfo } from "@/bindings";
-import { sessionsAtom } from "@/state/atoms";
-import { playerNames } from "@/utils/session";
+import { playerDatabasesAtom, sessionsAtom } from "@/state/atoms";
+import { allPlayerNames } from "@/utils/playerDatabases";
 import type { DatabaseViewStore } from "@/state/store/database";
 import { getFidePlayer } from "@/utils/lichess/api";
 import { isMatchingFidePlayer } from "@/utils/fideMatch";
@@ -67,7 +67,8 @@ function PersonalPlayerCard({
     : undefined;
   const Flag = Object.entries(Flags).find(([key]) => key === `${country?.a2}Flag`)?.[1];
   const sessions = useAtomValue(sessionsAtom);
-  const players = playerNames(sessions);
+  const links = useAtomValue(playerDatabasesAtom);
+  const players = allPlayerNames(sessions, links);
 
   return (
     <Paper

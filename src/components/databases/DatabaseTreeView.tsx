@@ -16,7 +16,7 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import BoardPreview from "@/components/repertoire/BoardPreview";
-import TreeDiagram, { type DiagramNode } from "@/components/repertoire/TreeDiagram";
+import TreeDiagram, { type DiagramNode, expandLine } from "@/components/repertoire/TreeDiagram";
 import { useOpenLine } from "@/components/repertoire/useOpenLine";
 import { PlayerSearchInput } from "./PlayerSearchInput";
 import { usePositionData } from "@/components/repertoire/usePositionData";
@@ -61,6 +61,14 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
   const minShare = minPercent / 100;
   const [expanded, setExpanded] = useState(() => new Set<string>());
   const [selected, setSelected] = useState<{ id: string; line: string[] } | null>(null);
+  const [focus, setFocus] = useState<{ id: string } | null>(null);
+  // A line played on the small board: the tree opens down to it and moves there
+  const follow = useCallback((line: string[]) => {
+    const id = line.length === 0 ? "root" : line.join(" ");
+    setExpanded((prev) => expandLine(prev, line, 1));
+    setSelected({ id, line });
+    setFocus({ id });
+  }, []);
   const [orientation, setOrientation] = useState<"white" | "black">("white");
   // One player's games only, and which color they had: "As White" shows what they play with
   // White and what their opponents answer.
@@ -287,7 +295,7 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
         </Text>
       ) : (
         <Box flex={1} mih={0} pos="relative">
-          <TreeDiagram root={diagram} highlight={selected?.id ?? null} />
+          <TreeDiagram root={diagram} highlight={selected?.id ?? null} focus={focus} />
           {selected && (
             <BoardPreview
               rootFen={INITIAL_FEN}
@@ -295,6 +303,8 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
               line={selected.line}
               orientation={orientation}
               onOpen={() => openLine(selected.line)}
+              onMove={(san) => follow([...selected.line, san])}
+              onBack={() => follow(selected.line.slice(0, -1))}
               onClose={() => setSelected(null)}
             />
           )}

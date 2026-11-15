@@ -1,4 +1,5 @@
 import { resolve } from "@tauri-apps/api/path";
+import { atomWithStorage } from "jotai/utils";
 import type { DatabaseInfo, InsightAccount } from "@/bindings";
 import { findAccountDatabase } from "./accountDatabase";
 import { getPuzzlesDir } from "./directories";
@@ -7,6 +8,10 @@ import { type Session, sessionUsername } from "./session";
 // The puzzle database Insight writes the missed tactics of the own games to. It sits next to
 // the Lichess puzzles, so the puzzle trainer lists it by itself.
 export const GAME_TACTICS_FILE = "Partien-Taktiken.duckdb";
+
+// Players added by hand: someone whose games are in a database but who is no connected account.
+// Insight and the tactic search in the own games share them.
+export const extraAccountsAtom = atomWithStorage<InsightAccount[]>("insight-extra-accounts", []);
 
 export const INSIGHT_DEPTHS = [18, 24] as const;
 export const DEFAULT_INSIGHT_DEPTH = 18;
@@ -45,4 +50,26 @@ export function monthLabel(month: string): string {
 // Ply 0 is White's first move: ply 11 is "6..." and ply 10 "6."
 export function moveNumber(ply: number): string {
     return `${Math.floor(ply / 2) + 1}${ply % 2 === 0 ? "." : "..."}`;
+}
+
+// Identifies an account in a select box.
+export function accountKey(account: InsightAccount): string {
+    return `${account.file}\n${account.player.toLowerCase()}`;
+}
+
+// "Magnus (lichess_Magnus.duckdb)"
+export function accountLabel(account: InsightAccount): string {
+    const file = account.file.split(/[\\/]/).pop() ?? account.file;
+    return `${account.player} (${file})`;
+}
+
+// Both lists of accounts, each account once.
+export function mergeAccounts(a: InsightAccount[], b: InsightAccount[]): InsightAccount[] {
+    const seen = new Set<string>();
+    return [...a, ...b].filter((account) => {
+        const key = accountKey(account);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }

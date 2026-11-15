@@ -5,6 +5,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import type { TFunction } from "i18next";
 import { atom, getDefaultStore } from "jotai";
+import { commands } from "@/bindings";
 import { UPDATES_ENABLED } from "@/utils/fork";
 
 /** A newer JBLBase release, shown as the download arrow in the corner menu. */
@@ -57,6 +58,9 @@ export async function checkForAppUpdate(t: TFunction, { silent = false } = {}) {
             autoClose: false,
             withCloseButton: false,
         });
+        // Stop all engines first: on Windows the installer replaces the app
+        // while it runs, so no engine may keep running in the background.
+        await commands.killAllEngines().catch(console.error);
         await update.downloadAndInstall((event) => {
             if (event.event === "Started") total = event.data.contentLength ?? 0;
             if (event.event === "Progress") {

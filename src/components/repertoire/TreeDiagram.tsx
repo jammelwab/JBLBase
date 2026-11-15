@@ -338,22 +338,27 @@ export default function TreeDiagram({
     return () => svg.removeEventListener("wheel", onWheel);
   }, []);
 
-  // Bring a node into the middle when asked (only when `focus` changes, not on every load)
-  const layoutRef = useRef(layout);
+  // Bring a node into the middle when asked (only when `focus` changes, not on every load).
+  // In a tree that loads its moves as they are opened, the node may only show up a moment
+  // later; then the view moves once it is there.
   const sizeRef = useRef({ width, height });
   useEffect(() => {
-    layoutRef.current = layout;
     sizeRef.current = { width, height };
   });
+  const pendingFocus = useRef<string | null>(null);
   useEffect(() => {
-    const placed = focus ? layoutRef.current.nodes.get(focus.id) : undefined;
+    pendingFocus.current = focus?.id ?? null;
+  }, [focus]);
+  useEffect(() => {
+    const placed = pendingFocus.current ? layout.nodes.get(pendingFocus.current) : undefined;
     const { width: w, height: h } = sizeRef.current;
     if (!placed || !w || !h) return;
+    pendingFocus.current = null;
     setView((prev) => {
       const k = (prev ?? { k: 1 }).k;
       return { k, x: w / 2 - (placed.x + NODE_W / 2) * k, y: h / 2 - placed.y * k };
     });
-  }, [focus]);
+  }, [focus, layout]);
 
   const pos = (id: string) => layout.nodes.get(id);
 
@@ -467,4 +472,17 @@ export default function TreeDiagram({
       </Group>
     </Box>
   );
+}
+
+// For trees whose node ids are their moves joined by spaces and whose first `openDepth` moves
+// start open, with `expanded` holding the ones switched by hand: the switches that open every
+// move above `line`, so its node is drawn.
+export function expandLine(expanded: Set<string>, line: string[], openDepth: number) {
+  const next = new Set(expanded);
+  for (let i = 1; i < line.length; i++) {
+    const id = line.slice(0, i).join(" ");
+    if (i <= openDepth) next.delete(id);
+    else next.add(id);
+  }
+  return next;
 }

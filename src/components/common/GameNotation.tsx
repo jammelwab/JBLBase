@@ -78,9 +78,8 @@ function GameNotation({ topBar, controls }: { topBar?: boolean; controls?: React
 
   const [invisibleValue, setInvisible] = useAtom(currentInvisibleAtom);
   const invisible = topBar && invisibleValue;
-  const showVariations = useAtomValue(currentShowVariationsAtom);
   const showComments = useAtomValue(currentShowCommentsAtom);
-  const [tableView, setTableView] = useAtom(tableViewAtom);
+  const tableView = useAtomValue(tableViewAtom);
   const colorScheme = useColorScheme();
 
   const keyMap = useAtomValue(keyMapAtom);

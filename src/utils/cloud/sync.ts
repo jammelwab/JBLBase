@@ -400,7 +400,11 @@ export function startCloudSync(force = false): () => void {
             getDefaultStore().set(cloudAccountAtom, null);
         });
 
-    const interval = setInterval(() => void syncNow(), SYNC_INTERVAL_MS);
+    // While the window is hidden or minimised, skip the periodic sync: nothing
+    // changes locally then, and focusing the window syncs right away.
+    const interval = setInterval(() => {
+        if (!document.hidden) void syncNow();
+    }, SYNC_INTERVAL_MS);
     const onFocus = () => requestSync();
     window.addEventListener("focus", onFocus);
     const stop = () => {

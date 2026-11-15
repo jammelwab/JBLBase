@@ -1,4 +1,9 @@
 import {
+  importLichessPuzzles,
+  LICHESS_PUZZLE_FILE,
+  LICHESS_PUZZLE_PROGRESS,
+} from "@/utils/lichessPuzzles";
+import {
   Alert,
   Box,
   Button,
@@ -70,9 +75,6 @@ function AddPuzzle({
   );
 }
 
-const LICHESS_PUZZLE_FILE = "Lichess Puzzles.duckdb";
-const LICHESS_PUZZLE_PROGRESS = "puzzle_db_lichess";
-
 /**
  * The official Lichess puzzle database, built locally from
  * `lichess_db_puzzle.csv.zst`: downloaded here, or picked from disk.
@@ -92,12 +94,8 @@ function LichessPuzzleCard({
     setError(null);
     setInProgress(true);
     try {
-      const dest = await resolve(await getPuzzlesDir(), LICHESS_PUZZLE_FILE);
-      const result = await commands.importLichessPuzzles(LICHESS_PUZZLE_PROGRESS, source, dest);
-      if (result.status === "error") {
-        setError(result.error);
-        await commands.clearProgress(LICHESS_PUZZLE_PROGRESS);
-      }
+      const result = await importLichessPuzzles(source);
+      if (result.status === "error") setError(result.error);
       setPuzzleDbs(await getPuzzleDatabases());
     } catch (e) {
       setError(String(e));

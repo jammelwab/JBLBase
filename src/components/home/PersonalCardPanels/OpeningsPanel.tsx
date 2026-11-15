@@ -1,5 +1,5 @@
-import { Button, Group, SegmentedControl, Stack, Text, ThemeIcon } from "@mantine/core";
-import { IconArrowRight, IconBook, IconChess, IconGitCompare } from "@tabler/icons-react";
+import { Button, Group, SegmentedControl, Stack, Text } from "@mantine/core";
+import { IconArrowRight, IconGitCompare } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { INITIAL_FEN } from "chessops/fen";
 import { useAtom, useStore } from "jotai";

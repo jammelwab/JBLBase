@@ -9,7 +9,8 @@ Projekteinstellungen, z. B. `jblbase-1a2b3`).
 ## 1. Projekt
 
 1. <https://console.firebase.google.com> öffnen, Projekt anlegen oder das
-   vorhandene wählen. Google Analytics wird nicht gebraucht.
+   vorhandene wählen. Google Analytics ist nur für die freiwillige
+   Nutzungsstatistik nötig und lässt sich später einschalten (siehe unten).
 2. Unten links muss **Blaze** stehen. Sonst: _Upgrade_ und das
    Rechnungskonto wählen.
 
@@ -135,3 +136,130 @@ kommt niemand außer Admins hinein.
 E-Mail-Konten zählen erst, wenn die Adresse bestätigt ist. Wer sich mit
 Lichess anmeldet und nicht auf der Liste steht, bekommt gar kein Konto. Ein
 E-Mail-Konto kann technisch jeder anlegen, es kommt aber an keine Daten.
+
+## Eigene E-Mails (Bestätigung, Passwort)
+
+Firebase erlaubt keinen eigenen Text für seine Mails. JBLBase verschickt
+Bestätigungs- und Passwort-Mails deshalb selbst per SMTP aus einem normalen
+Postfach (Standard: GMX). Texte und Gestaltung stehen in
+`functions/src/mail.ts` (Deutsch und Englisch, nach App-Sprache).
+
+1. GMX → **E-Mail** → **Einstellungen** → **POP3/IMAP Abruf** →
+   „Senden und Empfangen von E-Mails via externem Programm“ aktivieren und
+   speichern. Mit Zwei-Faktor-Schutz: unter **Sicherheit** ein
+   anwendungsspezifisches Passwort erzeugen und das statt des normalen
+   Passworts verwenden.
+2. In der Cloud Shell (Adresse und Passwort nur dort eingeben, nie ins
+   Repository):
+   ```
+   cd ~/JBLBase && git pull && cd firebase/functions && npm ci && cd ..
+   npx -y firebase-tools@15 functions:secrets:set SMTP_USER --project jblbase
+   npx -y firebase-tools@15 functions:secrets:set SMTP_PASSWORD --project jblbase
+   npx -y firebase-tools@15 deploy --only functions --project jblbase
+   ```
+
+Anderer Anbieter: Umgebungsvariablen `SMTP_HOST` und `SMTP_PORT` setzen
+(Standard `mail.gmx.net`, `587`).
+
+Solange die Functions `sendVerificationMail` und `sendPasswordResetMail`
+nicht laufen, schickt die App die Standard-Mails von Firebase. Pro Adresse
+geht höchstens eine Mail je Art und Minute raus (`mailLimits` in Firestore,
+für die App gesperrt).
+
+## Nutzungsstatistik (Google Analytics, freiwillig)
+
+Die App zählt anonym, welche Seiten und Funktionen benutzt werden, aber nur
+bei Leuten, die das in der App einschalten. Solange die zwei Werte unten
+fehlen, ist die Funktion komplett aus und in der App unsichtbar.
+
+### Einschalten
+
+1. Firebase-Konsole → Zahnrad → **Projekteinstellungen** → **Integrationen**
+   → **Google Analytics** → _Aktivieren_. Neues Analytics-Konto anlegen,
+   Standort **Deutschland**, den Bedingungen zur Datenverarbeitung zustimmen.
+2. Projekteinstellungen → **Allgemein** → _Meine Apps_ → Web-App `JBLBase`:
+   Im `firebaseConfig`-Block steht jetzt zusätzlich `measurementId`
+   (`G-…`).
+3. <https://analytics.google.com> → **Verwaltung** → _Datenstreams_ → den
+   Web-Stream öffnen → **Measurement Protocol API-Secrets** → _Erstellen_,
+   Name `jblbase-app`. Den angezeigten Wert kopieren.
+4. Die Measurement-ID steht in `src/utils/cloud/firebaseConfig.ts` bei
+   `analyticsConfig` (`G-5XZ6DKRS4Z`).
+5. Das **Secret kommt nicht ins Repository und nicht in den Chat.** Auf
+   GitHub: Repository → **Settings** → **Secrets and variables** →
+   **Actions** → _New repository secret_, Name **`GA_API_SECRET`**, Wert
+   einfügen, speichern. Der Release-Workflow baut es in die App ein; ab dem
+   nächsten Release ist die Statistik aktiv. Ohne das Secret bleibt sie aus
+   und der Schalter unsichtbar.
+6. Nur für eigene lokale Builds (optional): im Projektordner eine Datei
+   `.env.local` mit der Zeile `VITE_GA_API_SECRET=<wert>` anlegen. Sie ist
+   von Git ausgeschlossen.
+
+Das Secret erlaubt nur das Senden von Ereignissen, nichts zu lesen. Weil es
+in der fertigen App steckt, ist es nicht wirklich geheim; schlimmstenfalls
+könnte jemand falsche Ereignisse schicken. Dann in Analytics ein neues Secret
+erzeugen, das alte löschen und `GA_API_SECRET` ersetzen.
+
+### Datensparsam einstellen (einmalig, in analytics.google.com → Verwaltung)
+
+- **Datenerhebung und -änderung → Datenerhebung:** _Google-Signale_ aus,
+  _Detaillierte Standort- und Gerätedaten_ aus.
+- **Datenerhebung und -änderung → Datenaufbewahrung:** **2 Monate**.
+- **Datenstreams → Web-Stream → Optimierte Analysen:** aus (die App sendet
+  ihre Ereignisse selbst).
+- **Produktverknüpfungen:** keine Verknüpfung mit Google Ads.
+
+### Eigene Dimensionen anlegen
+
+Damit die Zusatzangaben in den Berichten auswählbar sind: Verwaltung →
+**Benutzerdefinierte Definitionen** → _Benutzerdefinierte Dimension
+erstellen_. Der Name ist frei, der Parameter muss genau stimmen.
+
+| Parameter      | Umfang   | Bedeutung                                |
+| -------------- | -------- | ---------------------------------------- |
+| `app_version`  | Nutzer   | App-Version, z. B. `1.0.18`              |
+| `os`           | Nutzer   | `windows`, `macos`, `linux`              |
+| `app_language` | Nutzer   | Sprache der App, z. B. `de`              |
+| `tab_type`     | Ereignis | Art eines neuen Tabs                     |
+| `source`       | Ereignis | `lichess` oder `chesscom` beim Download  |
+| `method`       | Ereignis | `email` oder `lichess` bei der Anmeldung |
+| `mode`         | Ereignis | Training: `due` oder `all`               |
+| `depth`        | Ereignis | Suchtiefe bei Insight und Taktiksuche    |
+| `games`        | Ereignis | Größenordnung der analysierten Partien   |
+| `lines`        | Ereignis | Größenordnung der Linien                 |
+
+### Was gezählt wird
+
+| Ereignis          | Wann                                  | Angaben          |
+| ----------------- | ------------------------------------- | ---------------- |
+| `app_open`        | App-Start (oder Einschalten)          |                  |
+| `page_view`       | Wechsel der Seite in der Seitenleiste | `page_title`     |
+| `tab_open`        | neuer Tab                             | `tab_type`       |
+| `games_download`  | Partien eines Kontos geladen          | `source`         |
+| `database_import` | PGN als Datenbank importiert          | `files`          |
+| `insight_run`     | Insight-Analyse fertig                | `depth`, `games` |
+| `tactic_search`   | Taktiksuche im Repertoire fertig      | `depth`, `lines` |
+| `training_start`  | Training gestartet                    | `mode`, `lines`  |
+| `login`           | Anmeldung am JBLBase-Konto            | `method`         |
+| `sign_up`         | Registrierung                         | `method`         |
+
+Nie gesendet werden Partien, Stellungen, Namen von Dateien, Datenbanken oder
+Personen, Benutzernamen, E-Mail-Adresse und Konto-ID. Neue Ereignisse gehören
+auch in Abschnitt 6 der Datenschutzerklärung (`src/legal/DATENSCHUTZ.md`).
+
+### Wo man es ansieht
+
+Firebase-Konsole → **Analytics**:
+
+- **Dashboard:** aktive Nutzer pro Tag, Woche, Monat.
+- **Events:** wie oft welche Funktion benutzt wird. Das ist die wichtigste
+  Ansicht: Was kaum gezählt wird, braucht niemand oder findet niemand.
+- **Realtime:** zum Testen. Schalter in der App an, ein paar Seiten öffnen,
+  nach wenigen Sekunden erscheinen `app_open` und `page_view`.
+- In analytics.google.com unter **Berichte → Engagement → Seiten und
+  Bildschirme** stehen die Seiten der App nach `page_title`, und unter
+  **Explorative Datenanalyse** lassen sich Ereignisse nach `app_version`
+  aufteilen (wer hat schon aktualisiert?).
+
+Bei wenigen Nutzern blendet Analytics manche Zahlen aus (Schwellenwerte).
+Die Ereigniszahlen stimmen trotzdem.

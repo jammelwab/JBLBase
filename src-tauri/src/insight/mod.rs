@@ -11,8 +11,8 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, Mutex,
     },
 };
 
@@ -25,12 +25,15 @@ use crate::{
     db::get_duckdb_pool,
     engine::EngineOption,
     error::Error,
-    eval_cache::{position_key, EvalCache},
+    eval_cache::{position_key, EvalCache, PosKey},
     opening::get_opening_from_setup,
     progress::update_progress,
     tactics::{
-        engine::{fen_of, Analyzer, Line},
-        motifs,
+        engine::{
+            fen_of, split_power, start_analyzers, with_threads_and_hash, Analyzer, Line, Prober,
+            MAX_WORKERS,
+        },
+        is_winning, motifs,
         rating::RatingModel,
         store as tactic_store,
         store::StoredTactic,
@@ -47,7 +50,7 @@ const INACCURACY: f64 = 0.1;
 const MISTAKE: f64 = 0.2;
 const BLUNDER: f64 = 0.3;
 /// Games shorter than this many plies were aborted and say nothing.
-const MIN_PLIES: usize = 8;
+pub(crate) const MIN_PLIES: usize = 8;
 
 /// What we know about a game apart from its moves.
 #[derive(Debug, Clone)]
@@ -81,7 +84,7 @@ impl GameInfo {
         }
     }
 
-    fn color(&self) -> Color {
+    pub(crate) fn color(&self) -> Color {
         if self.white_side {
             Color::White
         } else {
@@ -228,7 +231,7 @@ pub fn decode_mainline(bytes: &[u8], fen: Option<&str>) -> Result<(Chess, Vec<Mo
 #[allow(clippy::too_many_arguments)]
 pub async fn analyse_game(
     analyzer: &mut Analyzer,
-    prober: &mut Analyzer,
+    prober: &mut Prober,
     cache: Option<&EvalCache>,
     model: &RatingModel,
     depth: u32,
@@ -267,7 +270,10 @@ pub async fn analyse_game(
         if p.is_game_over() {
             evals.push(None);
         } else {
-            evals.push(Some(analyzer.analyze(cache, p, depth, 2).await?));
+            // One line is enough for the accuracy of a move. The second line
+            // (is the best move the only one?) is only needed where the
+            // player missed a winning move, and fetched there.
+            evals.push(Some(analyzer.analyze(cache, p, depth, 1).await?));
         }
     }
 
@@ -279,7 +285,7 @@ pub async fn analyse_game(
     let (mut own_sum, mut own_moves) = (0.0, 0u32);
     let (mut other_sum, mut other_moves) = (0.0, 0u32);
     let mut cp_lost = 0i64;
-    let mut covered: HashSet<String> = HashSet::new();
+    let mut covered: HashSet<PosKey> = HashSet::new();
 
     for i in 0..moves.len() {
         let Some(best) = evals[i].as_ref().and_then(|l| l.first()) else {
@@ -336,7 +342,11 @@ pub async fn analyse_game(
         }
 
         // A tactic that was there and not played becomes a puzzle.
-        if i == 0 || best_move == Some(moves[i]) || covered.contains(&position_key(&positions[i])) {
+        if i == 0
+            || best_move == Some(moves[i])
+            || !is_winning(best)
+            || covered.contains(&position_key(&positions[i]))
+        {
             continue;
         }
         let line = format!(
@@ -354,6 +364,7 @@ pub async fn analyse_game(
                 format!("{}...", positions[i].fullmoves())
             }
         );
+        let prober = prober.get().await?;
         if let Some((tactic, solved)) = tactic_at(
             analyzer,
             prober,
@@ -392,10 +403,10 @@ pub async fn analyse_game(
 }
 
 /// A game as read from an account's database.
-struct StoredGame {
-    info: GameInfo,
-    fen: Option<String>,
-    movedata: Vec<u8>,
+pub(crate) struct StoredGame {
+    pub info: GameInfo,
+    pub fen: Option<String>,
+    pub movedata: Vec<u8>,
 }
 
 fn game_key(
@@ -416,7 +427,7 @@ fn game_key(
 }
 
 /// The games `player` played in the database behind `db`, newest first.
-fn load_games(
+pub(crate) fn load_games(
     db: &duckdb::Connection,
     source: &str,
     player: &str,
@@ -466,7 +477,7 @@ fn load_games(
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
-fn source_name(file: &std::path::Path) -> String {
+pub(crate) fn source_name(file: &std::path::Path) -> String {
     file.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| file.display().to_string())
@@ -494,7 +505,7 @@ pub struct InsightOptions {
     pub tactics_dest: PathBuf,
 }
 
-#[derive(Serialize, Debug, Type, Default)]
+#[derive(Serialize, Debug, Type, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct InsightRunResult {
     /// Games analysed in this run.
@@ -588,7 +599,7 @@ pub async fn insight_analyze(
         if let Some(max) = options.max_games {
             todo.truncate(max as usize);
         }
-        let mut run = InsightRunResult {
+        let run = InsightRunResult {
             remaining: waiting,
             ..Default::default()
         };
@@ -596,90 +607,110 @@ pub async fn insight_analyze(
             return Ok(run);
         }
 
+        // Several engines side by side, each on its own game (see `split_power`).
         let path = PathBuf::from(&options.engine);
-        let mut analyzer = Analyzer::new(path.clone(), &options.uci_options).await?;
-        let probe_options = [
-            EngineOption {
-                name: "Threads".into(),
-                value: "1".into(),
-            },
-            EngineOption {
-                name: "Hash".into(),
-                value: "16".into(),
-            },
-        ];
-        let mut prober = Analyzer::new(path, &probe_options).await?;
-        let engine_name = analyzer.name().to_string();
+        let (workers, threads, hash) = split_power(&options.uci_options, todo.len(), MAX_WORKERS);
+        let worker_options = with_threads_and_hash(&options.uci_options, threads, hash);
+        let analyzers = start_analyzers(&path, &worker_options, workers).await?;
+        let engine_name = analyzers[0].name().to_string();
         let model = state.rating.model();
         let total = todo.len() as f32;
 
-        let mut outcome: Result<(), Error> = Ok(());
-        for (n, game) in todo.iter().enumerate() {
-            let decoded = decode_mainline(&game.movedata, game.fen.as_deref());
-            let (start, moves) = match decoded {
-                Ok((start, moves)) if moves.len() >= MIN_PLIES => (start, moves),
-                _ => {
-                    run.failed += 1;
-                    run.remaining = run.remaining.saturating_sub(1);
-                    continue;
-                }
-            };
-            analyzer.clear_memo();
-            let mut last = -1.0f32;
-            let report = analyse_game(
-                &mut analyzer,
-                &mut prober,
-                Some(&state.eval_cache),
-                &model,
-                options.depth,
-                &game.info,
-                &start,
-                &moves,
-                &cancel,
-                |share| {
-                    let progress = ((n as f32 + share) / total * 100.0).min(99.9);
-                    if progress - last >= 0.1 {
-                        last = progress;
-                        let _ = update_progress(
-                            &state.progress_state,
-                            &app,
-                            id.clone(),
-                            progress,
-                            false,
-                        );
-                    }
-                },
-            )
-            .await;
-            let report = match report {
-                Ok(report) => report,
-                Err(error) => {
-                    outcome = Err(error);
-                    break;
-                }
-            };
-            state
-                .insight
-                .save(&game.info, &report, options.depth, &engine_name)?;
-            if !report.tactics.is_empty() || options.tactics_dest.exists() {
-                tactic_store::replace_source(
-                    &options.tactics_dest,
-                    &game.info.key,
-                    &report.tactics,
-                )?;
-                crate::puzzle::forget_cached_puzzles(&options.tactics_dest);
+        let next = AtomicUsize::new(0);
+        // Share done of every game, and the progress last reported.
+        let progress = Mutex::new((vec![0.0f32; todo.len()], -1.0f32));
+        let run = Mutex::new(run);
+        let report_progress = |n: usize, share: f32| {
+            let mut guard = progress.lock().unwrap_or_else(|e| e.into_inner());
+            let (shares, last) = &mut *guard;
+            shares[n] = share;
+            let done = (shares.iter().sum::<f32>() / total * 100.0).min(99.9);
+            if done - *last >= 0.1 {
+                *last = done;
+                let _ = update_progress(&state.progress_state, &app, id.clone(), done, false);
             }
-            run.analysed += 1;
-            run.remaining = run.remaining.saturating_sub(1);
-            run.missed_tactics += report.tactics.len() as u32;
-        }
-        run.calculated = analyzer.searches;
-        analyzer.quit().await;
-        prober.quit().await;
-        match outcome {
-            // Stopping is not a failure: what is done is saved.
-            Ok(()) | Err(Error::AnalysisCancelled) => Ok(run),
-            Err(error) => Err(error),
+        };
+
+        let (todo, next, run, cancel, model, path) = (&todo, &next, &run, &*cancel, &model, &path);
+        let (report_progress, engine_name, options) = (&report_progress, &engine_name, &options);
+        let state = &state;
+        let results =
+            futures_util::future::join_all(analyzers.into_iter().map(|mut analyzer| async move {
+                let mut prober = Prober::new(path.clone());
+                let outcome: Result<(), Error> = async {
+                    loop {
+                        if cancel.load(Ordering::SeqCst) {
+                            return Err(Error::AnalysisCancelled);
+                        }
+                        let n = next.fetch_add(1, Ordering::SeqCst);
+                        let Some(game) = todo.get(n) else {
+                            return Ok(());
+                        };
+                        let decoded = decode_mainline(&game.movedata, game.fen.as_deref());
+                        let (start, moves) = match decoded {
+                            Ok((start, moves)) if moves.len() >= MIN_PLIES => (start, moves),
+                            _ => {
+                                let mut run = run.lock().unwrap_or_else(|e| e.into_inner());
+                                run.failed += 1;
+                                run.remaining = run.remaining.saturating_sub(1);
+                                drop(run);
+                                report_progress(n, 1.0);
+                                continue;
+                            }
+                        };
+                        analyzer.clear_memo();
+                        let report = analyse_game(
+                            &mut analyzer,
+                            &mut prober,
+                            Some(&state.eval_cache),
+                            model,
+                            options.depth,
+                            &game.info,
+                            &start,
+                            &moves,
+                            cancel,
+                            |share| report_progress(n, share),
+                        )
+                        .await?;
+                        state
+                            .insight
+                            .save(&game.info, &report, options.depth, engine_name)?;
+                        if !report.tactics.is_empty() || options.tactics_dest.exists() {
+                            tactic_store::replace_source(
+                                &options.tactics_dest,
+                                &game.info.key,
+                                &report.tactics,
+                            )?;
+                            crate::puzzle::forget_cached_puzzles(&options.tactics_dest);
+                        }
+                        let mut run = run.lock().unwrap_or_else(|e| e.into_inner());
+                        run.analysed += 1;
+                        run.remaining = run.remaining.saturating_sub(1);
+                        run.missed_tactics += report.tactics.len() as u32;
+                    }
+                }
+                .await;
+                // A real error stops the other engines too.
+                if outcome.is_err() {
+                    cancel.store(true, Ordering::SeqCst);
+                }
+                let searches = analyzer.searches;
+                analyzer.quit().await;
+                prober.quit().await;
+                (outcome, searches)
+            }))
+            .await;
+
+        let mut run = run.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        run.calculated = results.iter().map(|(_, searches)| searches).sum();
+        // Stopping is not a failure: what is done is saved.
+        match results.into_iter().find_map(|(outcome, _)| {
+            outcome
+                .err()
+                .filter(|e| !matches!(e, Error::AnalysisCancelled))
+        }) {
+            None => Ok(run),
+            Some(error) => Err(error),
         }
     }
     .await;
@@ -935,7 +966,7 @@ mod tests {
         let engine = PathBuf::from(std::env::var("JBLBASE_TEST_ENGINE").unwrap());
         let cache = EvalCache::open_in_memory();
         let mut analyzer = Analyzer::new(engine.clone(), &[]).await.unwrap();
-        let mut prober = Analyzer::new(engine, &[]).await.unwrap();
+        let mut prober = Prober::new(engine);
         let cancel = AtomicBool::new(false);
 
         // Black has 6...Bb4 winning after 6.Bc3, plays 6...Nf6 instead, and

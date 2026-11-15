@@ -2,7 +2,7 @@ import { INITIAL_FEN, makeFen } from "chessops/fen";
 import { parseSan } from "chessops/san";
 import { expect, test } from "vitest";
 import { positionFromFen } from "../chessops";
-import { linesOfTree } from "../tactics";
+import { countSolverPositions, linesOfTree } from "../tactics";
 import { createNode, defaultTree, type TreeNode } from "../treeReducer";
 
 // Builds a tree from lines of SAN moves; the first line is the main line.
@@ -41,4 +41,13 @@ test("linesOfTree lists every line once, main line first", () => {
 
 test("linesOfTree of an empty tree is empty", () => {
     expect(linesOfTree(defaultTree().root)).toEqual([]);
+});
+
+test("countSolverPositions counts each position of the solver once", () => {
+    // 1.e4 e5 2.Nf3 Nc6 and 1.Nf3 e5 2.e4 Nc6 meet in the same position.
+    const root = tree(["e4", "e5", "Nf3", "Nc6"], ["Nf3", "e5", "e4", "Nc6"], ["d4"]);
+    // White to move after: 1.e4 e5, 1.e4 e5 2.Nf3 Nc6 (= the transposition), 1.Nf3 e5.
+    expect(countSolverPositions(root, "white")).toBe(3);
+    // Black to move after: 1.e4, 1.e4 e5 2.Nf3 (= 1.Nf3 e5 2.e4), 1.Nf3, 1.d4.
+    expect(countSolverPositions(root, "black")).toBe(4);
 });

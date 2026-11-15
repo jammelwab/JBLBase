@@ -15,7 +15,7 @@ function TablebaseInfo({ fen, turn }: { fen: string; turn: "white" | "black" }) 
   const makeMove = useStore(store, (s) => s.makeMove);
   const { data, error, isLoading } = useSWRImmutable(
     ["tablebase", fen],
-    async ([_, fen]) => await getTablebaseInfo(fen),
+    async ([, fen]) => await getTablebaseInfo(fen),
   );
 
   const sortedMoves = data?.moves.sort((a, b) => {

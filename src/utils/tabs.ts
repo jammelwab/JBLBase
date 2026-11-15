@@ -9,6 +9,7 @@ import type { TreeStoreState } from "@/state/store/tree";
 import { getPGN, parsePGN } from "./chess";
 import { type GameHeaders, getGameName } from "./treeReducer";
 import { unwrap } from "./unwrap";
+import { trackUsage } from "./usageStats";
 
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]+/g;
 
@@ -112,6 +113,7 @@ export async function createTab({
     position?: number[];
 }) {
     const id = genID();
+    trackUsage("tab_open", { tab_type: tab.type });
 
     if (pgn !== undefined) {
         const tree = await parsePGN(pgn, headers?.fen);

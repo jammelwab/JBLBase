@@ -52,7 +52,7 @@ function GameInfo({
     <input
       className={cx(classes.input, classes.event)}
       value={event}
-      placeholder={simplified ? "Enter Opening Title" : "Unknown Event"}
+      placeholder={simplified ? t("GameInfo.OpeningTitle") : t("GameInfo.UnknownEvent")}
       onChange={(e) => {
         setHeaders({ ...headers, event: e.currentTarget.value });
         changeTitle?.(e.currentTarget.value);
@@ -139,13 +139,13 @@ function GameInfo({
               )}
               {disabled ? (
                 <Text size="xs" c="dimmed">
-                  {rating === 0 ? "Unrated" : (rating ?? "—")}
+                  {rating === 0 ? t("GameInfo.Unrated") : (rating ?? "—")}
                 </Text>
               ) : (
                 <input
                   className={cx(classes.input, classes.rating)}
-                  placeholder="Unknown ELO"
-                  value={rating === 0 ? "Unrated" : (rating ?? "")}
+                  placeholder={t("GameInfo.UnknownElo")}
+                  value={rating === 0 ? t("GameInfo.Unrated") : (rating ?? "")}
                   onChange={(e) => {
                     const value = e.currentTarget.value;
                     setHeaders({
@@ -214,7 +214,7 @@ function GameInfo({
               <input
                 className={cx(classes.input, classes.site)}
                 value={site}
-                placeholder="Unknown Site"
+                placeholder={t("GameInfo.UnknownSite")}
                 onChange={(e) => setHeaders({ ...headers, site: e.currentTarget.value })}
               />
             )}

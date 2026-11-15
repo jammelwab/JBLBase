@@ -14,5 +14,23 @@ export const firebaseConfig = {
     appId: "1:1007986885209:web:76471668e65df1e64f6748",
 } as const;
 
+/**
+ * Google Analytics stream of the Firebase project, for the optional usage
+ * statistics (src/utils/usageStats.ts). While either value is empty the
+ * statistics are switched off and the setting is hidden.
+ *
+ * `measurementId` is the "G-..." id of the web app. `apiSecret` is a
+ * Measurement Protocol secret of that stream; despite its name it only
+ * allows sending events, not reading anything, and every app that reports
+ * to Analytics ships it. See firebase/SETUP.md.
+ */
+export const analyticsConfig = {
+    measurementId: "G-5XZ6DKRS4Z",
+    // Not in the repository: the release build reads it from the GitHub
+    // secret GA_API_SECRET (see .github/workflows/release.yml). Local builds
+    // read VITE_GA_API_SECRET from .env.local; without it they send nothing.
+    apiSecret: (import.meta.env.VITE_GA_API_SECRET as string | undefined) ?? "",
+};
+
 /** Region of Firestore and all Cloud Functions. */
 export const FIREBASE_REGION = "europe-west3";

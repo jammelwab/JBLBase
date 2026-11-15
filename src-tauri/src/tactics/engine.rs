@@ -9,17 +9,24 @@ use vampirc_uci::{parse_one, uci::ScoreValue, UciInfoAttribute, UciMessage};
 use crate::{
     engine::{BaseEngine, EngineLog, EngineOption, GoMode},
     error::Error,
-    eval_cache::{position_key, EvalCache, StoredLine},
+    eval_cache::{
+        cache_engine_name, option_defaults, position_key, EvalCache, PosKey, StoredLine,
+        MAX_CLEAN_HALFMOVES,
+    },
 };
 
 /// One line of an evaluation, from the point of view of the side to move.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Line {
     pub cp: Option<i32>,
     /// Mate in this many moves; negative when the side to move gets mated.
     pub mate: Option<i32>,
     pub depth: u32,
     pub pv: Vec<String>,
+    pub nodes: u32,
+    pub nps: u32,
+    /// Win/draw/loss per mille for the side to move, when the engine sends it.
+    pub wdl: Option<(i32, i32, i32)>,
 }
 
 impl Line {
@@ -63,9 +70,12 @@ struct SearchOutput {
 pub struct Analyzer {
     engine: BaseEngine,
     name: String,
+    /// Name results are filed under in the evaluation cache (engine name plus
+    /// options that change its play).
+    cache_name: String,
     multipv: u16,
     /// Results of this run, so a position reached twice is only looked up once.
-    memo: HashMap<String, Vec<Line>>,
+    memo: HashMap<PosKey, Vec<Line>>,
     /// Number of searches the engine really ran (the rest came from the cache).
     pub searches: u32,
 }
@@ -74,8 +84,8 @@ impl Analyzer {
     pub async fn new(path: PathBuf, options: &[EngineOption]) -> Result<Self, Error> {
         let mut engine = BaseEngine::spawn(path.clone()).await?;
         engine.init_uci().await?;
-        let name = engine
-            .get_logs()
+        let logs = engine.get_logs();
+        let name = logs
             .iter()
             .find_map(|l| match l {
                 EngineLog::Engine(line) => line
@@ -94,9 +104,11 @@ impl Analyzer {
                 engine.set_option(&option.name, &option.value).await?;
             }
         }
+        let cache_name = cache_engine_name(&name, &option_defaults(&logs), options);
         Ok(Self {
             engine,
             name,
+            cache_name,
             multipv: 0,
             memo: HashMap::new(),
             searches: 0,
@@ -129,21 +141,19 @@ impl Analyzer {
             };
             match parse_one(&line) {
                 UciMessage::Info(attrs) => {
-                    let mut out = Line {
-                        cp: None,
-                        mate: None,
-                        depth: 0,
-                        pv: Vec::new(),
-                    };
+                    let mut out = Line::default();
                     let mut index = 1u16;
                     let mut bound = false;
                     for attr in attrs {
                         match attr {
                             UciInfoAttribute::Depth(d) => out.depth = d,
+                            UciInfoAttribute::Nodes(n) => out.nodes = n as u32,
+                            UciInfoAttribute::Nps(n) => out.nps = n as u32,
                             UciInfoAttribute::MultiPv(m) => index = m,
                             UciInfoAttribute::Score(score) => {
                                 bound = score.lower_bound == Some(true)
                                     || score.upper_bound == Some(true);
+                                out.wdl = score.wdl;
                                 match score.value {
                                     ScoreValue::Cp(cp) => out.cp = Some(cp),
                                     ScoreValue::Mate(m) => out.mate = Some(m),
@@ -204,9 +214,16 @@ impl Analyzer {
         }
         let white = pos.turn() == Color::White;
         let flip = |v: i32| if white { v } else { -v };
+        let flip_wdl = |w: (i32, i32, i32)| if white { w } else { (w.2, w.1, w.0) };
+        // A high 50-move counter pulls evaluations towards a draw; such a
+        // result belongs to this game only.
+        let cache = cache.filter(|_| pos.halfmoves() <= MAX_CLEAN_HALFMOVES);
 
-        if let Some(cached) = cache.and_then(|c| c.lookup(&key, &self.name, wanted)) {
+        if let Some(cached) = cache.and_then(|c| c.lookup(&key, &self.cache_name, wanted)) {
             if cached.depth >= depth && !cached.lines.is_empty() {
+                if let Some(c) = cache {
+                    c.note_saved_search();
+                }
                 let lines: Vec<Line> = cached
                     .lines
                     .iter()
@@ -219,6 +236,9 @@ impl Analyzer {
                         mate: l.mate.map(flip),
                         depth: l.depth,
                         pv: l.uci.clone(),
+                        nodes: l.nodes,
+                        nps: l.nps,
+                        wdl: l.wdl.map(flip_wdl),
                     })
                     .collect();
                 self.memo.insert(key, lines.clone());
@@ -238,15 +258,15 @@ impl Analyzer {
                     .map(|(i, l)| StoredLine {
                         multipv: i as u16 + 1,
                         depth: l.depth,
-                        nodes: 0,
-                        nps: 0,
+                        nodes: l.nodes,
+                        nps: l.nps,
                         cp: l.cp.map(flip),
                         mate: l.mate.map(flip),
-                        wdl: None,
+                        wdl: l.wdl.map(flip_wdl),
                         uci: l.pv.clone(),
                     })
                     .collect();
-                cache.store(&key, &self.name, &stored);
+                cache.store(&key, &self.cache_name, &stored);
             }
         }
         self.memo.insert(key, lines.clone());
@@ -291,5 +311,132 @@ impl Analyzer {
 
     pub async fn quit(&mut self) {
         let _ = self.engine.quit().await;
+    }
+}
+
+/// The engine that measures how hard a found tactic is. It runs on one
+/// thread, so that its depths mean the same every time, and is only started
+/// once a tactic is really found, so most runs never need the extra process.
+pub struct Prober {
+    path: PathBuf,
+    engine: Option<Analyzer>,
+}
+
+impl Prober {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path, engine: None }
+    }
+
+    pub async fn get(&mut self) -> Result<&mut Analyzer, Error> {
+        if self.engine.is_none() {
+            let options = [
+                EngineOption {
+                    name: "Threads".into(),
+                    value: "1".into(),
+                },
+                EngineOption {
+                    name: "Hash".into(),
+                    value: "16".into(),
+                },
+            ];
+            self.engine = Some(Analyzer::new(self.path.clone(), &options).await?);
+        }
+        Ok(self.engine.as_mut().expect("just started"))
+    }
+
+    pub async fn quit(&mut self) {
+        if let Some(engine) = self.engine.as_mut() {
+            engine.quit().await;
+        }
+    }
+}
+
+/// At most this many engines search side by side.
+pub const MAX_WORKERS: u32 = 8;
+
+/// How the power the user chose (the `Threads` and `Hash` of `options`) is
+/// split between engines running side by side: (engines, threads each, hash
+/// each in MB). `jobs` is how much work there is to share.
+///
+/// A search to a fixed depth of around 18 takes well under a second, and for
+/// such short searches the threads of one engine get in each other's way.
+/// Several engines with one thread each, every one on its own position or
+/// game, get through far more in the same time, and every position is still
+/// searched to the full depth.
+pub fn split_power(options: &[EngineOption], jobs: usize, max_workers: u32) -> (u32, u32, u32) {
+    let value = |name: &str| {
+        options
+            .iter()
+            .find(|o| o.name.eq_ignore_ascii_case(name))
+            .and_then(|o| o.value.trim().parse::<u32>().ok())
+    };
+    let threads = value("Threads").unwrap_or(1).max(1);
+    let hash = value("Hash").unwrap_or(16).max(1);
+    let workers = threads
+        .clamp(1, max_workers.clamp(1, MAX_WORKERS))
+        .min(jobs.max(1) as u32);
+    (
+        workers,
+        (threads / workers).max(1),
+        (hash / workers).max(16),
+    )
+}
+
+/// The engine options with threads and hash replaced.
+pub fn with_threads_and_hash(
+    options: &[EngineOption],
+    threads: u32,
+    hash: u32,
+) -> Vec<EngineOption> {
+    let mut out: Vec<EngineOption> = options
+        .iter()
+        .filter(|o| !o.name.eq_ignore_ascii_case("Threads") && !o.name.eq_ignore_ascii_case("Hash"))
+        .cloned()
+        .collect();
+    out.push(EngineOption {
+        name: "Threads".into(),
+        value: threads.to_string(),
+    });
+    out.push(EngineOption {
+        name: "Hash".into(),
+        value: hash.to_string(),
+    });
+    out
+}
+
+/// Starts `count` engines at `path` with `options`. Should one fail to
+/// start, the others are dropped, and dropping an engine ends its process.
+pub async fn start_analyzers(
+    path: &std::path::Path,
+    options: &[EngineOption],
+    count: u32,
+) -> Result<Vec<Analyzer>, Error> {
+    let started = futures_util::future::join_all(
+        (0..count.max(1)).map(|_| Analyzer::new(path.to_path_buf(), options)),
+    )
+    .await;
+    started.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn opt(name: &str, value: &str) -> EngineOption {
+        EngineOption {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+
+    #[test]
+    fn power_is_split_between_engines() {
+        let options = [opt("Threads", "11"), opt("Hash", "512")];
+        assert_eq!(split_power(&options, 100, 8), (8, 1, 64));
+        // Never more engines than there is work.
+        assert_eq!(split_power(&options, 3, 8), (3, 3, 170));
+        // One engine asked for: all threads in it.
+        assert_eq!(split_power(&options, 100, 1), (1, 11, 512));
+        assert_eq!(split_power(&[], 100, 8), (1, 1, 16));
     }
 }

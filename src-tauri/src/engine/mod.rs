@@ -1,4 +1,5 @@
 mod process;
+pub mod reaper;
 mod types;
 mod uci;
 
