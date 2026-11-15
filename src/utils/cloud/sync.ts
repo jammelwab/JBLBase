@@ -15,6 +15,7 @@ import { reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
 import { bumpRepertoires } from "@/utils/repertoires";
 import { type CloudAccount, cloudFirestore, watchCloudAccount } from "./auth";
+import { formatSyncCursor, parseSyncCursor } from "./cursor";
 import { setLocalChangeListener } from "./syncSignal";
 import {
     type LocalRepertoire,
@@ -61,34 +62,44 @@ const meta = {
     },
 };
 
-function millis(value: unknown): number {
-    return value && typeof value === "object" && "toMillis" in value
-        ? (value as { toMillis(): number }).toMillis()
-        : 0;
-}
-
-/** All documents of a collection written since `since` (ms), page by page. */
-async function fetchSince(uid: string, name: string, since: number) {
+/**
+ * All documents of a collection written after the download position
+ * `after` (see cursor.ts), page by page, and the position after the last one
+ * (unchanged when there is nothing new).
+ */
+async function fetchAfter(uid: string, name: string, after: string | null) {
     const { db, firestore: fs } = await cloudFirestore();
     const col = fs.collection(db, "users", uid, name);
-    const docs: { id: string; data: Record<string, unknown>; syncedAt: number }[] = [];
-    let last: unknown = null;
+    const docs: { id: string; data: Record<string, unknown> }[] = [];
+    let start = parseSyncCursor(after);
+    let cursor = start ? formatSyncCursor(start.seconds, start.nanos, start.id) : null;
     for (;;) {
-        const constraints: QueryConstraint[] = [
-            fs.where("syncedAt", ">", fs.Timestamp.fromMillis(since)),
-            fs.orderBy("syncedAt"),
-            fs.limit(PAGE),
-        ];
-        if (last) constraints.push(fs.startAfter(last));
+        const constraints: QueryConstraint[] = [];
+        if (start && start.id === "") {
+            // A time only (a position from 1.0.28 or older).
+            constraints.push(
+                fs.where("syncedAt", ">", new fs.Timestamp(start.seconds, start.nanos)),
+            );
+        }
+        constraints.push(fs.orderBy("syncedAt"), fs.orderBy(fs.documentId()));
+        if (start && start.id !== "") {
+            constraints.push(fs.startAfter(new fs.Timestamp(start.seconds, start.nanos), start.id));
+        }
+        constraints.push(fs.limit(PAGE));
         const snap = await fs.getDocs(fs.query(col, ...constraints));
+        const before = cursor;
         for (const d of snap.docs) {
             const data = d.data();
-            docs.push({ id: d.id, data, syncedAt: millis(data.syncedAt) });
+            docs.push({ id: d.id, data });
+            const at = data.syncedAt;
+            if (at instanceof fs.Timestamp) {
+                cursor = formatSyncCursor(at.seconds, at.nanoseconds, d.id);
+                start = { seconds: at.seconds, nanos: at.nanoseconds, id: d.id };
+            }
         }
-        if (snap.docs.length < PAGE) break;
-        last = snap.docs[snap.docs.length - 1];
+        if (snap.docs.length < PAGE || cursor === before) break;
     }
-    return docs;
+    return { docs, cursor };
 }
 
 function trainingBackend(uid: string): TrainingSyncBackend {
@@ -115,18 +126,18 @@ function trainingBackend(uid: string): TrainingSyncBackend {
             }
             await batch.commit();
         },
-        async fetchCards(since) {
-            const docs = await fetchSince(uid, "cards", since);
+        async fetchCards(after) {
+            const { docs, cursor } = await fetchAfter(uid, "cards", after);
             return {
                 items: docs.map((d) => parseRemoteCard(d.data)).filter((c) => c !== null),
-                maxSyncedAt: Math.max(0, ...docs.map((d) => d.syncedAt)),
+                cursor,
             };
         },
-        async fetchReviews(since) {
-            const docs = await fetchSince(uid, "reviews", since);
+        async fetchReviews(after) {
+            const { docs, cursor } = await fetchAfter(uid, "reviews", after);
             return {
                 items: docs.map((d) => parseRemoteReview(d.id, d.data)).filter((r) => r !== null),
-                maxSyncedAt: Math.max(0, ...docs.map((d) => d.syncedAt)),
+                cursor,
             };
         },
     };
@@ -158,7 +169,6 @@ function parseRemoteRepertoire(id: string, d: Record<string, unknown>): RemoteRe
         hash,
         updatedAt,
         deleted: deleted === true,
-        syncedAt: millis(d.syncedAt),
     };
 }
 
@@ -223,9 +233,14 @@ async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
         },
         newId: () => crypto.randomUUID(),
         now: () => Date.now(),
-        async fetchChanged(since) {
-            const docs = await fetchSince(uid, "repertoires", since);
-            return docs.map((d) => parseRemoteRepertoire(d.id, d.data)).filter((r) => r !== null);
+        async fetchChanged(after) {
+            const { docs, cursor } = await fetchAfter(uid, "repertoires", after);
+            return {
+                items: docs
+                    .map((d) => parseRemoteRepertoire(d.id, d.data))
+                    .filter((r) => r !== null),
+                cursor,
+            };
         },
         async fetchOne(id) {
             const { db, firestore: fs } = await cloudFirestore();

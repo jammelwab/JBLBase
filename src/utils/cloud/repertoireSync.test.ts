@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatSyncCursor, parseSyncCursor } from "./cursor";
 import {
     conflictPath,
     infoText,
@@ -83,11 +84,18 @@ describe("paths and hashes", () => {
 
 /** One device's files and the shared cloud. */
 class FakeCloud {
-    docs = new Map<string, RemoteRepertoire>();
+    docs = new Map<string, RemoteRepertoire & { syncedAt: number }>();
+    /** Documents read by queries (what Firestore bills). */
+    reads = 0;
     clock = 1000;
     tick() {
         return ++this.clock;
     }
+}
+
+function withoutSyncedAt(d: RemoteRepertoire & { syncedAt: number }): RemoteRepertoire {
+    const { syncedAt: _syncedAt, ...r } = d;
+    return r;
 }
 
 class FakeDevice implements RepertoireSyncBackend {
@@ -151,11 +159,27 @@ class FakeDevice implements RepertoireSyncBackend {
     now() {
         return this.cloud.tick();
     }
-    async fetchChanged(since: number) {
-        return [...this.cloud.docs.values()].filter((d) => d.syncedAt > since);
+    async fetchChanged(after: string | null) {
+        // Ordered by (syncedAt, id) like the app; the fake's server time is in seconds.
+        const start = parseSyncCursor(after);
+        const docs = [...this.cloud.docs.values()]
+            .filter(
+                (d) =>
+                    !start ||
+                    d.syncedAt > start.seconds ||
+                    (d.syncedAt === start.seconds && start.id !== "" && d.id > start.id),
+            )
+            .sort((a, b) => a.syncedAt - b.syncedAt || a.id.localeCompare(b.id));
+        this.cloud.reads += docs.length;
+        const last = docs.at(-1);
+        return {
+            items: docs.map(withoutSyncedAt),
+            cursor: last ? formatSyncCursor(last.syncedAt, 0, last.id) : after,
+        };
     }
     async fetchOne(id: string) {
-        return this.cloud.docs.get(id) ?? null;
+        const d = this.cloud.docs.get(id);
+        return d ? withoutSyncedAt(d) : null;
     }
     async put(id: string, state: RemoteState & { pgn: string }) {
         this.cloud.docs.set(id, { ...state, id, syncedAt: this.cloud.tick() });
@@ -326,5 +350,51 @@ describe("syncRepertoires", () => {
         expect(win.files.get("Ich White")!.info.id).toBe(id);
         expect(win.pgn("Ich White")).toBe("1. e4");
         expect(win.pgn("Ich White 2")).toBe("1. e4 e5");
+    });
+
+    it("reads nothing again when nothing changed in the cloud (#99)", async () => {
+        const cloud = new FakeCloud();
+        const a = new FakeDevice(cloud, "a");
+        const b = new FakeDevice(cloud, "b");
+        for (let i = 0; i < 20; i++) a.file(`r${i}`, `1. e4 ${i}`);
+        await syncRepertoires(a, "u");
+        await syncRepertoires(b, "u");
+        expect(b.files.size).toBe(20);
+
+        // Its own uploads come back once, then nothing.
+        cloud.reads = 0;
+        await syncRepertoires(a, "u");
+        expect(cloud.reads).toBe(20);
+        for (const d of [a, b, a, b]) {
+            cloud.reads = 0;
+            await syncRepertoires(d, "u");
+            expect(cloud.reads).toBe(0);
+        }
+
+        // A change is read once by each device.
+        a.files.get("r3")!.pgn = "1. d4";
+        await syncRepertoires(a, "u");
+        cloud.reads = 0;
+        await syncRepertoires(b, "u");
+        expect(cloud.reads).toBe(1);
+        expect(b.pgn("r3")).toBe("1. d4");
+        cloud.reads = 0;
+        await syncRepertoires(b, "u");
+        expect(cloud.reads).toBe(0);
+    });
+
+    it("continues from a position stored by 1.0.28", async () => {
+        const cloud = new FakeCloud();
+        const a = new FakeDevice(cloud, "a");
+        a.file("w", "1. e4");
+        await syncRepertoires(a, "u");
+        // Old format: milliseconds; the fake's seconds count as ms here.
+        a.meta.set("repCursor:u", "5000");
+        cloud.reads = 0;
+        await syncRepertoires(a, "u");
+        expect(a.meta.get("repCursor:u")).toMatch(/^\d+\.\d{9}\|/);
+        cloud.reads = 0;
+        await syncRepertoires(a, "u");
+        expect(cloud.reads).toBe(0);
     });
 });

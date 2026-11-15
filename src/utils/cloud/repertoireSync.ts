@@ -7,7 +7,7 @@
 //   hash      SHA-256 of path, info and pgn
 //   updatedAt client time of the change (ms)
 //   deleted   deletion mark, so an offline device does not bring it back
-//   syncedAt  server time of the upload (for "what changed since")
+//   syncedAt  server time of the upload (for "what changed since", see cursor.ts)
 //
 // Each device remembers per repertoire the hash both sides had after the
 // last sync (the base). With it, a change is recognised on either side:
@@ -16,8 +16,6 @@
 // "Konflikt", so nothing is lost.
 
 export const MAX_PGN_LENGTH = 900_000;
-/** Pull a little before the cursor, in case of clock skew; applying twice does nothing. */
-export const CURSOR_OVERLAP_MS = 2 * 60 * 1000;
 
 export type RemoteState = {
     path: string;
@@ -27,7 +25,7 @@ export type RemoteState = {
     deleted: boolean;
 };
 
-export type RemoteRepertoire = RemoteState & { id: string; pgn: string; syncedAt: number };
+export type RemoteRepertoire = RemoteState & { id: string; pgn: string };
 
 export type LocalRepertoire = {
     /** Absolute path of the .pgn file. */
@@ -116,7 +114,13 @@ export interface RepertoireSyncBackend {
     renameDecks(from: string, to: string): Promise<void>;
     newId(): string;
     now(): number;
-    fetchChanged(since: number): Promise<RemoteRepertoire[]>;
+    /**
+     * Repertoires written after the download position `after` (null: all) and
+     * the position after them (see cursor.ts); unchanged when nothing is new.
+     */
+    fetchChanged(
+        after: string | null,
+    ): Promise<{ items: RemoteRepertoire[]; cursor: string | null }>;
     fetchOne(id: string): Promise<RemoteRepertoire | null>;
     put(id: string, state: RemoteState & { pgn: string }): Promise<void>;
     metaGet(key: string): Promise<string | null>;
@@ -158,17 +162,16 @@ export async function syncRepertoires(
     const key = (name: string) => `${name}:${uid}`;
     const index = parseJson<Record<string, RemoteState>>(await b.metaGet(key("repIndex")), {});
     let bases = parseJson<Record<string, string>>(await b.metaGet(key("repBase")), {});
-    const cursor = Number((await b.metaGet(key("repCursor"))) ?? 0) || 0;
+    const cursor = await b.metaGet(key("repCursor"));
     // Another files folder: link everything again by path, delete nothing.
     if ((await b.metaGet(key("repDir"))) !== b.dir) bases = {};
 
     const remotePgn = new Map<string, string>();
-    let newCursor = cursor;
-    for (const r of await b.fetchChanged(Math.max(0, cursor - CURSOR_OVERLAP_MS))) {
-        const { id, pgn, syncedAt, ...state } = r;
+    const changed = await b.fetchChanged(cursor);
+    for (const r of changed.items) {
+        const { id, pgn, ...state } = r;
         index[id] = state;
         remotePgn.set(id, pgn);
-        newCursor = Math.max(newCursor, syncedAt);
     }
 
     let locals: Local[] = [];
@@ -379,7 +382,7 @@ export async function syncRepertoires(
 
     await b.metaSet(key("repIndex"), JSON.stringify(index));
     await b.metaSet(key("repBase"), JSON.stringify(bases));
-    await b.metaSet(key("repCursor"), String(newCursor));
+    await b.metaSet(key("repCursor"), changed.cursor);
     await b.metaSet(key("repDir"), b.dir);
     return result;
 }
