@@ -33,10 +33,13 @@ nicht neu gerechnet werden.
 - Konto mit Cloud-Sync von Repertoires und Trainingsfortschritt (E-Mail oder Lichess)
 - Updates direkt in der App
 
-**Als Nächstes**
+**In Arbeit für 1.1**
+
+- Bewertungen über die Cloud teilen, damit keine Stellung doppelt gerechnet wird
+
+**Später**
 
 - Repertoire an Freunde freigeben, die mit eigenem Fortschritt trainieren
-- Bewertungen über die Cloud teilen, damit keine Stellung doppelt gerechnet wird
 - Stockfish und Patricia direkt mitliefern
 
 ## Installieren

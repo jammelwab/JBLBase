@@ -11,10 +11,20 @@ import {
     type FileMetadata,
     processEntriesRecursively,
 } from "@/components/files/file";
-import { reloadTrainingDecks } from "@/state/atoms";
+import { evalCloudSyncAtom, reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
 import { bumpRepertoires } from "@/utils/repertoires";
 import { type CloudAccount, cloudFirestore, watchCloudAccount } from "./auth";
+import {
+    EVAL_PAGE,
+    type EvalSource,
+    type EvalSyncBackend,
+    type EvalSyncResult,
+    evalDocId,
+    evalDocument,
+    parseRemoteEval,
+    syncEvals,
+} from "./evalSync";
 import { setLocalChangeListener } from "./syncSignal";
 import {
     type LocalRepertoire,
@@ -43,6 +53,8 @@ export type CloudSyncStatus = {
     repertoires?: RepertoireSyncResult;
     trainingUploaded?: number;
     trainingDownloaded?: number;
+    /** Position store; absent when its sync is switched off. */
+    evals?: EvalSyncResult;
     /** The cloud refused access: account not on the allowlist (or e-mail unconfirmed). */
     notAllowed?: boolean;
 };
@@ -130,6 +142,67 @@ function trainingBackend(uid: string): TrainingSyncBackend {
             };
         },
     };
+}
+
+/** Normal accounts store (and upload) up to this depth; see eval_cache.rs. */
+const USER_MAX_EVAL_DEPTH = 28;
+
+function evalBackend(uid: string): EvalSyncBackend {
+    const collection = async (source: EvalSource) => {
+        const { db, firestore: fs } = await cloudFirestore();
+        return source === "own"
+            ? fs.collection(db, "users", uid, "evals")
+            : fs.collection(db, "evals");
+    };
+    return {
+        ...meta,
+        supported: async () => unwrapResult(await commands.evalSyncSupported()),
+        pending: async (limit, minDepth, maxDepth) =>
+            unwrapResult(await commands.evalSyncPending(limit, minDepth, maxDepth)),
+        markSynced: async (keys) => {
+            unwrapResult(await commands.evalSyncMarkSynced(keys));
+        },
+        applyRemote: async (evals) => unwrapResult(await commands.evalSyncApplyRemote(evals)),
+        async push(target, evals) {
+            const { db, firestore: fs } = await cloudFirestore();
+            const col = await collection(target);
+            const batch = fs.writeBatch(db);
+            const updatedAt = fs.serverTimestamp();
+            for (const e of evals) {
+                batch.set(fs.doc(col, evalDocId(e)), { ...evalDocument(e), updatedAt });
+            }
+            await batch.commit();
+        },
+        async fetchPage(source, since, after) {
+            const { firestore: fs } = await cloudFirestore();
+            const constraints: QueryConstraint[] = [
+                fs.where("updatedAt", ">", fs.Timestamp.fromMillis(since)),
+                fs.orderBy("updatedAt"),
+                fs.limit(EVAL_PAGE),
+            ];
+            if (after) constraints.push(fs.startAfter(after));
+            const snap = await fs.getDocs(fs.query(await collection(source), ...constraints));
+            let maxUpdatedAt = 0;
+            const items = [];
+            for (const d of snap.docs) {
+                const data = d.data();
+                maxUpdatedAt = Math.max(maxUpdatedAt, millis(data.updatedAt));
+                const e = parseRemoteEval(data);
+                if (e) items.push(e);
+            }
+            return {
+                items,
+                maxUpdatedAt,
+                next: snap.docs.length < EVAL_PAGE ? null : snap.docs[snap.docs.length - 1],
+            };
+        },
+    };
+}
+
+/** Local date as YYYY-MM-DD. */
+function today(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function flatten(entries: (FileMetadata | Directory)[]): FileMetadata[] {
@@ -261,12 +334,25 @@ async function runSync(uid: string) {
         if (repertoires.downloaded > 0 || repertoires.conflicts > 0) bumpRepertoires();
         const training = await syncTraining(trainingBackend(uid), uid);
         if (training.changedDecks.length > 0) await reloadTrainingDecks(training.changedDecks);
+        // Position store last: its first upload can take several runs.
+        const evalSettings = store.get(evalCloudSyncAtom);
+        const admin = store.get(cloudAccountAtom)?.role === "admin";
+        const evals = evalSettings.enabled
+            ? await syncEvals(evalBackend(uid), uid, {
+                  minDepth: evalSettings.minDepth,
+                  maxDepth: admin ? null : USER_MAX_EVAL_DEPTH,
+                  target: admin ? "shared" : "own",
+                  pullShared: evalSettings.shared,
+                  today: today(),
+              })
+            : undefined;
         store.set(cloudSyncStatusAtom, {
             state: "idle",
             lastSync: Date.now(),
             repertoires,
             trainingUploaded: training.uploaded,
             trainingDownloaded: training.downloaded,
+            evals,
         });
     } catch (e) {
         console.error("Cloud sync failed", e);

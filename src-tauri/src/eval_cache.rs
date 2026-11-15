@@ -99,7 +99,7 @@ pub fn is_clean_history(history: &[PosKey], halfmoves: u32) -> bool {
 
 /// One stored principal variation. Scores are from White's point of view,
 /// exactly like the `BestMoves` sent to the frontend.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Type)]
 pub struct StoredLine {
     pub multipv: u16,
     pub depth: u32,
@@ -299,6 +299,7 @@ fn open_connection(path: &Path) -> Result<Connection, rusqlite::Error> {
              mate       INTEGER NOT NULL,
              lines      BLOB    NOT NULL,
              updated_at INTEGER NOT NULL,
+             dirty      INTEGER NOT NULL DEFAULT 1,
              PRIMARY KEY (pos, engine, multipv)
          ) WITHOUT ROWID;
          CREATE TABLE IF NOT EXISTS meta (
@@ -307,6 +308,7 @@ fn open_connection(path: &Path) -> Result<Connection, rusqlite::Error> {
          );",
     )?;
     conn.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT_BYTES)?;
+    add_dirty_column(&conn)?;
     check_hash_function(&conn)?;
     let has_v1: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evals')",
@@ -326,6 +328,28 @@ fn open_connection(path: &Path) -> Result<Connection, rusqlite::Error> {
         warn!("Evaluation cache checkpoint failed: {e}");
     }
     Ok(conn)
+}
+
+/// Results not yet uploaded to the cloud carry `dirty = 1`. Files from
+/// before the cloud sync get the column with every result marked, so the
+/// first sync uploads what is already there.
+fn add_dirty_column(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let has_dirty: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('evals_v2') WHERE name = 'dirty')",
+        [],
+        |r| r.get(0),
+    )?;
+    if !has_dirty {
+        conn.execute(
+            "ALTER TABLE evals_v2 ADD COLUMN dirty INTEGER NOT NULL DEFAULT 1",
+            [],
+        )?;
+    }
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS evals_v2_dirty ON evals_v2 (dirty) WHERE dirty = 1",
+        [],
+    )?;
+    Ok(())
 }
 
 /// Positions are filed by a hash. Should a library update ever change the
@@ -924,49 +948,16 @@ impl EvalCache {
         let Some(engine_id) = inner.engine_id(engine, true) else {
             return;
         };
+        let row = Row {
+            multipv,
+            depth,
+            nodes,
+            mate,
+            blob,
+        };
         let res = (|| -> Result<(), rusqlite::Error> {
             let tx = inner.conn.unchecked_transaction()?;
-            let pos = &position.0[..];
-            let beaten: bool = tx
-                .prepare_cached(
-                    "SELECT EXISTS(SELECT 1 FROM evals_v2
-                 WHERE pos = ?1 AND engine = ?2 AND multipv > ?3 AND depth >= ?4)",
-                )?
-                .query_row(params![pos, engine_id, multipv, depth], |r| r.get(0))?;
-            if beaten {
-                return Ok(());
-            }
-            let changed = tx
-                .prepare_cached(
-                    "INSERT INTO evals_v2
-                         (pos, engine, multipv, depth, nodes, mate, lines, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                     ON CONFLICT (pos, engine, multipv) DO UPDATE SET
-                         depth = excluded.depth,
-                         nodes = excluded.nodes,
-                         mate = excluded.mate,
-                         lines = excluded.lines,
-                         updated_at = excluded.updated_at
-                     WHERE excluded.depth > evals_v2.depth
-                        OR (excluded.depth = evals_v2.depth AND excluded.nodes > evals_v2.nodes)",
-                )?
-                .execute(params![
-                    pos,
-                    engine_id,
-                    multipv,
-                    depth,
-                    nodes,
-                    mate,
-                    blob,
-                    now_secs()
-                ])?;
-            if changed > 0 {
-                tx.prepare_cached(
-                    "DELETE FROM evals_v2
-                     WHERE pos = ?1 AND engine = ?2 AND multipv < ?3 AND depth <= ?4",
-                )?
-                .execute(params![pos, engine_id, multipv, depth])?;
-            }
+            upsert(&tx, position, engine_id, &row, true)?;
             tx.commit()
         })();
         if let Err(e) = res {
@@ -1086,6 +1077,305 @@ impl EvalCache {
     }
 }
 
+// --- Cloud sync ---------------------------------------------------------------
+//
+// The frontend (src/utils/cloud/evalSync.ts) uploads results marked `dirty`
+// and merges results from the cloud. In the cloud a position is named by the
+// hex form of its 128-bit key, so results only mean the same on devices
+// whose hash function matches [`CLOUD_HASH_PROBE`].
+
+/// Key of the start position under the hash function the cloud entries were
+/// made with. Should a library update change the hash, the sync stops
+/// instead of mixing up positions (and a test fails).
+pub const CLOUD_HASH_PROBE: &str = "3d71fe83987aab73463b96181691fc9c";
+
+/// The cloud accepts at most this many lines and moves per line, and engine
+/// names up to this length (firebase/firestore.rules).
+pub const CLOUD_MAX_MULTIPV: u16 = 5;
+pub const CLOUD_MAX_MOVES: usize = 64;
+pub const CLOUD_MAX_ENGINE_NAME: usize = 64;
+
+/// A result as it is synced.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncEval {
+    /// 32 hex digits, see [`PosKey`].
+    pub position: String,
+    pub engine: String,
+    pub multipv: u16,
+    pub depth: u32,
+    pub lines: Vec<StoredLine>,
+}
+
+/// Identifies one uploaded version, so a deeper result found meanwhile stays
+/// marked for upload.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncEvalKey {
+    pub position: String,
+    pub engine: String,
+    pub multipv: u16,
+    pub depth: u32,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct EvalSyncPending {
+    pub evals: Vec<SyncEval>,
+    /// Results waiting for upload, including the ones returned.
+    pub total: u32,
+}
+
+impl PosKey {
+    pub fn from_hex(hex: &str) -> Option<Self> {
+        if hex.len() != 32 || !hex.is_ascii() {
+            return None;
+        }
+        let mut out = [0u8; 16];
+        for (i, b) in out.iter_mut().enumerate() {
+            *b = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()?;
+        }
+        Some(PosKey(out))
+    }
+}
+
+pub fn cloud_sync_supported() -> bool {
+    position_key(&Chess::default()).to_string() == CLOUD_HASH_PROBE
+}
+
+impl EvalCache {
+    /// Results waiting for upload: at least `min_depth` deep and, when
+    /// `max_depth` is given (normal accounts), not deeper. Proven mates
+    /// always count; above `max_depth` only when the first line is the mate
+    /// (that is what the cloud rules check), which a single line guarantees. Results the cloud cannot take (more than
+    /// [`CLOUD_MAX_MULTIPV`] lines, long engine names) are left out.
+    pub fn sync_pending(
+        &self,
+        limit: u32,
+        min_depth: u32,
+        max_depth: Option<u32>,
+    ) -> Result<EvalSyncPending, Error> {
+        let guard = self.inner.lock().map_err(|_| Error::EvalCacheUnavailable)?;
+        let inner = guard.as_ref().ok_or(Error::EvalCacheUnavailable)?;
+        if !cloud_sync_supported() {
+            return Ok(EvalSyncPending {
+                evals: Vec::new(),
+                total: 0,
+            });
+        }
+        let max_depth = max_depth.unwrap_or(u32::MAX);
+        let filter = "FROM evals_v2 v JOIN engines e ON e.id = v.engine
+             WHERE v.dirty = 1 AND v.multipv <= ?1 AND length(e.name) <= ?2
+               AND ((v.depth >= ?3 AND v.depth <= ?4)
+                    OR (v.mate = 1 AND (v.depth <= ?4 OR v.multipv = 1)))";
+        let args = params![
+            CLOUD_MAX_MULTIPV,
+            CLOUD_MAX_ENGINE_NAME as i64,
+            min_depth,
+            max_depth as i64
+        ];
+        let total: u32 = inner
+            .conn
+            .query_row(&format!("SELECT COUNT(*) {filter}"), args, |r| r.get(0))?;
+        let mut stmt = inner.conn.prepare(&format!(
+            "SELECT v.pos, e.name, v.multipv, v.depth, v.mate, v.lines {filter} LIMIT ?5"
+        ))?;
+        let rows = stmt.query_map(
+            params![
+                CLOUD_MAX_MULTIPV,
+                CLOUD_MAX_ENGINE_NAME as i64,
+                min_depth,
+                max_depth as i64,
+                limit
+            ],
+            |r| {
+                Ok((
+                    r.get::<_, Vec<u8>>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, u16>(2)?,
+                    r.get::<_, u32>(3)?,
+                    r.get::<_, bool>(4)?,
+                    r.get::<_, Vec<u8>>(5)?,
+                ))
+            },
+        )?;
+        let mut evals = Vec::new();
+        for (pos, engine, multipv, depth, mate, blob) in rows.flatten() {
+            let (Ok(pos), Some(mut lines)) = (<[u8; 16]>::try_from(pos), decode_lines(&blob))
+            else {
+                continue;
+            };
+            for l in &mut lines {
+                l.uci.truncate(CLOUD_MAX_MOVES);
+                if !mate {
+                    // A line may have gone deeper than the result as a whole.
+                    l.depth = l.depth.min(max_depth);
+                }
+            }
+            evals.push(SyncEval {
+                position: PosKey(pos).to_string(),
+                engine,
+                multipv,
+                depth,
+                lines,
+            });
+        }
+        Ok(EvalSyncPending { evals, total })
+    }
+
+    /// Clears the upload mark of exactly these versions.
+    pub fn sync_mark_synced(&self, keys: &[SyncEvalKey]) -> Result<(), Error> {
+        let mut guard = self.inner.lock().map_err(|_| Error::EvalCacheUnavailable)?;
+        let inner = guard.as_mut().ok_or(Error::EvalCacheUnavailable)?;
+        let mut ids = HashMap::new();
+        for k in keys {
+            if !ids.contains_key(&k.engine) {
+                ids.insert(k.engine.clone(), inner.engine_id(&k.engine, false));
+            }
+        }
+        let tx = inner.conn.unchecked_transaction()?;
+        {
+            let mut stmt = tx.prepare_cached(
+                "UPDATE evals_v2 SET dirty = 0
+                 WHERE pos = ?1 AND engine = ?2 AND multipv = ?3 AND depth = ?4",
+            )?;
+            for k in keys {
+                let (Some(pos), Some(Some(engine))) =
+                    (PosKey::from_hex(&k.position), ids.get(&k.engine))
+                else {
+                    continue;
+                };
+                stmt.execute(params![&pos.0[..], engine, k.multipv, k.depth])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Merges results from the cloud: a deeper one replaces the stored one
+    /// and is not uploaded again. Returns how many were taken over.
+    pub fn sync_apply_remote(&self, evals: &[SyncEval]) -> Result<u32, Error> {
+        if !cloud_sync_supported() {
+            return Ok(0);
+        }
+        let mut guard = self.inner.lock().map_err(|_| Error::EvalCacheUnavailable)?;
+        let inner = guard.as_mut().ok_or(Error::EvalCacheUnavailable)?;
+        let mut rows = Vec::new();
+        for e in evals {
+            let Some(pos) = PosKey::from_hex(&e.position) else {
+                continue;
+            };
+            if e.engine.is_empty() || e.lines.is_empty() {
+                continue;
+            }
+            let mut lines = e.lines.clone();
+            lines.sort_by_key(|l| l.multipv);
+            for (i, l) in lines.iter_mut().enumerate() {
+                l.multipv = i as u16 + 1;
+            }
+            let depth = lines.iter().map(|l| l.depth).min().unwrap_or(0);
+            let mate = is_mate(&lines);
+            if depth == 0 || (depth < MIN_STORE_DEPTH && !mate) {
+                continue;
+            }
+            let Some(blob) = encode_lines(&lines) else {
+                continue;
+            };
+            let Some(engine_id) = inner.engine_id(&e.engine, true) else {
+                continue;
+            };
+            rows.push((
+                pos,
+                engine_id,
+                Row {
+                    multipv: lines.len() as u16,
+                    depth,
+                    nodes: lines.iter().map(|l| l.nodes).max().unwrap_or(0),
+                    mate,
+                    blob,
+                },
+            ));
+        }
+        let tx = inner.conn.unchecked_transaction()?;
+        let mut applied = 0;
+        for (pos, engine_id, row) in &rows {
+            if upsert(&tx, pos, *engine_id, row, false)? {
+                applied += 1;
+            }
+        }
+        tx.commit()?;
+        Ok(applied)
+    }
+}
+
+/// One result as it goes into `evals_v2`.
+struct Row {
+    multipv: u16,
+    depth: u32,
+    nodes: u32,
+    mate: bool,
+    blob: Vec<u8>,
+}
+
+/// Writes `row` unless an equally deep or deeper result exists for the same
+/// engine with as many or more lines; deletes the results it beats (fewer
+/// lines, not deeper). `dirty` marks it for the cloud upload. True when the
+/// row was written.
+fn upsert(
+    conn: &Connection,
+    position: &PosKey,
+    engine_id: i64,
+    row: &Row,
+    dirty: bool,
+) -> Result<bool, rusqlite::Error> {
+    let pos = &position.0[..];
+    let beaten: bool = conn
+        .prepare_cached(
+            "SELECT EXISTS(SELECT 1 FROM evals_v2
+             WHERE pos = ?1 AND engine = ?2 AND multipv > ?3 AND depth >= ?4)",
+        )?
+        .query_row(params![pos, engine_id, row.multipv, row.depth], |r| {
+            r.get(0)
+        })?;
+    if beaten {
+        return Ok(false);
+    }
+    let changed = conn
+        .prepare_cached(
+            "INSERT INTO evals_v2
+                 (pos, engine, multipv, depth, nodes, mate, lines, updated_at, dirty)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT (pos, engine, multipv) DO UPDATE SET
+                 depth = excluded.depth,
+                 nodes = excluded.nodes,
+                 mate = excluded.mate,
+                 lines = excluded.lines,
+                 updated_at = excluded.updated_at,
+                 dirty = excluded.dirty
+             WHERE excluded.depth > evals_v2.depth
+                OR (excluded.depth = evals_v2.depth AND excluded.nodes > evals_v2.nodes)",
+        )?
+        .execute(params![
+            pos,
+            engine_id,
+            row.multipv,
+            row.depth,
+            row.nodes,
+            row.mate,
+            row.blob,
+            now_secs(),
+            dirty
+        ])?;
+    if changed > 0 {
+        conn.prepare_cached(
+            "DELETE FROM evals_v2
+             WHERE pos = ?1 AND engine = ?2 AND multipv < ?3 AND depth <= ?4",
+        )?
+        .execute(params![pos, engine_id, row.multipv, row.depth])?;
+    }
+    Ok(changed > 0)
+}
+
 /// True when any line is a proven mate.
 fn is_mate(lines: &[StoredLine]) -> bool {
     lines.iter().any(|l| l.mate.is_some())
@@ -1119,6 +1409,42 @@ pub async fn set_eval_cache_user_limit(
         StoreLimit::Unlimited
     });
     Ok(())
+}
+
+/// False when this build names positions differently from the cloud.
+#[tauri::command]
+#[specta::specta]
+pub async fn eval_sync_supported() -> Result<bool, Error> {
+    Ok(cloud_sync_supported())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn eval_sync_pending(
+    limit: u32,
+    min_depth: u32,
+    max_depth: Option<u32>,
+    state: tauri::State<'_, AppState>,
+) -> Result<EvalSyncPending, Error> {
+    state.eval_cache.sync_pending(limit, min_depth, max_depth)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn eval_sync_mark_synced(
+    keys: Vec<SyncEvalKey>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), Error> {
+    state.eval_cache.sync_mark_synced(&keys)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn eval_sync_apply_remote(
+    evals: Vec<SyncEval>,
+    state: tauri::State<'_, AppState>,
+) -> Result<u32, Error> {
+    state.eval_cache.sync_apply_remote(&evals)
 }
 
 /// Every stored evaluation of the position given by `fen`, one per engine.
@@ -1562,5 +1888,179 @@ mod tests {
         };
         let l = StoredLine::from_score(1, 20, 5, 5, &s, vec![]);
         assert_eq!(l.score(), s);
+    }
+
+    // --- Cloud sync ---
+
+    #[test]
+    fn cloud_hash_probe_is_stable() {
+        // Changing the hash would make cloud entries point to other positions.
+        assert_eq!(
+            position_key(&Chess::default()).to_string(),
+            CLOUD_HASH_PROBE
+        );
+        assert!(cloud_sync_supported());
+    }
+
+    #[test]
+    fn pos_key_hex_round_trip() {
+        let k = position_key(&play(&["e2e4", "e7e5"]));
+        assert_eq!(PosKey::from_hex(&k.to_string()), Some(k));
+        assert_eq!(PosKey::from_hex("zz"), None);
+        assert_eq!(PosKey::from_hex(&"g".repeat(32)), None);
+    }
+
+    #[test]
+    fn new_results_wait_for_upload_until_marked() {
+        let cache = EvalCache::open_in_memory();
+        cache.store(&key(1), "SF", &[line(1, 22, 30, "e2e4")]);
+        cache.store(&key(2), "SF", &[line(1, 12, 10, "d2d4")]);
+        let pending = cache.sync_pending(100, 20, None).unwrap();
+        assert_eq!(pending.total, 1);
+        let e = &pending.evals[0];
+        assert_eq!(e.position, key(1).to_string());
+        assert_eq!((e.engine.as_str(), e.multipv, e.depth), ("SF", 1, 22));
+        assert_eq!(e.lines[0].uci, vec!["e2e4".to_string()]);
+
+        cache
+            .sync_mark_synced(&[SyncEvalKey {
+                position: e.position.clone(),
+                engine: "SF".into(),
+                multipv: 1,
+                depth: 22,
+            }])
+            .unwrap();
+        assert_eq!(cache.sync_pending(100, 20, None).unwrap().total, 0);
+
+        // A deeper result is marked again.
+        cache.store(&key(1), "SF", &[line(1, 25, 35, "e2e4")]);
+        let pending = cache.sync_pending(100, 20, None).unwrap();
+        assert_eq!(pending.total, 1);
+        assert_eq!(pending.evals[0].depth, 25);
+    }
+
+    #[test]
+    fn marking_an_older_version_keeps_the_newer_one_pending() {
+        let cache = EvalCache::open_in_memory();
+        cache.store(&key(1), "SF", &[line(1, 22, 30, "e2e4")]);
+        cache.store(&key(1), "SF", &[line(1, 24, 30, "e2e4")]);
+        cache
+            .sync_mark_synced(&[SyncEvalKey {
+                position: key(1).to_string(),
+                engine: "SF".into(),
+                multipv: 1,
+                depth: 22,
+            }])
+            .unwrap();
+        assert_eq!(cache.sync_pending(100, 20, None).unwrap().total, 1);
+    }
+
+    #[test]
+    fn user_uploads_stop_at_the_depth_limit_except_mates() {
+        let cache = EvalCache::open_in_memory();
+        cache.store(&key(1), "SF", &[line(1, 30, 30, "e2e4")]);
+        cache.store(&key(2), "SF", &[line(1, 26, 30, "e2e4")]);
+        let mut mate = line(1, 245, 0, "d1h5");
+        mate.cp = None;
+        mate.mate = Some(2);
+        cache.store(&key(3), "SF", &[mate]);
+        let pending = cache.sync_pending(100, 20, Some(28)).unwrap();
+        let mut got: Vec<_> = pending.evals.iter().map(|e| e.depth).collect();
+        got.sort();
+        assert_eq!(got, vec![26, 245]);
+        assert_eq!(cache.sync_pending(100, 20, None).unwrap().total, 3);
+
+        // Two lines, the second a mate, deeper than the limit: the cloud would
+        // refuse it for a normal account.
+        let mut second = line(2, 40, 0, "d1h5");
+        second.cp = None;
+        second.mate = Some(3);
+        cache.store(&key(4), "SF", &[line(1, 40, 30, "e2e4"), second]);
+        assert_eq!(cache.sync_pending(100, 20, Some(28)).unwrap().total, 2);
+    }
+
+    #[test]
+    fn uploads_leave_out_what_the_cloud_refuses() {
+        let cache = EvalCache::open_in_memory();
+        let six: Vec<StoredLine> = (1..=6).map(|i| line(i, 22, 0, "e2e4")).collect();
+        cache.store(&key(1), "SF", &six);
+        cache.store(&key(2), &"x".repeat(65), &[line(1, 22, 0, "e2e4")]);
+        let mut long = line(1, 22, 0, "e2e4");
+        long.uci = vec!["e2e4".to_string(); 100];
+        cache.store(&key(3), "SF", &[long]);
+        let pending = cache.sync_pending(100, 20, None).unwrap();
+        assert_eq!(pending.total, 1);
+        assert_eq!(pending.evals[0].lines[0].uci.len(), CLOUD_MAX_MOVES);
+    }
+
+    #[test]
+    fn remote_results_replace_only_shallower_ones_and_are_not_uploaded_again() {
+        let cache = EvalCache::open_in_memory();
+        cache.store(&key(1), "SF", &[line(1, 22, 30, "e2e4")]);
+        cache.store(&key(2), "SF", &[line(1, 26, 30, "d2d4")]);
+        let remote = |k: PosKey, depth: u32, mv: &str| SyncEval {
+            position: k.to_string(),
+            engine: "SF".into(),
+            multipv: 1,
+            depth,
+            lines: vec![line(1, depth, 50, mv)],
+        };
+        let applied = cache
+            .sync_apply_remote(&[
+                remote(key(1), 30, "g1f3"),
+                remote(key(2), 24, "c2c4"),
+                remote(key(3), 20, "b1c3"),
+                SyncEval {
+                    position: "not a key".into(),
+                    ..remote(key(4), 20, "e2e4")
+                },
+            ])
+            .unwrap();
+        assert_eq!(applied, 2);
+        assert_eq!(
+            cache.lookup(&key(1), "SF", 1).unwrap().lines[0].uci[0],
+            "g1f3"
+        );
+        assert_eq!(
+            cache.lookup(&key(2), "SF", 1).unwrap().lines[0].uci[0],
+            "d2d4"
+        );
+        assert_eq!(cache.lookup(&key(3), "SF", 1).unwrap().depth, 20);
+        // Only the local result that is still deeper than the cloud's waits.
+        let pending = cache.sync_pending(100, 10, None).unwrap();
+        assert_eq!(pending.total, 1);
+        assert_eq!(pending.evals[0].position, key(2).to_string());
+    }
+
+    #[test]
+    fn old_files_get_the_upload_mark_on_every_result() {
+        let dir = std::env::temp_dir().join(format!("jbl-dirty-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("old.sqlite3");
+        let _ = std::fs::remove_file(&path);
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE engines (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+                 CREATE TABLE evals_v2 (
+                     pos BLOB NOT NULL, engine INTEGER NOT NULL, multipv INTEGER NOT NULL,
+                     depth INTEGER NOT NULL, nodes INTEGER NOT NULL, mate INTEGER NOT NULL,
+                     lines BLOB NOT NULL, updated_at INTEGER NOT NULL,
+                     PRIMARY KEY (pos, engine, multipv)) WITHOUT ROWID;
+                 INSERT INTO engines (id, name) VALUES (1, 'SF');",
+            )
+            .unwrap();
+            let blob = encode_lines(&[line(1, 22, 30, "e2e4")]).unwrap();
+            conn.execute(
+                "INSERT INTO evals_v2 VALUES (?1, 1, 1, 22, 1, 0, ?2, 0)",
+                params![&key(1).0[..], blob],
+            )
+            .unwrap();
+        }
+        let cache = EvalCache::default();
+        cache.open(path.clone());
+        assert_eq!(cache.sync_pending(100, 20, None).unwrap().total, 1);
+        drop(cache);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
