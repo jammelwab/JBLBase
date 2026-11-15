@@ -94,6 +94,9 @@ jobs:
           AIX_EXTENSION_FORCE_DOWNLOAD: "1"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Measurement Protocol secret of the usage statistics (optional;
+          # without it the statistics stay off in this build).
+          VITE_GA_API_SECRET: ${{ secrets.GA_API_SECRET }}
           CI: false
         with:
           releaseId: ${{ needs.prepare.outputs.release_id }}

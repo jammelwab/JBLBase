@@ -183,10 +183,22 @@ fehlen, ist die Funktion komplett aus und in der App unsichtbar.
 3. <https://analytics.google.com> → **Verwaltung** → _Datenstreams_ → den
    Web-Stream öffnen → **Measurement Protocol API-Secrets** → _Erstellen_,
    Name `jblbase-app`. Den angezeigten Wert kopieren.
-4. Beide Werte in `src/utils/cloud/firebaseConfig.ts` bei `analyticsConfig`
-   eintragen (oder in den Chat schicken). Das Secret erlaubt nur das Senden
-   von Ereignissen, nichts zu lesen; es steckt wie die übrige Konfiguration
-   in der App.
+4. Die Measurement-ID steht in `src/utils/cloud/firebaseConfig.ts` bei
+   `analyticsConfig` (`G-5XZ6DKRS4Z`).
+5. Das **Secret kommt nicht ins Repository und nicht in den Chat.** Auf
+   GitHub: Repository → **Settings** → **Secrets and variables** →
+   **Actions** → _New repository secret_, Name **`GA_API_SECRET`**, Wert
+   einfügen, speichern. Der Release-Workflow baut es in die App ein; ab dem
+   nächsten Release ist die Statistik aktiv. Ohne das Secret bleibt sie aus
+   und der Schalter unsichtbar.
+6. Nur für eigene lokale Builds (optional): im Projektordner eine Datei
+   `.env.local` mit der Zeile `VITE_GA_API_SECRET=<wert>` anlegen. Sie ist
+   von Git ausgeschlossen.
+
+Das Secret erlaubt nur das Senden von Ereignissen, nichts zu lesen. Weil es
+in der fertigen App steckt, ist es nicht wirklich geheim; schlimmstenfalls
+könnte jemand falsche Ereignisse schicken. Dann in Analytics ein neues Secret
+erzeugen, das alte löschen und `GA_API_SECRET` ersetzen.
 
 ### Datensparsam einstellen (einmalig, in analytics.google.com → Verwaltung)
 
