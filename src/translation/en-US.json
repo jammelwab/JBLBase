@@ -1214,7 +1214,7 @@
     "Settings.Cloud.Sync.Now": "Sync now",
     "Settings.Cloud.Sync.Result": "{{up}} changes uploaded, {{down}} downloaded",
     "Settings.Cloud.Sync.Running": "Syncing …",
-    "Settings.Cloud.Sync.TooBig": "Too big for the cloud (over 900 KB), so not uploaded: {{files}}",
+    "Settings.Cloud.Sync.TooBig": "Too big for the cloud (over 900 KB even compressed), so not uploaded: {{files}}",
     "Settings.Cloud.Unlink": "Unlink",
     "Settings.Cloud.Username": "Username",
     "Settings.Cloud.VerificationSent": "Confirmation mail sent.",

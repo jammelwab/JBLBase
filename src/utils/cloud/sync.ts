@@ -22,6 +22,7 @@ import {
     type RemoteRepertoire,
     type RepertoireSyncBackend,
     type RepertoireSyncResult,
+    parseRemoteRepertoire,
     relativePath,
     syncRepertoires,
 } from "./repertoireSync";
@@ -149,27 +150,11 @@ function flatten(entries: (FileMetadata | Directory)[]): FileMetadata[] {
 
 const infoFile = (pgnFile: string) => pgnFile.replace(/\.pgn$/i, ".info");
 
-function parseRemoteRepertoire(id: string, d: Record<string, unknown>): RemoteRepertoire | null {
-    const { path, info, pgn, hash, updatedAt, deleted } = d;
-    if (
-        typeof path !== "string" ||
-        typeof info !== "string" ||
-        typeof pgn !== "string" ||
-        typeof hash !== "string" ||
-        typeof updatedAt !== "number" ||
-        path.split("/").some((part) => part === "" || part === "." || part === "..")
-    ) {
-        return null;
-    }
-    return {
-        id,
-        path,
-        info,
-        pgn,
-        hash,
-        updatedAt,
-        deleted: deleted === true,
-    };
+/** A document with its compressed content (Firestore bytes) as Uint8Array. */
+async function withBytes(d: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const { firestore: fs } = await cloudFirestore();
+    const { pgnGz, ...rest } = d;
+    return pgnGz instanceof fs.Bytes ? { ...rest, pgnGz: pgnGz.toUint8Array() } : rest;
 }
 
 async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
@@ -235,22 +220,26 @@ async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
         now: () => Date.now(),
         async fetchChanged(after) {
             const { docs, cursor } = await fetchAfter(uid, "repertoires", after);
-            return {
-                items: docs
-                    .map((d) => parseRemoteRepertoire(d.id, d.data))
-                    .filter((r) => r !== null),
-                cursor,
-            };
+            const items: RemoteRepertoire[] = [];
+            for (const d of docs) {
+                const r = await parseRemoteRepertoire(d.id, await withBytes(d.data));
+                if (r) items.push(r);
+            }
+            return { items, cursor };
         },
         async fetchOne(id) {
             const { db, firestore: fs } = await cloudFirestore();
             const snap = await fs.getDoc(fs.doc(db, "users", uid, "repertoires", id));
-            return snap.exists() ? parseRemoteRepertoire(id, snap.data()) : null;
+            return snap.exists() ? parseRemoteRepertoire(id, await withBytes(snap.data())) : null;
         },
         async put(id, state) {
             const { db, firestore: fs } = await cloudFirestore();
+            const content =
+                "pgnGz" in state
+                    ? { ...state, pgnGz: fs.Bytes.fromUint8Array(state.pgnGz) }
+                    : state;
             await fs.setDoc(fs.doc(db, "users", uid, "repertoires", id), {
-                ...state,
+                ...content,
                 syncedAt: fs.serverTimestamp(),
             });
         },

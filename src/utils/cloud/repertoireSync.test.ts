@@ -4,6 +4,10 @@ import {
     conflictPath,
     infoText,
     type LocalRepertoire,
+    MAX_PGN_LENGTH,
+    type PackedPgn,
+    packPgn,
+    parseRemoteRepertoire,
     planRepertoire,
     relativePath,
     type RemoteRepertoire,
@@ -11,6 +15,7 @@ import {
     type RepertoireSyncBackend,
     repertoireHash,
     syncRepertoires,
+    unpackPgn,
 } from "./repertoireSync";
 
 const l = (hash: string, modifiedAt = 0) => ({ hash, modifiedAt });
@@ -53,6 +58,29 @@ describe("planRepertoire", () => {
     });
 });
 
+describe("cloud content", () => {
+    it("keeps small files as text, which 1.0.28 can read", async () => {
+        expect(await packPgn("1. e4")).toEqual({ pgn: "1. e4" });
+    });
+
+    it("compresses big files and reads them back", async () => {
+        const text = "1. e4 e5 2. Nf3 { Spanisch } Nc6 ".repeat(40_000);
+        const packed = await packPgn(text);
+        expect(packed && "pgnGz" in packed).toBe(true);
+        const doc = { path: "a", info: "{}", hash: "h", updatedAt: 1, deleted: false, ...packed };
+        expect((await parseRemoteRepertoire("id", doc))?.pgn).toBe(text);
+    });
+
+    it("skips documents without content or with damaged content", async () => {
+        const doc = { path: "a", info: "{}", hash: "h", updatedAt: 1 };
+        expect(await parseRemoteRepertoire("id", doc)).toBeNull();
+        expect(
+            await parseRemoteRepertoire("id", { ...doc, pgnGz: new Uint8Array([1, 2, 3]) }),
+        ).toBeNull();
+        expect((await parseRemoteRepertoire("id", { ...doc, pgn: "" }))?.pgn).toBe("");
+    });
+});
+
 describe("paths and hashes", () => {
     it("builds relative paths on every platform", () => {
         expect(
@@ -85,6 +113,8 @@ describe("paths and hashes", () => {
 /** One device's files and the shared cloud. */
 class FakeCloud {
     docs = new Map<string, RemoteRepertoire & { syncedAt: number }>();
+    /** Ids of documents stored compressed. */
+    packed = new Set<string>();
     /** Documents read by queries (what Firestore bills). */
     reads = 0;
     clock = 1000;
@@ -181,8 +211,19 @@ class FakeDevice implements RepertoireSyncBackend {
         const d = this.cloud.docs.get(id);
         return d ? withoutSyncedAt(d) : null;
     }
-    async put(id: string, state: RemoteState & { pgn: string }) {
-        this.cloud.docs.set(id, { ...state, id, syncedAt: this.cloud.tick() });
+    async put(id: string, state: RemoteState & PackedPgn) {
+        const {
+            pgn: _pgn,
+            pgnGz: _pgnGz,
+            ...rest
+        } = state as RemoteState & {
+            pgn?: string;
+            pgnGz?: Uint8Array;
+        };
+        const pgn = (await unpackPgn(state))!;
+        if ("pgnGz" in state) this.cloud.packed.add(id);
+        else this.cloud.packed.delete(id);
+        this.cloud.docs.set(id, { ...rest, pgn, id, syncedAt: this.cloud.tick() });
     }
     async metaGet(key: string) {
         return this.meta.get(key) ?? null;
@@ -299,10 +340,33 @@ describe("syncRepertoires", () => {
         expect(win.pgn("neu")).toBe("1. c4");
     });
 
-    it("does not upload files that are too big", async () => {
+    it("uploads big files compressed (#100)", async () => {
         const cloud = new FakeCloud();
         const mac = new FakeDevice(cloud, "mac");
-        mac.file("big", "x".repeat(900_001));
+        const win = new FakeDevice(cloud, "win");
+        const big = "1. e4 { Ein langer Kommentar mit Umlauten: äöü } e5 ".repeat(30_000);
+        expect(big.length).toBeGreaterThan(MAX_PGN_LENGTH);
+        mac.file("big", big);
+        mac.file("small", "1. d4");
+        const result = await syncRepertoires(mac, "u");
+        expect(result.tooBig).toEqual([]);
+        expect(cloud.docs.size).toBe(2);
+        expect(cloud.packed.size).toBe(1);
+        await syncRepertoires(win, "u");
+        expect(win.pgn("big")).toBe(big);
+        expect(win.pgn("small")).toBe("1. d4");
+    });
+
+    it("does not upload files that are too big even compressed", async () => {
+        const cloud = new FakeCloud();
+        const mac = new FakeDevice(cloud, "mac");
+        // Random text barely compresses.
+        let seed = 1;
+        const random = Array.from({ length: 2_000_000 }, () => {
+            seed = (seed * 48271) % 2147483647;
+            return String.fromCharCode(33 + (seed % 90));
+        }).join("");
+        mac.file("big", random);
         const result = await syncRepertoires(mac, "u");
         expect(result.tooBig).toEqual(["big"]);
         expect(cloud.docs.size).toBe(0);

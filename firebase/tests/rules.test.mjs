@@ -7,7 +7,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { Bytes, deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 const FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq";
 
@@ -212,6 +212,19 @@ describe("own area", () => {
     );
     await assertFails(
       setDoc(doc(db, "users/alice/repertoires/r1"), repertoireDoc({ syncedAt: 5 })),
+    );
+    // Big files go compressed: bytes instead of text, never both, never neither.
+    const gz = Bytes.fromUint8Array(new Uint8Array(1000));
+    const { pgn: _pgn, ...noPgn } = repertoireDoc();
+    await assertSucceeds(setDoc(doc(db, "users/alice/repertoires/r1"), { ...noPgn, pgnGz: gz }));
+    await assertFails(setDoc(doc(db, "users/alice/repertoires/r1"), noPgn));
+    await assertFails(setDoc(doc(db, "users/alice/repertoires/r1"), repertoireDoc({ pgnGz: gz })));
+    await assertFails(setDoc(doc(db, "users/alice/repertoires/r1"), { ...noPgn, pgnGz: "x" }));
+    await assertFails(
+      setDoc(doc(db, "users/alice/repertoires/r1"), {
+        ...noPgn,
+        pgnGz: Bytes.fromUint8Array(new Uint8Array(900001)),
+      }),
     );
     await assertFails(setDoc(doc(db, "users/alice/cards/c1"), { due: 1 }));
     await assertFails(setDoc(doc(db, "users/alice/cards/c1"), cardDoc({ extra: true })));
