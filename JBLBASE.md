@@ -618,15 +618,15 @@ neue Stellungen.
 
 **Strenge** (bei beiden Taktiksuchen wählbar):
 
-| | Locker | Normal | Streng |
-|---|---|---|---|
-| Vorsprung nach dem ersten Zug | +1,5 | +2,0 | +3,0 |
-| Abstand zum zweitbesten Zug (Gewinnchancen) | 0,4 | 0,5 | 0,6 |
-| Zweitbester Zug höchstens | +1,5 | +1,0 | +0,5 |
-| Fehler des Gegners mindestens (Gewinnchancen) | 0,25 | 0,3 | 0,4 |
-| Einfaches Zurückschlagen, hängende Figur nehmen | zählt | zählt nicht | zählt nicht |
-| Einzüger braucht ein Motiv (Gabel, Fesselung, Matt …) | nein | nein | ja |
-| Nachprüfung tiefer | – | +4 Halbzüge | +6 Halbzüge |
+|                                                       | Locker | Normal      | Streng      |
+| ----------------------------------------------------- | ------ | ----------- | ----------- |
+| Vorsprung nach dem ersten Zug                         | +1,5   | +2,0        | +3,0        |
+| Abstand zum zweitbesten Zug (Gewinnchancen)           | 0,4    | 0,5         | 0,6         |
+| Zweitbester Zug höchstens                             | +1,5   | +1,0        | +0,5        |
+| Fehler des Gegners mindestens (Gewinnchancen)         | 0,25   | 0,3         | 0,4         |
+| Einfaches Zurückschlagen, hängende Figur nehmen       | zählt  | zählt nicht | zählt nicht |
+| Einzüger braucht ein Motiv (Gabel, Fesselung, Matt …) | nein   | nein        | ja          |
+| Nachprüfung tiefer                                    | –      | +4 Halbzüge | +6 Halbzüge |
 
 Dazu kommt „Mindestens eigene Züge in der Lösung“ (ab 2 nur Kombinationen).
 Insight nutzt für übersehene Taktiken die Stufe Normal.
