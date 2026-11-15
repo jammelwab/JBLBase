@@ -338,6 +338,22 @@ test("chapters pasted without headers are still split at their result", () => {
     expect(splitPgnGames("1. e4 { like 1-0 } e5 *")).toEqual(["1. e4 { like 1-0 } e5 *"]);
 });
 
+test("chapters are not split inside a comment (#90)", () => {
+    // An empty line before an arrow on its own line
+    const arrow = '[Event "A"]\n\n1. e4 { Idee:\n\n[%cal Ge2e4] } e5 *';
+    expect(splitPgnGames(`${arrow}\n\n[Event "B"]\n\n1. d4 *`)).toEqual([
+        arrow,
+        '[Event "B"]\n\n1. d4 *',
+    ]);
+    // A result at the end of a comment line
+    const result = '[Event "A"]\n\n1. e4 { Weiß gewinnt 1-0\n1. e4 ist gut } e5 *';
+    expect(splitPgnGames(result)).toEqual([result]);
+    // A brace inside a header value or a line comment does not open a comment
+    expect(
+        splitPgnGames('[Event "Kurs {1}"]\n\n1. e4 ; Idee {\ne5 *\n\n[Event "B"]\n\n1. d4 *'),
+    ).toHaveLength(2);
+});
+
 test("moves from a chapter with its own move numbers are numbered like the repertoire", () => {
     const rep = tree(["d4", "d5", "c4"]);
     // A FEN chapter after 1.d4 d5 that starts counting at move 1 again

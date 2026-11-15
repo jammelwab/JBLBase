@@ -211,11 +211,55 @@ export function splitPgnGames(text: string): string[] {
     const normalized = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
     // A new game starts with headers after an empty line, or (chapters pasted without
     // headers) with move 1 on a new line right after the result of the previous game.
-    const gameStart = /\n[ \t]*\n(?=[ \t]*\[)|(?<=(?:\*|1-0|0-1|1\/2-1\/2))[ \t]*\n\s*(?=1\.)/;
-    return normalized
-        .split(gameStart)
-        .map((game) => game.trim())
-        .filter((game) => game.length > 0);
+    // Only outside comments: "{ Idee:\n\n[%cal Ge2e4] }" or "{ ... 1-0\n1. e4 ... }"
+    // are part of one move's comment (#90).
+    const gameStart = /\n[ \t]*\n(?=[ \t]*\[)|(?<=(?:\*|1-0|0-1|1\/2-1\/2))[ \t]*\n\s*(?=1\.)/g;
+    const inComment = commentMask(normalized);
+    const games: string[] = [];
+    let from = 0;
+    for (const m of normalized.matchAll(gameStart)) {
+        if (inComment[m.index]) continue;
+        games.push(normalized.slice(from, m.index));
+        from = m.index + m[0].length;
+    }
+    games.push(normalized.slice(from));
+    return games.map((game) => game.trim()).filter((game) => game.length > 0);
+}
+
+/** For each character: whether it is inside a `{ }` or `;` comment of the PGN text. */
+function commentMask(text: string): Uint8Array {
+    const mask = new Uint8Array(text.length);
+    let state: "text" | "brace" | "line" | "tag" | "tagString" = "text";
+    let lineStart = true;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        switch (state) {
+            case "text":
+                if (c === "{") state = "brace";
+                else if (c === ";") state = "line";
+                else if (c === "[" && lineStart) state = "tag";
+                break;
+            case "brace":
+                if (c === "}") state = "text";
+                break;
+            case "line":
+                if (c === "\n") state = "text";
+                break;
+            case "tag":
+                if (c === '"') state = "tagString";
+                else if (c === "]" || c === "\n") state = "text";
+                break;
+            case "tagString":
+                if (c === "\\") i++;
+                else if (c === '"') state = "tag";
+                else if (c === "\n") state = "text";
+                break;
+        }
+        mask[i] = state === "brace" || state === "line" ? 1 : 0;
+        if (c === "\n") lineStart = true;
+        else if (c !== " " && c !== "\t") lineStart = false;
+    }
+    return mask;
 }
 
 // Where a chapter can be attached in the repertoire: the shallowest node with the chapter's
