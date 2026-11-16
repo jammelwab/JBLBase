@@ -16,7 +16,7 @@ use r2d2::Pool;
 use serde::{Deserialize, Serialize};
 use shakmaty::fen::Fen;
 use specta::Type;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufWriter, Write};
 use std::sync::{Arc, Mutex};
 use std::{
@@ -251,6 +251,9 @@ pub fn load_aixchess_extension(
     Ok(())
 }
 
+/// Imports PGN files into a database. `timestamp` is set when games of an
+/// account are added to its database (the start of its newest game); then
+/// games already in the database are skipped and all others are added.
 #[tauri::command]
 #[specta::specta]
 pub async fn convert_pgn(
@@ -275,8 +278,13 @@ pub async fn convert_pgn(
     prepare_pgn_import(&db, db_exists, &title, description.as_deref())?;
 
     let start = Instant::now();
+    // Adding to an account database: skip what it has, add everything else.
+    let known = match timestamp {
+        Some(_) if db_exists => Some(known_games(&db)?),
+        _ => None,
+    };
     let appender = game_appender(&db)?;
-    let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, timestamp);
+    let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, known);
     let mut next_progress_emit = 10_000u32;
 
     for file_path in files {
@@ -337,6 +345,16 @@ pub async fn convert_pgn(
     );
 
     Ok(())
+}
+
+/// Players and start time of every game in the database that has a start time.
+fn known_games(db: &Connection) -> duckdb::Result<HashSet<pgn::GameKey>> {
+    let mut stmt = db.prepare(
+        "SELECT coalesce(white, ''), coalesce(black, ''), epoch_us(utc_timestamp)
+         FROM games WHERE utc_timestamp IS NOT NULL",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    rows.collect()
 }
 
 fn prepare_pgn_import(
@@ -1506,6 +1524,156 @@ pub async fn merge_players(
 mod tests {
     use super::*;
 
+    fn import_into(db: &Connection, pgn: &str, known: Option<HashSet<pgn::GameKey>>) -> u32 {
+        let appender = game_appender(db).unwrap();
+        let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, known);
+        let mut reader = pgn_reader::Reader::new(pgn.as_bytes());
+        while proc.read_batch(&mut reader).unwrap() > 0 {}
+        proc.flush().unwrap();
+        proc.count()
+    }
+
+    fn account_game(white: &str, date: &str, time: &str) -> String {
+        format!(
+            "[White \"{white}\"]\n[Black \"me\"]\n[UTCDate \"{date}\"]\n[UTCTime \"{time}\"]\n\n1. e4 e5 *\n\n"
+        )
+    }
+
+    #[test]
+    fn an_invalid_move_in_a_variation_drops_only_that_variation() {
+        // #94: a typo in a side line used to cut the whole game off there.
+        let db = Connection::open_in_memory().unwrap();
+        prepare_pgn_import(&db, false, "test", None).unwrap();
+        let pgn = "[White \"a\"]\n\n1. e4 (1. d4 Qxh7 { weg } $1 (1... Nf6 2. c4) 2. c4) 1... e5 \
+                   { bleibt } 2. Nf3 (2. Bc4 Nf6) 2... Nc6 3. Bb5 *\n\n\
+                   [White \"b\"]\n\n1. d4 d5 *\n";
+        assert_eq!(import_into(&db, pgn, None), 2);
+        let plies: Vec<(String, i64)> = db
+            .prepare("SELECT white, ply_count FROM games ORDER BY white")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(plies, vec![("a".into(), 5), ("b".into(), 2)]);
+    }
+
+    /// "Partien aktualisieren" with a real account's games: for many update
+    /// times, the database after the update holds every game that had ended
+    /// by then, each once (#101). The PGN is a Chess.com download (games in
+    /// the order of their monthly archives, with EndDate/EndTime headers):
+    /// `JBLBASE_TEST_ACCOUNT_PGN=games.pgn cargo test -- --ignored real_account_updates`
+    #[test]
+    #[ignore]
+    fn real_account_updates() {
+        let Ok(path) = std::env::var("JBLBASE_TEST_ACCOUNT_PGN") else {
+            return;
+        };
+        let text = std::fs::read_to_string(path).unwrap();
+        let header = |game: &str, name: &str| -> Option<String> {
+            let tag = format!("[{name} \"");
+            let start = game.find(&tag)? + tag.len();
+            Some(game[start..start + game[start..].find('"')?].to_string())
+        };
+        // (start, end, month of end, pgn), all as sortable strings.
+        let mut games: Vec<(String, String, String, String)> = Vec::new();
+        for game in text.split("\n\n[Event ").filter(|g| !g.trim().is_empty()) {
+            let game = if game.starts_with("[Event ") {
+                game.to_string()
+            } else {
+                format!("[Event {game}")
+            };
+            let (Some(sd), Some(st), Some(ed), Some(et)) = (
+                header(&game, "UTCDate"),
+                header(&game, "UTCTime"),
+                header(&game, "EndDate"),
+                header(&game, "EndTime"),
+            ) else {
+                continue;
+            };
+            let month = ed[..7].to_string();
+            games.push((format!("{sd} {st}"), format!("{ed} {et}"), month, game));
+        }
+        assert!(games.len() > 50, "too few games: {}", games.len());
+        let pgn_of = |list: &[&(String, String, String, String)]| {
+            list.iter()
+                .map(|g| format!("{}\n\n", g.3.trim_end()))
+                .collect::<String>()
+        };
+        let count = |db: &Connection| -> i64 {
+            db.query_row("SELECT COUNT(*) FROM games", [], |r| r.get(0))
+                .unwrap()
+        };
+        let mut ends: Vec<&String> = games.iter().map(|g| &g.1).collect();
+        ends.sort();
+        let mut checked = 0;
+        let mut late_games = 0;
+        for cut in ends.iter().step_by((ends.len() / 40).max(1)) {
+            // First download: every game that had ended by `cut`.
+            let db = Connection::open_in_memory().unwrap();
+            prepare_pgn_import(&db, false, "account", None).unwrap();
+            let before: Vec<_> = games.iter().filter(|g| &g.1 <= *cut).collect();
+            import_into(&db, &pgn_of(&before), None);
+            let had = count(&db);
+            // The newest game by start, as AccountCard reads it.
+            let newest = before.iter().map(|g| &g.0).max().unwrap().clone();
+            let from_month = newest[..7].to_string();
+            // Update: the archives from the month of the newest game on.
+            let fetched: Vec<_> = games.iter().filter(|g| g.2 >= from_month).collect();
+            import_into(&db, &pgn_of(&fetched), Some(known_games(&db).unwrap()));
+            let all = count(&db);
+            // Every game is in the database after the update, each once.
+            assert_eq!(
+                all as usize,
+                games.len(),
+                "after an update at {cut} ({had} games before)"
+            );
+            late_games += games
+                .iter()
+                .filter(|g| g.0 <= newest && &g.1 > *cut)
+                .count();
+            checked += 1;
+        }
+        eprintln!(
+            "{} games, {checked} update times checked, {late_games} cases of a game that \
+             started before the newest one and ended after the update",
+            games.len()
+        );
+    }
+
+    #[test]
+    fn an_update_adds_games_that_started_before_the_newest_one() {
+        // #101: a daily game started on 5 Nov, a blitz game on 10 Nov was
+        // downloaded, the daily game ended on 12 Nov.
+        let db = Connection::open_in_memory().unwrap();
+        prepare_pgn_import(&db, false, "me Chess.com", None).unwrap();
+        let blitz = account_game("blitz", "2026.11.10", "18:00:00");
+        assert_eq!(import_into(&db, &blitz, None), 1);
+
+        let daily = account_game("daily", "2026.11.05", "09:00:00");
+        let later = account_game("later", "2026.11.13", "20:00:00");
+        // The update downloads the whole month again.
+        let update = format!("{daily}{blitz}{later}");
+        assert_eq!(
+            import_into(&db, &update, Some(known_games(&db).unwrap())),
+            2
+        );
+        let white: Vec<String> = db
+            .prepare("SELECT white FROM games ORDER BY utc_timestamp")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(white, vec!["daily", "blitz", "later"]);
+
+        // Running the same update again adds nothing.
+        assert_eq!(
+            import_into(&db, &update, Some(known_games(&db).unwrap())),
+            0
+        );
+    }
+
     #[test]
     fn game_ids_survive_checkpoints_reopening_and_compaction() {
         let directory = tempfile::tempdir().unwrap();
@@ -2162,10 +2330,8 @@ mod import_edge_case_tests {
     }
 
     #[test]
-    #[should_panic(expected = "assertion `left == right` failed")]
     fn illegal_move_in_a_side_variation_keeps_the_main_line() {
-        // Bekannter Fehler #94: ein Tippfehler nur in der Nebenvariante
-        // schneidet heute die ganze Partie ab. Nach dem Fix `should_panic` entfernen.
+        // #94: ein Tippfehler nur in der Nebenvariante schneidet nicht die ganze Partie ab.
         let pgn = b"[White \"a\"]\n\n1. e4 (1. d4 Qxh7) 1... e5 2. Nf3 Nc6 3. Bb5 *\n";
         let (db, res) = import(pgn);
         res.unwrap();

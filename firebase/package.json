@@ -4,13 +4,16 @@
   "type": "module",
   "scripts": {
     "test:rules": "firebase emulators:exec --only firestore --project demo-jblbase \"node --test tests/rules.test.mjs\"",
-    "set-role": "node scripts/set-role.mjs"
+    "set-role": "node scripts/set-role.mjs",
+    "build:sync-test": "esbuild tests/sync-entry.ts --bundle --format=esm --platform=node --outfile=tests/.build/sync.mjs",
+    "test:sync": "npm run build:sync-test && firebase emulators:exec --only firestore --project demo-jblbase-sync \"node --test tests/sync.test.mjs\""
   },
   "dependencies": {
     "firebase-admin": "^14.5.0"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",
+    "esbuild": "^0.28.2",
     "firebase": "^13.2.0",
     "firebase-tools": "^15.35.0"
   }

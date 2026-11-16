@@ -3,7 +3,6 @@
 
 import { dirname, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readDir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
-import type { QueryConstraint } from "firebase/firestore/lite";
 import { atom, getDefaultStore } from "jotai";
 import { commands, type SyncCard, type SyncReview } from "@/bindings";
 import {
@@ -15,10 +14,10 @@ import { reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
 import { bumpRepertoires } from "@/utils/repertoires";
 import { type CloudAccount, cloudFirestore, watchCloudAccount } from "./auth";
+import { cloudRepertoires, fetchAfter } from "./firestoreDocs";
 import { setLocalChangeListener } from "./syncSignal";
 import {
     type LocalRepertoire,
-    type RemoteRepertoire,
     type RepertoireSyncBackend,
     type RepertoireSyncResult,
     relativePath,
@@ -34,7 +33,6 @@ import {
 
 export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const CHANGE_DELAY_MS = 15 * 1000;
-const PAGE = 300;
 
 export type CloudSyncStatus = {
     state: "off" | "idle" | "syncing" | "error";
@@ -61,36 +59,6 @@ const meta = {
     },
 };
 
-function millis(value: unknown): number {
-    return value && typeof value === "object" && "toMillis" in value
-        ? (value as { toMillis(): number }).toMillis()
-        : 0;
-}
-
-/** All documents of a collection written since `since` (ms), page by page. */
-async function fetchSince(uid: string, name: string, since: number) {
-    const { db, firestore: fs } = await cloudFirestore();
-    const col = fs.collection(db, "users", uid, name);
-    const docs: { id: string; data: Record<string, unknown>; syncedAt: number }[] = [];
-    let last: unknown = null;
-    for (;;) {
-        const constraints: QueryConstraint[] = [
-            fs.where("syncedAt", ">", fs.Timestamp.fromMillis(since)),
-            fs.orderBy("syncedAt"),
-            fs.limit(PAGE),
-        ];
-        if (last) constraints.push(fs.startAfter(last));
-        const snap = await fs.getDocs(fs.query(col, ...constraints));
-        for (const d of snap.docs) {
-            const data = d.data();
-            docs.push({ id: d.id, data, syncedAt: millis(data.syncedAt) });
-        }
-        if (snap.docs.length < PAGE) break;
-        last = snap.docs[snap.docs.length - 1];
-    }
-    return docs;
-}
-
 function trainingBackend(uid: string): TrainingSyncBackend {
     return {
         ...meta,
@@ -115,18 +83,23 @@ function trainingBackend(uid: string): TrainingSyncBackend {
             }
             await batch.commit();
         },
-        async fetchCards(since) {
-            const docs = await fetchSince(uid, "cards", since);
+        async fetchCards(after) {
+            const { docs, cursor } = await fetchAfter(await cloudFirestore(), uid, "cards", after);
             return {
                 items: docs.map((d) => parseRemoteCard(d.data)).filter((c) => c !== null),
-                maxSyncedAt: Math.max(0, ...docs.map((d) => d.syncedAt)),
+                cursor,
             };
         },
-        async fetchReviews(since) {
-            const docs = await fetchSince(uid, "reviews", since);
+        async fetchReviews(after) {
+            const { docs, cursor } = await fetchAfter(
+                await cloudFirestore(),
+                uid,
+                "reviews",
+                after,
+            );
             return {
                 items: docs.map((d) => parseRemoteReview(d.id, d.data)).filter((r) => r !== null),
-                maxSyncedAt: Math.max(0, ...docs.map((d) => d.syncedAt)),
+                cursor,
             };
         },
     };
@@ -137,30 +110,6 @@ function flatten(entries: (FileMetadata | Directory)[]): FileMetadata[] {
 }
 
 const infoFile = (pgnFile: string) => pgnFile.replace(/\.pgn$/i, ".info");
-
-function parseRemoteRepertoire(id: string, d: Record<string, unknown>): RemoteRepertoire | null {
-    const { path, info, pgn, hash, updatedAt, deleted } = d;
-    if (
-        typeof path !== "string" ||
-        typeof info !== "string" ||
-        typeof pgn !== "string" ||
-        typeof hash !== "string" ||
-        typeof updatedAt !== "number" ||
-        path.split("/").some((part) => part === "" || part === "." || part === "..")
-    ) {
-        return null;
-    }
-    return {
-        id,
-        path,
-        info,
-        pgn,
-        hash,
-        updatedAt,
-        deleted: deleted === true,
-        syncedAt: millis(d.syncedAt),
-    };
-}
 
 async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
     const dir = await getDocumentDir();
@@ -223,22 +172,7 @@ async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
         },
         newId: () => crypto.randomUUID(),
         now: () => Date.now(),
-        async fetchChanged(since) {
-            const docs = await fetchSince(uid, "repertoires", since);
-            return docs.map((d) => parseRemoteRepertoire(d.id, d.data)).filter((r) => r !== null);
-        },
-        async fetchOne(id) {
-            const { db, firestore: fs } = await cloudFirestore();
-            const snap = await fs.getDoc(fs.doc(db, "users", uid, "repertoires", id));
-            return snap.exists() ? parseRemoteRepertoire(id, snap.data()) : null;
-        },
-        async put(id, state) {
-            const { db, firestore: fs } = await cloudFirestore();
-            await fs.setDoc(fs.doc(db, "users", uid, "repertoires", id), {
-                ...state,
-                syncedAt: fs.serverTimestamp(),
-            });
-        },
+        ...cloudRepertoires(await cloudFirestore(), uid),
     };
 }
 

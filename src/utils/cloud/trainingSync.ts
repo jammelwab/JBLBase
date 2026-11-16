@@ -8,10 +8,10 @@
 //
 // The local store (src-tauri/src/training.rs) marks changed cards and new
 // reviews as dirty; they are uploaded in batches and then marked synced.
-// Changes from other devices are fetched by `syncedAt` since the last sync.
+// Changes from other devices are fetched by `syncedAt` after the last
+// document read, one download position per collection (see cursor.ts).
 
 import type { SyncCard, SyncCardKey, SyncReview, TrainingPending } from "@/bindings";
-import { CURSOR_OVERLAP_MS } from "./repertoireSync";
 
 /** Cards and reviews per upload batch; Firestore allows 500 writes per batch. */
 export const BATCH = 200;
@@ -23,8 +23,9 @@ export interface TrainingSyncBackend {
     applyRemote(cards: SyncCard[], reviews: SyncReview[]): Promise<string[]>;
     /** Uploads cards and reviews in one atomic batch. */
     push(cards: SyncCard[], reviews: SyncReview[]): Promise<void>;
-    fetchCards(since: number): Promise<{ items: SyncCard[]; maxSyncedAt: number }>;
-    fetchReviews(since: number): Promise<{ items: SyncReview[]; maxSyncedAt: number }>;
+    /** Documents after the download position `after`, and the position after them. */
+    fetchCards(after: string | null): Promise<{ items: SyncCard[]; cursor: string | null }>;
+    fetchReviews(after: string | null): Promise<{ items: SyncReview[]; cursor: string | null }>;
     metaGet(key: string): Promise<string | null>;
     metaSet(key: string, value: string | null): Promise<void>;
 }
@@ -94,14 +95,21 @@ export async function syncTraining(
         uploaded += cards.length + reviews.length;
     }
 
-    const cursorKey = `trainingCursor:${uid}`;
-    const cursor = Number((await b.metaGet(cursorKey)) ?? 0) || 0;
-    const since = Math.max(0, cursor - CURSOR_OVERLAP_MS);
-    const [cards, reviews] = await Promise.all([b.fetchCards(since), b.fetchReviews(since)]);
+    // Up to 1.0.28 one millisecond time for both collections.
+    const legacyKey = `trainingCursor:${uid}`;
+    const legacy = await b.metaGet(legacyKey);
+    const cardsKey = `trainingCursor:cards:${uid}`;
+    const reviewsKey = `trainingCursor:reviews:${uid}`;
+    const [cards, reviews] = await Promise.all([
+        b.fetchCards((await b.metaGet(cardsKey)) ?? legacy),
+        b.fetchReviews((await b.metaGet(reviewsKey)) ?? legacy),
+    ]);
     const changedDecks =
         cards.items.length > 0 || reviews.items.length > 0
             ? await b.applyRemote(cards.items, reviews.items)
             : [];
-    await b.metaSet(cursorKey, String(Math.max(cursor, cards.maxSyncedAt, reviews.maxSyncedAt)));
+    await b.metaSet(cardsKey, cards.cursor);
+    await b.metaSet(reviewsKey, reviews.cursor);
+    if (legacy !== null) await b.metaSet(legacyKey, null);
     return { uploaded, downloaded: changedDecks.length, changedDecks };
 }

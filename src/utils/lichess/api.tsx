@@ -385,49 +385,76 @@ export async function getPlayerGames(fen: string, player: string, color: Color, 
   return await res.json();
 }
 
+/**
+ * How far back correspondence games are fetched again on an update: they are
+ * only exported once they have ended, but `since` filters by their start, so
+ * one that started before the newest game in the database would be missed
+ * (#101). Games already in the database are skipped on import.
+ */
+export const CORRESPONDENCE_LOOKBACK_MS = 365 * 24 * 60 * 60 * 1000;
+
+const LIVE_PERF_TYPES = "ultraBullet,bullet,blitz,rapid,classical";
+
+/** URLs to fetch for an update since `timestamp` (start of the newest game), or all games. */
+export function lichessGameUrls(player: string, timestamp: number | null): string[] {
+  const base = `${baseURL}/games/user/${encodeURIComponent(player)}?sort=dateAsc`;
+  if (!timestamp) return [`${base}&perfType=${LIVE_PERF_TYPES},correspondence`];
+  return [
+    `${base}&perfType=${LIVE_PERF_TYPES}&since=${timestamp}`,
+    `${base}&perfType=correspondence&since=${Math.max(0, timestamp - CORRESPONDENCE_LOOKBACK_MS)}`,
+  ];
+}
+
+/** Downloads the games into PGN files and returns them. */
 export async function downloadLichess(
   player: string,
   timestamp: number | null,
   games: number,
   _setProgress: (progress: number) => void,
   token?: string,
-) {
-  let url = `${baseURL}/games/user/${encodeURIComponent(player)}?perfType=ultraBullet,bullet,blitz,rapid,classical,correspondence&sort=dateAsc`;
-  if (timestamp) {
-    url += `&since=${timestamp}`;
-  }
-  const path = await resolve(await getDatabasesDir(), `${player}_lichess.pgn`);
-  // Start from an empty file: after a failed download the games of the
-  // previous download must not be imported again.
-  await writeTextFile(path, "", { append: false });
-
-  const download = (withToken: string | null) =>
-    commands.downloadFile(
-      `lichess_${player}`,
-      url,
-      path,
-      withToken,
-      // The card is finished only after the games are in the database.
-      false,
-      games > 0 ? games * 900 : null, // approx. size of a game
+): Promise<string[]> {
+  const files: string[] = [];
+  let login = token ?? null;
+  for (const [i, url] of lichessGameUrls(player, timestamp).entries()) {
+    const path = await resolve(
+      await getDatabasesDir(),
+      i === 0 ? `${player}_lichess.pgn` : `${player}_lichess_${i}.pgn`,
     );
+    // Start from an empty file: after a failed download the games of the
+    // previous download must not be imported again.
+    await writeTextFile(path, "", { append: false });
 
-  let res = await download(token ?? null);
-  if (res.status === "error" && token && isRejectedToken(res.error)) {
-    // The games are public: an expired login must not block the download.
-    error(`Lichess rejected the token of ${player}, downloading without it`);
-    res = await download(null);
+    const download = (withToken: string | null) =>
+      commands.downloadFile(
+        `lichess_${player}`,
+        url,
+        path,
+        withToken,
+        // The card is finished only after the games are in the database.
+        false,
+        i === 0 && games > 0 ? games * 900 : null, // approx. size of a game
+      );
+
+    let res = await download(login);
+    if (res.status === "error" && login && isRejectedToken(res.error)) {
+      // The games are public: an expired login must not block the download.
+      error(`Lichess rejected the token of ${player}, downloading without it`);
+      login = null;
+      res = await download(null);
+    }
+    if (res.status === "error") {
+      error(`Failed to download Lichess games for ${player}: ${res.error}`);
+      throw new Error(
+        i18n.t("Home.Accounts.LichessDownloadFailed", {
+          player,
+          error: res.error,
+          interpolation: { escapeValue: false },
+        }),
+      );
+    }
+    files.push(path);
   }
-  if (res.status === "error") {
-    error(`Failed to download Lichess games for ${player}: ${res.error}`);
-    throw new Error(
-      i18n.t("Home.Accounts.LichessDownloadFailed", {
-        player,
-        error: res.error,
-        interpolation: { escapeValue: false },
-      }),
-    );
-  }
+  return files;
 }
 
 export async function getLichessGame(gameId: string): Promise<string> {

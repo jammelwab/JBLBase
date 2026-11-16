@@ -90,6 +90,15 @@ pub enum Error {
     #[error("Engine disconnected")]
     EngineDisconnected,
 
+    #[error("Engine not responding")]
+    EngineNotResponding,
+
+    #[error("The file is not a UCI engine")]
+    NotUciEngine,
+
+    #[error("Engine exited: {0}")]
+    EngineExited(String),
+
     #[error("Analysis cancelled")]
     AnalysisCancelled,
 

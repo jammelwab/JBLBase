@@ -89,12 +89,19 @@ service cloud.firestore {
     }
 
     // Synced repertoire file (pgn below Firestore's 1 MB document limit).
+    // The content is either plain text (pgn) or, for big files, gzip-compressed
+    // bytes (pgnGz), never both. See src/utils/cloud/repertoireSync.ts.
     function validRepertoire(d) {
-      return d.keys().hasOnly(['path', 'info', 'pgn', 'hash', 'updatedAt', 'deleted', 'syncedAt'])
-        && d.keys().hasAll(['path', 'info', 'pgn', 'hash', 'updatedAt', 'deleted', 'syncedAt'])
+      return d.keys().hasOnly(['path', 'info', 'pgn', 'pgnGz', 'hash', 'updatedAt', 'deleted', 'syncedAt'])
+        && d.keys().hasAll(['path', 'info', 'hash', 'updatedAt', 'deleted', 'syncedAt'])
         && d.path is string && d.path.size() > 0 && d.path.size() <= 500
         && d.info is string && d.info.size() <= 10000
-        && d.pgn is string && d.pgn.size() <= 900000
+        && (
+          (d.keys().hasAll(['pgn']) && !d.keys().hasAny(['pgnGz'])
+            && d.pgn is string && d.pgn.size() <= 900000)
+          || (d.keys().hasAll(['pgnGz']) && !d.keys().hasAny(['pgn'])
+            && d.pgnGz is bytes && d.pgnGz.size() <= 900000)
+        )
         && d.hash is string && d.hash.size() <= 64
         && d.updatedAt is number
         && d.deleted is bool

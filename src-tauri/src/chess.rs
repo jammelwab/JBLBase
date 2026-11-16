@@ -5,7 +5,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use derivative::Derivative;
@@ -18,6 +18,7 @@ use shakmaty::{
     Position, Role,
 };
 use specta::Type;
+use tauri::Emitter;
 use tauri_specta::Event;
 use tokio::sync::Mutex;
 use vampirc_uci::{
@@ -40,6 +41,13 @@ use crate::{
     AppState,
 };
 
+/// Longest an engine may take to answer `isready` or to end a stopped search
+/// before it counts as hung and is restarted on the next request (#98).
+const ENGINE_STALL: Duration = Duration::from_secs(3);
+/// Patricia 5.1 loses a `stop` that it reads within about half a millisecond
+/// of the `go` before it, and then hangs (#98).
+const MIN_GO_TO_STOP: Duration = Duration::from_millis(5);
+
 pub struct EngineProcess {
     base: BaseEngine,
     last_depth: u32,
@@ -54,8 +62,19 @@ pub struct EngineProcess {
     /// `bestmove`s still owed by searches that were stopped. Until they have
     /// arrived, the engine's output belongs to an old position and is ignored.
     stale_searches: u32,
+    /// A search to start once the engine has answered every `isready` sent.
+    /// The `go` is held back until the engine is idle: Patricia loses a `stop`
+    /// that it reads together with a `go` it has not started yet (#98).
+    pending_go: Option<GoMode>,
+    /// `isready`s sent whose `readyok` has not been read yet.
+    pending_ready: u32,
+    /// Since when the engine owes a `readyok` or a `bestmove` (time of the
+    /// last answer while it still owes one); `None` when it owes nothing.
+    waiting_since: Option<Instant>,
     /// A result of the current search has been shown already.
     emitted_since_go: bool,
+    /// The app ended the process (`kill`); otherwise it exited by itself.
+    killed: bool,
     real_multipv: u16,
     start: Instant,
     /// Engine name as reported by `id name`.
@@ -73,7 +92,13 @@ pub struct EngineProcess {
 impl EngineProcess {
     async fn new(path: PathBuf) -> Result<(Self, EngineReader), Error> {
         let mut base = BaseEngine::spawn(path.clone()).await?;
-        base.init_uci().await?;
+        match tokio::time::timeout(UCI_HANDSHAKE_TIMEOUT, base.init_uci()).await {
+            Ok(result) => result?,
+            Err(_) => {
+                base.kill_sync();
+                return Err(Error::NotUciEngine);
+            }
+        }
         let reader = base.take_reader().ok_or(Error::EngineDisconnected)?;
         let logs = base.get_logs();
         let option_defaults = option_defaults(&logs);
@@ -96,7 +121,11 @@ impl EngineProcess {
                 running: false,
                 searching: false,
                 stale_searches: 0,
+                pending_go: None,
+                pending_ready: 0,
+                waiting_since: None,
                 emitted_since_go: false,
+                killed: false,
                 start: Instant::now(),
                 cache_engine: engine_name.clone(),
                 engine_name,
@@ -177,13 +206,69 @@ impl EngineProcess {
         Ok(())
     }
 
+    /// Starts a search once the engine is idle: sends `isready` and sends the
+    /// `go` when its `readyok` arrives (see `on_ready`). Until then the engine
+    /// may still be busy with options (a large hash takes over a second) or
+    /// with ending a stopped search.
+    async fn request_go(&mut self, mode: &GoMode) -> Result<(), Error> {
+        self.go_mode = mode.clone();
+        self.pending_go = Some(mode.clone());
+        self.running = true;
+        self.emitted_since_go = false;
+        self.start_waiting();
+        self.pending_ready += 1;
+        self.base.send("isready").await
+    }
+
+    /// The engine answered an `isready`; when it was the last one, the
+    /// requested search starts.
+    async fn on_ready(&mut self) -> Result<(), Error> {
+        self.pending_ready = self.pending_ready.saturating_sub(1);
+        self.answered();
+        if self.pending_ready == 0 {
+            if let Some(mode) = self.pending_go.take() {
+                self.go(&mode).await?;
+            }
+        }
+        Ok(())
+    }
+
+    fn owes_answer(&self) -> bool {
+        self.pending_ready > 0 || self.stale_searches > 0
+    }
+
+    /// Call before the engine starts to owe a `readyok` or a `bestmove`.
+    fn start_waiting(&mut self) {
+        if !self.owes_answer() {
+            self.waiting_since = Some(Instant::now());
+        }
+    }
+
+    /// Call after the engine sent a `readyok` or a stale `bestmove`.
+    fn answered(&mut self) {
+        self.waiting_since = self.owes_answer().then(Instant::now);
+    }
+
+    /// The engine has owed an answer for too long: it no longer reacts to
+    /// commands and has to be restarted.
+    fn stalled(&self) -> bool {
+        self.waiting_since
+            .is_some_and(|since| since.elapsed() >= ENGINE_STALL)
+    }
+
     /// Stops the current search. Its remaining output, up to and including
     /// its `bestmove`, is ignored, so it can never be shown for the next
-    /// position.
+    /// position. A search that was requested but not started yet is dropped.
     async fn stop(&mut self) -> Result<(), Error> {
         self.running = false;
+        self.pending_go = None;
         if self.searching {
+            let since_go = self.start.elapsed();
+            if since_go < MIN_GO_TO_STOP {
+                tokio::time::sleep(MIN_GO_TO_STOP - since_go).await;
+            }
             self.searching = false;
+            self.start_waiting();
             self.stale_searches += 1;
             self.base.stop().await?;
         }
@@ -201,7 +286,29 @@ impl EngineProcess {
         let _ = tokio::time::timeout(std::time::Duration::from_millis(200), polite).await;
         self.running = false;
         self.searching = false;
+        self.pending_go = None;
+        self.killed = true;
         self.base.kill_sync();
+    }
+
+    /// Why the engine exited by itself: its last `info string` (Stockfish:
+    /// "CRITICAL ERROR: ... Unsupported position ..."), else its last line.
+    fn exit_reason(&self) -> String {
+        let lines: Vec<String> = self
+            .base
+            .get_logs()
+            .into_iter()
+            .filter_map(|l| match l {
+                EngineLog::Engine(line) => Some(line),
+                _ => None,
+            })
+            .collect();
+        lines
+            .iter()
+            .rev()
+            .find_map(|l| l.strip_prefix("info string ").map(str::to_string))
+            .or_else(|| lines.last().cloned())
+            .unwrap_or_default()
     }
 
     pub fn kill_sync(&mut self) {
@@ -550,6 +657,24 @@ fn engine_start_lock(state: &AppState, key: &EngineKey) -> Arc<Mutex<()>> {
         .clone()
 }
 
+/// A position an analysis engine exited on by itself (#103).
+#[derive(Clone, Debug)]
+pub struct EngineExit {
+    fen: String,
+    moves: Vec<String>,
+    reason: String,
+}
+
+/// Sent when an analysis engine exited without the app ending it.
+#[derive(Clone, Serialize)]
+struct EngineExitedPayload {
+    engine: String,
+    tab: String,
+    reason: String,
+}
+
+const ENGINE_EXITED_EVENT: &str = "engine_exited";
+
 /// Moves a running engine to a new position. Returns the result to show right
 /// away when the engine is already analysing exactly this.
 async fn reuse_engine(
@@ -562,6 +687,11 @@ async fn reuse_engine(
     state: &AppState,
 ) -> Result<Option<(f32, Vec<BestMoves>)>, Error> {
     let mut process = process.lock().await;
+    if process.stalled() {
+        // E.g. Patricia after losing a `stop` (#98): it neither answers nor
+        // stops, but keeps all its threads busy.
+        return Err(Error::EngineNotResponding);
+    }
     if *options == process.options && *go_mode == process.go_mode && process.running {
         return Ok(Some((
             process.last_progress,
@@ -573,7 +703,7 @@ async fn reuse_engine(
     process.stop().await?;
     process.set_options(options.clone()).await?;
     if !process.serve_from_cache(go_mode, &state.eval_cache, app, id, tab)? {
-        process.go(go_mode).await?;
+        process.request_go(go_mode).await?;
     }
     Ok(None)
 }
@@ -621,10 +751,19 @@ pub async fn get_best_moves(
         }
     }
 
+    // The engine exited by itself on this very position before: starting it
+    // again would only end the same way.
+    if let Some(exit) = state.engine_exits.get(&key).map(|e| e.clone()) {
+        if exit.fen == options.fen && exit.moves == options.moves {
+            return Err(Error::EngineExited(exit.reason));
+        }
+        state.engine_exits.remove(&key);
+    }
+
     let (mut process, mut reader) = EngineProcess::new(path).await?;
     process.set_options(options.clone()).await?;
     if !process.serve_from_cache(&go_mode, &state.eval_cache, &app, &id, &tab)? {
-        process.go(&go_mode).await?;
+        process.request_go(&go_mode).await?;
     }
 
     let process = Arc::new(Mutex::new(process));
@@ -646,6 +785,12 @@ pub async fn get_best_moves(
         };
         let mut proc = process.lock().await;
         proc.base.log_engine(&line);
+        if line.trim() == "readyok" {
+            if let Err(e) = proc.on_ready().await {
+                warn!("Failed to start the engine search: {:?}", e);
+            }
+            continue;
+        }
         let mut emit = |payload: BestMovesPayload| payload.emit(&app).map_err(Error::from);
         if let Err(e) = handle_engine_line(
             &mut proc,
@@ -660,8 +805,28 @@ pub async fn get_best_moves(
         }
     }
     info!("Engine process finished: tab: {}, engine: {}", tab, engine);
-    process.lock().await.kill().await;
+    let mut proc = process.lock().await;
+    let exited_by_itself = !proc.killed;
+    let exit = EngineExit {
+        fen: proc.options.fen.clone(),
+        moves: proc.options.moves.clone(),
+        reason: proc.exit_reason(),
+    };
+    proc.kill().await;
+    drop(proc);
     unregister_engine(&state, &key, &process);
+    if exited_by_itself {
+        warn!("Engine {} exited by itself: {}", id, exit.reason);
+        let _ = app.emit(
+            ENGINE_EXITED_EVENT,
+            EngineExitedPayload {
+                engine: id.clone(),
+                tab: tab.clone(),
+                reason: exit.reason.clone(),
+            },
+        );
+        state.engine_exits.insert(key, exit);
+    }
     Ok(None)
 }
 
@@ -678,6 +843,7 @@ fn handle_engine_line(
         UciMessage::BestMove { .. } if proc.stale_searches > 0 => {
             // The end of a stopped search; from here on the output is current.
             proc.stale_searches -= 1;
+            proc.answered();
         }
         _ if proc.stale_searches > 0 => {}
         UciMessage::Info(attrs) => {
@@ -1182,30 +1348,43 @@ pub struct EngineConfig {
 pub async fn get_engine_config(path: PathBuf) -> Result<EngineConfig, Error> {
     let mut base = BaseEngine::spawn(path.clone()).await?;
 
-    base.send("uci").await?;
+    // A program that already exited cannot take the command.
+    if base.send("uci").await.is_err() {
+        base.kill_sync();
+        return Err(Error::NotUciEngine);
+    }
 
     let mut config = EngineConfig::default();
 
-    let reader = base.reader_mut().ok_or(Error::EngineDisconnected)?;
-    while let Some(line) = reader.next_line().await? {
-        if let UciMessage::Id {
-            name: Some(name),
-            author: _,
-        } = parse_one(&line)
-        {
-            config.name = name;
+    // A program that is not a UCI engine may never answer (#95).
+    let handshake = async {
+        let reader = base.reader_mut().ok_or(Error::EngineDisconnected)?;
+        while let Some(line) = reader.next_line().await? {
+            match parse_one(&line) {
+                UciMessage::Id {
+                    name: Some(name), ..
+                } => config.name = name,
+                UciMessage::Option(opt) => config.options.push(opt),
+                UciMessage::UciOk => return Ok(true),
+                _ => {}
+            }
         }
-        if let UciMessage::Option(opt) = parse_one(&line) {
-            config.options.push(opt);
-        }
-        if let UciMessage::UciOk = parse_one(&line) {
-            break;
-        }
+        Ok::<_, Error>(false)
+    };
+    let answered = matches!(
+        tokio::time::timeout(UCI_HANDSHAKE_TIMEOUT, handshake).await,
+        Ok(Ok(true))
+    );
+    if !answered {
+        base.kill_sync();
+        return Err(Error::NotUciEngine);
     }
-    println!("{:?}", config);
-    base.quit().await?;
+    let _ = base.quit().await;
     Ok(config)
 }
+
+/// How long a program may take to answer `uci` with `uciok`.
+const UCI_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// End-to-end check of the evaluation cache with a real UCI engine.
 /// Run with: `JBLBASE_TEST_ENGINE=/path/to/stockfish cargo test -- --ignored engine_cache`
@@ -1397,6 +1576,407 @@ done
     }
 }
 
+#[cfg(all(test, unix))]
+mod engine_stop_tests {
+    //! A `stop` must never reach the engine together with a `go` it has not
+    //! started yet, and a hung engine must be noticed (#98).
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    const ENGINE: &str = r#"#!/bin/sh
+while read -r cmd rest; do
+  case "$cmd" in
+    uci) echo "id name FakeEngine"; echo "uciok" ;;
+    isready) echo "readyok" ;;
+    go) echo "info depth 3 multipv 1 score cp 10 nodes 100 nps 100 pv g1f3" ;;
+    stop) echo "bestmove g1f3" ;;
+    quit) exit 0 ;;
+  esac
+done
+"#;
+
+    const START: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    async fn engine(name: &str) -> (EngineProcess, EngineReader, PathBuf) {
+        let path =
+            std::env::temp_dir().join(format!("jbl-stop-engine-{}-{}", name, std::process::id()));
+        std::fs::write(&path, ENGINE).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // Another test may fork while this file is still open for writing,
+        // which makes starting it fail with "Text file busy" for a moment.
+        let mut attempt = 0;
+        let (mut proc, reader) = loop {
+            match EngineProcess::new(path.clone()).await {
+                Ok(started) => break started,
+                Err(Error::Io(e))
+                    if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < 50 =>
+                {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(e) => panic!("engine did not start: {e:?}"),
+            }
+        };
+        proc.set_options(EngineOptions {
+            fen: START.to_string(),
+            moves: vec![],
+            extra_options: vec![],
+        })
+        .await
+        .unwrap();
+        (proc, reader, path)
+    }
+
+    fn sent(proc: &EngineProcess) -> Vec<String> {
+        proc.base
+            .get_logs()
+            .into_iter()
+            .filter_map(|l| match l {
+                EngineLog::Gui(cmd) => Some(cmd.trim_end().to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    async fn next(reader: &mut EngineReader) -> String {
+        tokio::time::timeout(Duration::from_secs(5), reader.next_line())
+            .await
+            .expect("engine answers")
+            .unwrap()
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn go_waits_for_readyok() {
+        let (mut proc, mut reader, path) = engine("ready").await;
+        proc.request_go(&GoMode::Infinite).await.unwrap();
+        assert!(proc.running);
+        assert!(!proc.searching);
+        assert_eq!(sent(&proc).last().unwrap(), "isready");
+
+        assert_eq!(next(&mut reader).await, "readyok");
+        proc.on_ready().await.unwrap();
+        assert!(proc.searching);
+        assert!(sent(&proc).last().unwrap().starts_with("go"));
+        assert!(!proc.stalled());
+        proc.kill().await;
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn a_move_before_the_engine_is_ready_sends_no_stop() {
+        let (mut proc, mut reader, path) = engine("early").await;
+        proc.request_go(&GoMode::Infinite).await.unwrap();
+        // The next position arrives before the engine answered.
+        proc.stop().await.unwrap();
+        proc.request_go(&GoMode::Infinite).await.unwrap();
+        assert_eq!(proc.stale_searches, 0);
+        assert!(!sent(&proc).iter().any(|c| c == "stop"));
+
+        assert_eq!(next(&mut reader).await, "readyok");
+        proc.on_ready().await.unwrap();
+        assert!(!proc.searching, "waits for the second readyok");
+        assert_eq!(next(&mut reader).await, "readyok");
+        proc.on_ready().await.unwrap();
+        assert!(proc.searching);
+        assert_eq!(
+            sent(&proc).iter().filter(|c| c.starts_with("go")).count(),
+            1
+        );
+        proc.kill().await;
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn stop_right_after_go_is_delayed() {
+        let (mut proc, _reader, path) = engine("delay").await;
+        proc.go(&GoMode::Infinite).await.unwrap();
+        proc.stop().await.unwrap();
+        assert!(proc.start.elapsed() >= MIN_GO_TO_STOP);
+        assert_eq!(proc.stale_searches, 1);
+        proc.kill().await;
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn an_engine_that_owes_an_answer_too_long_is_stalled() {
+        let (mut proc, _reader, path) = engine("stall").await;
+        proc.go(&GoMode::Infinite).await.unwrap();
+        proc.stop().await.unwrap();
+        assert!(!proc.stalled());
+        // Patricia after a lost stop: the bestmove never comes.
+        proc.waiting_since = Some(Instant::now() - ENGINE_STALL);
+        assert!(proc.stalled());
+        // Once it answers, it is fine again.
+        proc.stale_searches = 0;
+        proc.answered();
+        assert!(!proc.stalled());
+        proc.kill().await;
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod engine_handshake_tests {
+    //! A program that is not a UCI engine is rejected instead of hanging (#95).
+    use super::*;
+
+    #[tokio::test]
+    async fn a_program_that_never_answers_uci_is_rejected() {
+        // `cat` echoes "uci" back but never sends "uciok".
+        let res = tokio::time::timeout(
+            UCI_HANDSHAKE_TIMEOUT + Duration::from_secs(5),
+            get_engine_config(PathBuf::from("/bin/cat")),
+        )
+        .await
+        .expect("must not hang");
+        assert!(matches!(res, Err(Error::NotUciEngine)));
+    }
+
+    #[tokio::test]
+    async fn a_program_that_exits_is_rejected() {
+        let res = get_engine_config(PathBuf::from("/bin/true")).await;
+        assert!(matches!(res, Err(Error::NotUciEngine)));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod engine_exit_tests {
+    //! An engine that exits by itself on a position says why (#103).
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// Like Stockfish 19 with too many pieces: complains and exits.
+    const ENGINE: &str = r#"#!/bin/sh
+while read -r cmd rest; do
+  case "$cmd" in
+    uci) echo "id name FakeEngine"; echo "uciok" ;;
+    isready) echo "readyok" ;;
+    position)
+      echo "info string CRITICAL ERROR: Command \`position $rest\` failed. Reason: Unsupported position. Too many pieces for WHITE."
+      exit 1 ;;
+  esac
+done
+"#;
+
+    #[tokio::test]
+    async fn the_reason_is_the_last_info_string() {
+        let path = std::env::temp_dir().join(format!("jbl-exit-engine-{}", std::process::id()));
+        std::fs::write(&path, ENGINE).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut attempt = 0;
+        let (mut proc, mut reader) = loop {
+            match EngineProcess::new(path.clone()).await {
+                Ok(started) => break started,
+                Err(Error::Io(e))
+                    if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < 50 =>
+                {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(e) => panic!("engine did not start: {e:?}"),
+            }
+        };
+        proc.set_options(EngineOptions {
+            fen: "NNNNNNNN/NNNNNNNN/N7/8/8/8/8/K6k w - - 0 1".into(),
+            moves: vec![],
+            extra_options: vec![],
+        })
+        .await
+        .expect("the app accepts the position");
+        while let Ok(Some(line)) = reader.next_line().await {
+            proc.base.log_engine(&line);
+        }
+        assert!(!proc.killed, "it exited by itself");
+        assert!(proc
+            .exit_reason()
+            .starts_with("CRITICAL ERROR: Command `position fen NNNNNNNN"));
+        assert!(proc.exit_reason().ends_with("Too many pieces for WHITE."));
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// The analysis with a real engine, driven like `get_best_moves` does it:
+/// one task reads the engine output, the test changes positions quickly.
+/// Run with:
+/// `JBLBASE_TEST_ENGINE=/path/to/patricia cargo test -- --ignored real_engine_moves`
+/// (`JBLBASE_TEST_HASH` sets the hash in MB, default 1024).
+#[cfg(test)]
+mod real_engine_moves_tests {
+    use super::*;
+
+    const START: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    const LINE: [&str; 8] = [
+        "e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "g8f6",
+    ];
+
+    struct Harness {
+        proc: Arc<Mutex<EngineProcess>>,
+        shown: Arc<std::sync::Mutex<Vec<BestMovesPayload>>>,
+        hash: String,
+    }
+
+    impl Harness {
+        async fn start() -> Option<Harness> {
+            let path = std::env::var("JBLBASE_TEST_ENGINE").ok()?;
+            let hash = std::env::var("JBLBASE_TEST_HASH").unwrap_or_else(|_| "1024".into());
+            let (proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
+            let proc = Arc::new(Mutex::new(proc));
+            let shown = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (p, s) = (proc.clone(), shown.clone());
+            tokio::spawn(async move {
+                let lim = RateLimiter::direct(Quota::per_second(nonzero!(5u32)));
+                let cache = EvalCache::open_in_memory();
+                while let Ok(Some(line)) = reader.next_line().await {
+                    let mut proc = p.lock().await;
+                    proc.base.log_engine(&line);
+                    if line.trim() == "readyok" {
+                        proc.on_ready().await.unwrap();
+                        continue;
+                    }
+                    let mut emit = |payload: BestMovesPayload| {
+                        s.lock().unwrap().push(payload);
+                        Ok(())
+                    };
+                    let _ = handle_engine_line(&mut proc, &line, &lim, "e", "t", &cache, &mut emit);
+                }
+            });
+            Some(Harness { proc, shown, hash })
+        }
+
+        fn options(&self, plies: usize) -> EngineOptions {
+            EngineOptions {
+                fen: START.into(),
+                moves: LINE[..plies].iter().map(|m| m.to_string()).collect(),
+                extra_options: vec![
+                    EngineOption {
+                        name: "Hash".into(),
+                        value: self.hash.clone(),
+                    },
+                    EngineOption {
+                        name: "Threads".into(),
+                        value: "4".into(),
+                    },
+                ],
+            }
+        }
+
+        /// What `reuse_engine` does for a new position (without the cache).
+        async fn show(&self, plies: usize) {
+            let mut proc = self.proc.lock().await;
+            assert!(!proc.stalled(), "engine stalled before ply {plies}");
+            proc.stop().await.unwrap();
+            proc.set_options(self.options(plies)).await.unwrap();
+            if std::env::var("JBLBASE_TEST_OLD_PROTOCOL").is_ok() {
+                // 1.0.28: go right away (to compare).
+                proc.go(&GoMode::Infinite).await.unwrap();
+            } else {
+                proc.request_go(&GoMode::Infinite).await.unwrap();
+            }
+        }
+
+        /// The engine shows lines for `plies` within `secs`, and answers.
+        async fn expect_lines_for(&self, plies: usize, secs: u64) {
+            let want: Vec<String> = LINE[..plies].iter().map(|m| m.to_string()).collect();
+            let deadline = Instant::now() + Duration::from_secs(secs);
+            loop {
+                if self.shown.lock().unwrap().iter().any(|p| p.moves == want) {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "no lines for ply {plies} after {secs} s (engine hangs?)"
+                );
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            let proc = self.proc.lock().await;
+            assert!(!proc.stalled());
+        }
+
+        async fn end(self) {
+            self.proc.lock().await.kill().await;
+        }
+    }
+
+    /// #103: Stockfish 19 exits on a position with too many pieces; the
+    /// reason the app shows is its last `info string`.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_too_many_pieces() {
+        let Ok(path) = std::env::var("JBLBASE_TEST_ENGINE") else {
+            return;
+        };
+        let (mut proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
+        proc.set_options(EngineOptions {
+            fen: "NNNNNNNN/NNNNNNNN/N7/8/8/8/8/K6k w - - 0 1".into(),
+            moves: vec![],
+            extra_options: vec![],
+        })
+        .await
+        .unwrap();
+        let _ = proc.go(&GoMode::Depth(8)).await;
+        let read = tokio::time::timeout(Duration::from_secs(20), async {
+            while let Ok(Some(line)) = reader.next_line().await {
+                proc.base.log_engine(&line);
+                if line.starts_with("bestmove") {
+                    return false;
+                }
+            }
+            true
+        })
+        .await;
+        match read {
+            Ok(true) => {
+                let reason = proc.exit_reason();
+                eprintln!("engine exited: {reason}");
+                assert!(reason.contains("Too many pieces"), "{reason}");
+            }
+            Ok(false) => eprintln!("engine analysed the position (no exit)"),
+            Err(_) => panic!("engine neither answered nor exited"),
+        }
+        proc.kill().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_moves_right_after_start_with_a_big_hash() {
+        let Some(h) = Harness::start().await else {
+            return;
+        };
+        // Like the app: options and position, go; then a move 0.2 s later.
+        h.show(0).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        h.show(1).await;
+        h.expect_lines_for(1, 15).await;
+        h.end().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_moves_through_a_line_quickly() {
+        let Some(h) = Harness::start().await else {
+            return;
+        };
+        h.show(0).await;
+        h.expect_lines_for(0, 15).await;
+        // Clicking through: stop, position, go back to back, and with gaps
+        // of 0 to 3 ms.
+        for round in 0..5 {
+            for plies in 1..=LINE.len() {
+                h.show(plies).await;
+                if (plies + round) % 3 != 0 {
+                    tokio::time::sleep(Duration::from_micros(((plies * 700) % 3000) as u64)).await;
+                }
+            }
+            h.expect_lines_for(LINE.len(), 15).await;
+            h.shown.lock().unwrap().clear();
+            h.show(0).await;
+            h.expect_lines_for(0, 15).await;
+        }
+        h.end().await;
+    }
+}
+
 #[cfg(test)]
 mod engine_config_edge_case_tests {
     //! Falsche Datei als Engine (automatischer Testlauf vor 1.1).
@@ -1418,18 +1998,15 @@ mod engine_config_edge_case_tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "hangs")]
     async fn program_that_never_answers_uci_does_not_hang() {
-        // Bekannter Fehler #95. Nach dem Fix `should_panic` entfernen.
-        // `cat` echoes "uci" back but never sends "uciok".
+        // #95: `cat` echoes "uci" back but never sends "uciok". The app gives
+        // up after UCI_HANDSHAKE_TIMEOUT and reports an error.
         let res = tokio::time::timeout(
-            Duration::from_secs(5),
+            UCI_HANDSHAKE_TIMEOUT + Duration::from_secs(5),
             get_engine_config(PathBuf::from("/bin/cat")),
         )
-        .await;
-        assert!(
-            res.is_ok(),
-            "get_engine_config hangs on a program that is not a UCI engine"
-        );
+        .await
+        .expect("get_engine_config hangs on a program that is not a UCI engine");
+        assert!(res.is_err(), "accepted a program that never answers uci");
     }
 }

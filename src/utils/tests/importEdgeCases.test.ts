@@ -96,17 +96,16 @@ describe("splitPgnGames", () => {
         ).toHaveLength(2);
     });
 
-    // Bekannter Fehler #90: eine Leerzeile vor "[%cal ...]" in einem Kommentar
-    // trennt das Kapitel mitten im Kommentar.
-    test.fails("Leerzeile vor [%cal] in einem Kommentar trennt kein Kapitel", () => {
+    // #90: eine Leerzeile vor "[%cal ...]" in einem Kommentar trennt kein Kapitel.
+    test("Leerzeile vor [%cal] in einem Kommentar trennt kein Kapitel", () => {
         const text =
             '[Event "A"]\n\n1. e4 { Idee:\n\n[%cal Ge2e4] } e5 *\n\n[Event "B"]\n\n1. d4 *';
         expect(splitPgnGames(text)).toHaveLength(2);
     });
 
-    // Bekannter Fehler #90: "1-0" am Zeilenende eines Kommentars mit "1." in der
-    // nächsten Zeile gilt als Partieende.
-    test.fails("Ergebnis im Kommentar trennt kein Kapitel", () => {
+    // #90: "1-0" am Zeilenende eines Kommentars mit "1." in der nächsten Zeile
+    // ist kein Partieende.
+    test("Ergebnis im Kommentar trennt kein Kapitel", () => {
         const text = '[Event "A"]\n\n1. e4 { Weiß gewinnt 1-0\n1. e4 ist gut } e5 *';
         expect(splitPgnGames(text)).toHaveLength(1);
     });
