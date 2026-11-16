@@ -47,7 +47,7 @@ Positionsspeichers (`src-tauri/src/eval_cache.rs`):
 
 ```json
 {
-  "position": "<FEN ohne Zugzähler>",
+  "position": "<32 Hex-Ziffern: 128-Bit-Schlüssel der Stellung>",
   "engine": "<id name der Engine>",
   "depth": 28,
   "multipv": 1,
@@ -56,11 +56,23 @@ Positionsspeichers (`src-tauri/src/eval_cache.rs`):
 }
 ```
 
+- `position` ist der Zobrist-Schlüssel, unter dem der lokale Speicher die
+  Stellung ablegt (Figuren, Zugrecht, Rochaderechte, En-passant nur wenn
+  schlagbar, ohne Zugzähler). Der lokale Speicher kennt die FEN nicht. Damit
+  die Schlüssel auf allen Geräten dasselbe bedeuten, prüft die App den
+  Schlüssel der Grundstellung (`CLOUD_HASH_PROBE` in `eval_cache.rs`) und
+  gleicht sonst gar nicht ab.
 - Dokument-ID: `encodeURIComponent(engine + "|" + multipv + "|" + position)`.
   Firestore erlaubt kein `/` in IDs, darum die Kodierung.
-- Höchstens 5 Linien, je Linie `cp` oder `mate`.
+- Höchstens 5 Linien mit je höchstens 64 Zügen, je Linie `cp` oder `mate`.
 - Die Tiefengrenze 28 steht in `firestore.rules` (`userMaxDepth`) und muss zu
   `USER_MAX_STORE_DEPTH` in `eval_cache.rs` passen.
+- Normale Konten schreiben nach `users/{uid}/evals`, Admins in den
+  gemeinsamen Speicher `evals`. Jedes Gerät liest beide nach `updatedAt` und
+  übernimmt nur, was tiefer ist als sein eigener Eintrag
+  (`src/utils/cloud/evalSync.ts`).
+- Pro Tag lädt ein Gerät höchstens 15.000 Bewertungen hoch und 40.000
+  herunter, damit es im kostenlosen Kontingent von Firestore bleibt.
 
 ## Kostenbremse
 

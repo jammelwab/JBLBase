@@ -200,6 +200,20 @@ export const spellCheckAtom = atomWithStorage<boolean>("spell-check", false);
 export const usageStatsAtom = atomWithStorage<boolean>("usage-stats", false, undefined, {
     getOnInit: true,
 });
+/** Cloud sync of the position store (see utils/cloud/evalSync.ts). */
+export type EvalCloudSyncSettings = {
+    enabled: boolean;
+    /** Upload results from this depth on. */
+    minDepth: number;
+    /** Also download the shared store the admins fill. */
+    shared: boolean;
+};
+export const evalCloudSyncAtom = atomWithStorage<EvalCloudSyncSettings>(
+    "eval-cloud-sync",
+    { enabled: true, minDepth: 20, shared: true },
+    undefined,
+    { getOnInit: true },
+);
 /** The one-time question about the usage statistics was answered. */
 export const usageStatsAskedAtom = atomWithStorage<boolean>("usage-stats-asked", false, undefined, {
     getOnInit: true,

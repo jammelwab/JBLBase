@@ -675,6 +675,38 @@ async setEvalCacheUserLimit(limited: boolean) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async evalSyncSupported() : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("eval_sync_supported") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async evalSyncPending(limit: number, minDepth: number, maxDepth: number | null) : Promise<Result<EvalSyncPending, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("eval_sync_pending", { limit, minDepth, maxDepth }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async evalSyncMarkSynced(keys: SyncEvalKey[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("eval_sync_mark_synced", { keys }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async evalSyncApplyRemote(evals: SyncEval[]) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("eval_sync_apply_remote", { evals }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async trainingLoadDeck(deck: string) : Promise<Result<TrainingDeck | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("training_load_deck", { deck }) };
@@ -867,10 +899,22 @@ export type DrawReason = "stalemate" | "insufficientMaterial" | "threefoldRepeti
 export type EngineCacheStats = { engine: string; entries: number; maxDepth: number }
 export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
+export type EvalSyncPending = { evals: SyncEval[]; 
+/**
+ * Results waiting for upload, including the ones returned.
+ */
+total: number }
 export type GameFilter = { accounts: InsightAccount[]; color?: string | null; since?: string | null; until?: string | null; speeds?: string[]; results?: string[]; maxGames?: number | null }
 export type GameTacticOptions = { engine: string; uciOptions: EngineOption[]; depth: number; filter: GameFilter; kind?: TacticKind; strictness?: Strictness; minSolverMoves?: number | null; maxEngines?: number | null; dest: string }
 export type GameTacticResult = { games: number; positions: number; calculated: number; found: number; played: number; missed: number; added: number; duplicates: number; rejected: number; total: number }
+export type StoredLine = { multipv: number; depth: number; nodes: number; nps: number; cp?: number | null; mate?: number | null; wdl?: [number, number, number] | null; uci: string[] }
 export type Strictness = "loose" | "normal" | "strict"
+export type SyncEval = { 
+/**
+ * 32 hex digits, see [`PosKey`].
+ */
+position: string; engine: string; multipv: number; depth: number; lines: StoredLine[] }
+export type SyncEvalKey = { position: string; engine: string; multipv: number; depth: number }
 export type TacticKind = "missed" | "played" | "both"
 export type TacticSearchOptions = { engine: string; uciOptions: EngineOption[]; depth: number; fen: string; lines: string[][]; solver: string; source: string; dest: string; strictness?: Strictness; minSolverMoves?: number | null; maxEngines?: number | null }
 export type TacticSearchResult = { positions: number; calculated: number; found: number; added: number; duplicates: number; rejected: number; total: number }

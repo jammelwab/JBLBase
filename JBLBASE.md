@@ -85,6 +85,31 @@ läuft währenddessen ohne Speicher.
 Das Schreibprotokoll (`eval_cache.sqlite3-wal`) wird beim Start in die
 Hauptdatei übernommen und danach auf höchstens 1 MB begrenzt.
 
+### Über die Cloud teilen (ab 1.1.0)
+
+Bist du angemeldet, gleicht die App den Positionsspeicher mit der Cloud ab.
+Eine Stellung, die dein PC schon gerechnet hat, steht dann auch auf dem Mac
+sofort im Speicher, und die Engine startet dort gar nicht erst.
+
+- **Normales Konto:** Deine Bewertungen gehen in deinen eigenen Cloud-Bereich,
+  bis Tiefe 28 (Matts immer). Deine anderen Geräte holen sie beim nächsten
+  Abgleich.
+- **Admin:** Deine Bewertungen gehen ohne Tiefengrenze in den **gemeinsamen
+  Speicher**, den alle Konten lesen, z. B. Aaron.
+- **Tiefer gewinnt:** Vor dem Hochladen holt die App, was in der Cloud neu
+  ist, und übernimmt nur Einträge, die tiefer sind als ihre eigenen. Hoch geht
+  nur, was die Cloud noch nicht genauso tief hat.
+- **Hochladen ab Tiefe 20** (einstellbar). Flachere Ergebnisse rechnet die
+  Engine schneller neu, als der Abgleich dauert.
+- **Kosten:** Pro Tag lädt ein Gerät höchstens 15.000 Bewertungen hoch und
+  40.000 herunter, das liegt im kostenlosen Kontingent von Firestore. Ein
+  großer vorhandener Speicher geht also über mehrere Tage hoch; die
+  Einstellungsseite zeigt, wie viele noch warten.
+- Der Abgleich läuft mit dem übrigen Cloud-Sync (beim Start, alle 5 Minuten
+  und auf Knopfdruck) und lässt sich unter **Einstellungen →
+  Positionsspeicher → Über die Cloud teilen** ausschalten, ebenso das Laden
+  des gemeinsamen Speichers.
+
 Für spätere Phasen (Repertoire, Vergleich der Eröffnungsbäume) gibt es schon
 den Befehl `getCachedEvals(fen)`, der alle gespeicherten Bewertungen einer
 Stellung liefert.
