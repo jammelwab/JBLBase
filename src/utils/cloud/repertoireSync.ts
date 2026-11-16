@@ -3,11 +3,12 @@
 // Firestore: users/{uid}/repertoires/{id} with
 //   path      file path below the files folder, "/"-separated, without ".pgn"
 //   info      the .info metadata as JSON (without the id)
-//   pgn       the file content
+//   pgn       the file content, or instead
+//   pgnGz     the file content gzip-compressed, for files too big as text (#100)
 //   hash      SHA-256 of path, info and pgn
 //   updatedAt client time of the change (ms)
 //   deleted   deletion mark, so an offline device does not bring it back
-//   syncedAt  server time of the upload (for "what changed since")
+//   syncedAt  server time of the upload (for "what changed since", see cursor.ts)
 //
 // Each device remembers per repertoire the hash both sides had after the
 // last sync (the base). With it, a change is recognised on either side:
@@ -15,9 +16,58 @@
 // newer one wins and the other version is kept as a copy marked
 // "Konflikt", so nothing is lost.
 
+/** Longest file sent as plain text; larger ones go compressed. */
 export const MAX_PGN_LENGTH = 900_000;
-/** Pull a little before the cursor, in case of clock skew; applying twice does nothing. */
-export const CURSOR_OVERLAP_MS = 2 * 60 * 1000;
+/** Largest compressed file (a Firestore document holds at most 1 MiB). */
+export const MAX_PGN_GZ_BYTES = 900_000;
+
+/**
+ * The file content as stored in the cloud. Up to MAX_PGN_LENGTH it stays
+ * plain text, which 1.0.28 can read as well; a larger file is compressed
+ * (PGN shrinks to about a fifth). 1.0.28 ignores such a document.
+ */
+export type PackedPgn = { pgn: string } | { pgnGz: Uint8Array };
+
+async function pipe(data: Uint8Array, stream: CompressionStream | DecompressionStream) {
+    const writer = stream.writable.getWriter();
+    const written = writer.write(data as Uint8Array<ArrayBuffer>).then(() => writer.close());
+    // Damaged input fails the reading side as well; the error is thrown there.
+    written.catch(() => {});
+    const chunks: Uint8Array[] = [];
+    const reader = stream.readable.getReader();
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+    }
+    await written;
+    const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+    let at = 0;
+    for (const c of chunks) {
+        out.set(c, at);
+        at += c.length;
+    }
+    return out;
+}
+
+/** The content to upload; null when it is too big even compressed. */
+export async function packPgn(pgn: string): Promise<PackedPgn | null> {
+    if (pgn.length <= MAX_PGN_LENGTH) return { pgn };
+    const pgnGz = await pipe(new TextEncoder().encode(pgn), new CompressionStream("gzip"));
+    return pgnGz.length <= MAX_PGN_GZ_BYTES ? { pgnGz } : null;
+}
+
+/** The file content of a document; null when it has none or it is damaged. */
+export async function unpackPgn(d: { pgn?: unknown; pgnGz?: Uint8Array }): Promise<string | null> {
+    if (typeof d.pgn === "string") return d.pgn;
+    if (!d.pgnGz) return null;
+    try {
+        const text = await pipe(d.pgnGz, new DecompressionStream("gzip"));
+        return new TextDecoder("utf-8", { fatal: true }).decode(text);
+    } catch {
+        return null;
+    }
+}
 
 export type RemoteState = {
     path: string;
@@ -27,7 +77,7 @@ export type RemoteState = {
     deleted: boolean;
 };
 
-export type RemoteRepertoire = RemoteState & { id: string; pgn: string; syncedAt: number };
+export type RemoteRepertoire = RemoteState & { id: string; pgn: string };
 
 export type LocalRepertoire = {
     /** Absolute path of the .pgn file. */
@@ -48,6 +98,32 @@ export type Plan =
     | { kind: "pushDelete" }
     | { kind: "deleteLocal" }
     | { kind: "conflict"; winner: "local" | "remote" };
+
+/**
+ * A repertoire document from the cloud (compressed content as Uint8Array);
+ * null when it is malformed.
+ */
+export async function parseRemoteRepertoire(
+    id: string,
+    d: Record<string, unknown>,
+): Promise<RemoteRepertoire | null> {
+    const { path, info, hash, updatedAt, deleted, pgnGz } = d;
+    if (
+        typeof path !== "string" ||
+        typeof info !== "string" ||
+        typeof hash !== "string" ||
+        typeof updatedAt !== "number" ||
+        path.split("/").some((part) => part === "" || part === "." || part === "..")
+    ) {
+        return null;
+    }
+    const pgn = await unpackPgn({
+        pgn: d.pgn,
+        pgnGz: pgnGz instanceof Uint8Array ? pgnGz : undefined,
+    });
+    if (pgn === null) return null;
+    return { id, path, info, pgn, hash, updatedAt, deleted: deleted === true };
+}
 
 /** What to do with one repertoire, from its local and remote state and the base hash. */
 export function planRepertoire(
@@ -116,9 +192,15 @@ export interface RepertoireSyncBackend {
     renameDecks(from: string, to: string): Promise<void>;
     newId(): string;
     now(): number;
-    fetchChanged(since: number): Promise<RemoteRepertoire[]>;
+    /**
+     * Repertoires written after the download position `after` (null: all) and
+     * the position after them (see cursor.ts); unchanged when nothing is new.
+     */
+    fetchChanged(
+        after: string | null,
+    ): Promise<{ items: RemoteRepertoire[]; cursor: string | null }>;
     fetchOne(id: string): Promise<RemoteRepertoire | null>;
-    put(id: string, state: RemoteState & { pgn: string }): Promise<void>;
+    put(id: string, state: RemoteState & PackedPgn): Promise<void>;
     metaGet(key: string): Promise<string | null>;
     metaSet(key: string, value: string | null): Promise<void>;
 }
@@ -158,17 +240,16 @@ export async function syncRepertoires(
     const key = (name: string) => `${name}:${uid}`;
     const index = parseJson<Record<string, RemoteState>>(await b.metaGet(key("repIndex")), {});
     let bases = parseJson<Record<string, string>>(await b.metaGet(key("repBase")), {});
-    const cursor = Number((await b.metaGet(key("repCursor"))) ?? 0) || 0;
+    const cursor = await b.metaGet(key("repCursor"));
     // Another files folder: link everything again by path, delete nothing.
     if ((await b.metaGet(key("repDir"))) !== b.dir) bases = {};
 
     const remotePgn = new Map<string, string>();
-    let newCursor = cursor;
-    for (const r of await b.fetchChanged(Math.max(0, cursor - CURSOR_OVERLAP_MS))) {
-        const { id, pgn, syncedAt, ...state } = r;
+    const changed = await b.fetchChanged(cursor);
+    for (const r of changed.items) {
+        const { id, pgn, ...state } = r;
         index[id] = state;
         remotePgn.set(id, pgn);
-        newCursor = Math.max(newCursor, syncedAt);
     }
 
     let locals: Local[] = [];
@@ -242,7 +323,8 @@ export async function syncRepertoires(
     };
 
     const push = async (id: string, l: Local) => {
-        if (l.pgn.length > MAX_PGN_LENGTH) {
+        const packed = await packPgn(l.pgn);
+        if (!packed) {
             result.tooBig.push(l.path);
             return;
         }
@@ -254,7 +336,7 @@ export async function syncRepertoires(
             updatedAt: Math.max(l.modifiedAt, (index[id]?.updatedAt ?? 0) + 1),
             deleted: false,
         };
-        await b.put(id, { ...state, pgn: l.pgn });
+        await b.put(id, { ...state, ...packed });
         index[id] = state;
         bases[id] = l.hash;
         result.uploaded++;
@@ -379,7 +461,7 @@ export async function syncRepertoires(
 
     await b.metaSet(key("repIndex"), JSON.stringify(index));
     await b.metaSet(key("repBase"), JSON.stringify(bases));
-    await b.metaSet(key("repCursor"), String(newCursor));
+    await b.metaSet(key("repCursor"), changed.cursor);
     await b.metaSet(key("repDir"), b.dir);
     return result;
 }

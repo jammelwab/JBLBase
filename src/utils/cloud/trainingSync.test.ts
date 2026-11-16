@@ -48,7 +48,7 @@ describe("syncTraining", () => {
         let dirty = Array.from({ length: 450 }, (_, i) => card(i));
         const pushed: number[] = [];
         const meta = new Map<string, string>([["trainingCursor:u", "500000"]]);
-        let since = -1;
+        const after: (string | null)[] = [];
         const remote: SyncCard = { ...card(9), answer: "d4", updatedAt: 99999 };
         const b: TrainingSyncBackend = {
             async pending(limit) {
@@ -64,24 +64,29 @@ describe("syncTraining", () => {
             async push(cards) {
                 pushed.push(cards.length);
             },
-            async fetchCards(s) {
-                since = s;
-                return { items: [remote], maxSyncedAt: 600000 };
+            async fetchCards(a) {
+                after.push(a);
+                return { items: [remote], cursor: "600.000000000|c" };
             },
-            async fetchReviews() {
-                return { items: [], maxSyncedAt: 0 };
+            async fetchReviews(a) {
+                after.push(a);
+                return { items: [], cursor: a };
             },
             async metaGet(k) {
                 return meta.get(k) ?? null;
             },
             async metaSet(k, v) {
-                if (v !== null) meta.set(k, v);
+                if (v === null) meta.delete(k);
+                else meta.set(k, v);
             },
         };
         const result = await syncTraining(b, "u");
         expect(pushed).toEqual([200, 200, 50]);
         expect(result).toEqual({ uploaded: 450, downloaded: 1, changedDecks: ["rep"] });
-        expect(since).toBe(500000 - 120000);
-        expect(meta.get("trainingCursor:u")).toBe("600000");
+        // The position of 1.0.28 is used once for both, then each keeps its own.
+        expect(after).toEqual(["500000", "500000"]);
+        expect(meta.get("trainingCursor:cards:u")).toBe("600.000000000|c");
+        expect(meta.get("trainingCursor:reviews:u")).toBe("500000");
+        expect(meta.has("trainingCursor:u")).toBe(false);
     });
 });

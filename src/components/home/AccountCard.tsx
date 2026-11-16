@@ -114,8 +114,9 @@ export function AccountCard({
   const [databaseDir] = useAtom(storedDatabasesDirAtom);
   const [, setConversionState] = useAtom(databaseConversionStateAtom);
 
-  async function convert(filepath: string, timestamp: number | null) {
-    info(`converting ${filepath} ${timestamp}`);
+  async function convert(files: string[], timestamp: number | null) {
+    const filepath = files[0];
+    info(`converting ${files.join(", ")} ${timestamp}`);
     const filename = title + (type === "lichess" ? " Lichess" : " Chess.com");
     // Keep adding to the existing database, even when its file name is
     // spelled differently ("Beispielkonto" vs. "beispielkonto").
@@ -137,13 +138,7 @@ export function AccountCard({
       sourceFileName,
     }));
     unwrap(
-      await commands.convertPgn(
-        [filepath],
-        dbPath,
-        timestamp ? timestamp / 1000 : null,
-        filename,
-        null,
-      ),
+      await commands.convertPgn(files, dbPath, timestamp ? timestamp / 1000 : null, filename, null),
     );
     trackUsage("games_download", { source: type });
     events.progressEvent.emit({
@@ -196,13 +191,14 @@ export function AccountCard({
 
   async function downloadGames() {
     const lastGameDate = database ? await getLastGameDate({ database }) : null;
-    if (type === "lichess") {
-      await downloadLichess(title, lastGameDate, total - downloadedGames, setProgress, token);
-    } else {
-      await downloadChessCom(title, lastGameDate);
-    }
+    // With lastGameDate set, the import skips games already in the database
+    // and adds all others, also ones that started earlier but ended later.
+    const files =
+      type === "lichess"
+        ? await downloadLichess(title, lastGameDate, total - downloadedGames, setProgress, token)
+        : [await downloadChessCom(title, lastGameDate)];
+    await convert(files, lastGameDate);
     const p = await resolve(databaseDir, `${title}_${type}.pgn`);
-    await convert(p, lastGameDate);
     const dbPath = database?.file ?? p.replace(".pgn", ".duckdb");
     await commands.deleteEmptyGames(dbPath);
   }

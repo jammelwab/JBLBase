@@ -6,3 +6,4 @@ functions/lib/
 *serviceAccount*.json
 *-key.json
 functions/.env
+tests/.build/

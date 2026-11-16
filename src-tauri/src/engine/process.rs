@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::PathBuf, process::Stdio};
+use std::{collections::VecDeque, fmt::Display, path::PathBuf, process::Stdio};
 
 use log::error;
 use serde::Serialize;
@@ -25,12 +25,17 @@ pub enum EngineLog {
 
 pub type EngineReader = Lines<BufReader<ChildStdout>>;
 
+/// Lines kept in an engine's log; a long analysis would otherwise grow it
+/// without limit.
+const MAX_LOG_LINES: usize = 2000;
+
 pub struct BaseEngine {
     pub stdin: ChildStdin,
     pub reader: Option<EngineReader>,
     #[allow(dead_code)]
     child: Child,
-    logs: Vec<EngineLog>,
+    /// The latest lines to and from the engine, for the log panel (#96).
+    logs: VecDeque<EngineLog>,
 }
 
 impl BaseEngine {
@@ -65,7 +70,7 @@ impl BaseEngine {
             stdin,
             reader: Some(reader),
             child,
-            logs: Vec::new(),
+            logs: VecDeque::new(),
         })
     }
 
@@ -77,16 +82,23 @@ impl BaseEngine {
         self.reader.as_mut()
     }
 
+    fn push_log(&mut self, entry: EngineLog) {
+        if self.logs.len() >= MAX_LOG_LINES {
+            self.logs.pop_front();
+        }
+        self.logs.push_back(entry);
+    }
+
     pub fn get_logs(&self) -> Vec<EngineLog> {
-        self.logs.clone()
+        self.logs.iter().cloned().collect()
     }
 
     fn log_gui(&mut self, cmd: &str) {
-        self.logs.push(EngineLog::Gui(format!("{}\n", cmd)));
+        self.push_log(EngineLog::Gui(format!("{}\n", cmd)));
     }
 
     pub fn log_engine(&mut self, line: &str) {
-        self.logs.push(EngineLog::Engine(line.to_string()));
+        self.push_log(EngineLog::Engine(line.to_string()));
     }
 
     pub async fn init_uci(&mut self) -> Result<(), Error> {
@@ -113,7 +125,7 @@ impl BaseEngine {
             let Some(line) = line else {
                 return Err(Error::EngineDisconnected);
             };
-            self.logs.push(EngineLog::Engine(line.clone()));
+            self.push_log(EngineLog::Engine(line.clone()));
             if line.starts_with(expected) {
                 return Ok(());
             }
@@ -152,9 +164,13 @@ impl BaseEngine {
     }
 
     pub async fn wait_for_bestmove(&mut self) -> Result<String, Error> {
-        let reader = self.reader.as_mut().ok_or(Error::EngineDisconnected)?;
-        while let Some(line) = reader.next_line().await? {
-            self.logs.push(EngineLog::Engine(line.clone()));
+        loop {
+            let line = {
+                let reader = self.reader.as_mut().ok_or(Error::EngineDisconnected)?;
+                reader.next_line().await?
+            };
+            let Some(line) = line else { break };
+            self.push_log(EngineLog::Engine(line.clone()));
             if let UciMessage::BestMove { best_move, .. } = vampirc_uci::parse_one(&line) {
                 return Ok(best_move.to_string());
             }
@@ -172,5 +188,22 @@ impl BaseEngine {
 impl Drop for BaseEngine {
     fn drop(&mut self) {
         self.kill_sync();
+    }
+}
+
+#[cfg(all(test, unix))]
+mod log_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn the_log_keeps_only_the_latest_lines() {
+        let mut engine = BaseEngine::spawn(PathBuf::from("/bin/cat")).await.unwrap();
+        for i in 0..MAX_LOG_LINES + 10 {
+            engine.log_engine(&format!("line {i}"));
+        }
+        let logs = engine.get_logs();
+        assert_eq!(logs.len(), MAX_LOG_LINES);
+        assert!(matches!(&logs[0], EngineLog::Engine(l) if l == "line 10"));
+        engine.kill_sync();
     }
 }

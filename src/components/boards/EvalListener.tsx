@@ -1,9 +1,12 @@
+import { notifications } from "@mantine/notifications";
+import { listen } from "@tauri-apps/api/event";
 import { parseUci } from "chessops";
 import { INITIAL_FEN, makeFen } from "chessops/fen";
 import equal from "fast-deep-equal";
 import { useAtom, useAtomValue } from "jotai";
 import { startTransition, useContext, useEffect, useMemo } from "react";
 import { match } from "ts-pattern";
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { commands, type EngineOptions, events, type GoMode } from "@/bindings";
@@ -190,6 +193,28 @@ function EngineListener({
     finalFen,
   ]);
 
+  // An engine that exits by itself (Stockfish on a position with too many
+  // pieces) says why, once, instead of showing nothing (#103).
+  const { t } = useTranslation();
+  useEffect(() => {
+    if (engine.type !== "local" || !activeTab) return;
+    const unlisten = listen<{ engine: string; tab: string; reason: string }>(
+      "engine_exited",
+      ({ payload }) => {
+        if (payload.engine !== engine.id || payload.tab !== activeTab) return;
+        notifications.show({
+          id: `engine-exited-${engine.id}`,
+          color: "red",
+          title: t("Engines.Exited", { engine: engine.name }),
+          message: payload.reason || t("Engines.Exited.NoReason"),
+        });
+      },
+    );
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, [engine.type, engine.id, engine.name, activeTab, t]);
+
   // Leaving the tab (or unloading the engine) stops its search; otherwise an
   // infinite analysis keeps running in the background with nobody watching.
   const isLocal = engine.type === "local";
@@ -232,17 +257,21 @@ function EngineListener({
             moves: searchingMoves,
             fen: searchingFen,
             extraOptions: options,
-          }).then((moves) => {
-            if (moves && moves[1].length > 0) {
-              const [progress, bestMoves] = moves;
-              setEngineVariation((prev) => {
-                const newMap = new Map(prev);
-                newMap.set(`${searchingFen}:${searchingMoves.join(",")}`, bestMoves);
-                return newMap;
-              });
-              setProgress(progress);
-            }
-          });
+          })
+            // Shown via "engine_exited"; a position the engine exited on is
+            // not analysed again.
+            .catch(() => null)
+            .then((moves) => {
+              if (moves && moves[1].length > 0) {
+                const [progress, bestMoves] = moves;
+                setEngineVariation((prev) => {
+                  const newMap = new Map(prev);
+                  newMap.set(`${searchingFen}:${searchingMoves.join(",")}`, bestMoves);
+                  return newMap;
+                });
+                setProgress(progress);
+              }
+            });
         }
       } else {
         if (engine.type === "local") {

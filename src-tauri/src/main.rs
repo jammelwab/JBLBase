@@ -92,6 +92,9 @@ pub struct AppState {
     /// One lock per (tab, engine) so that only one analysis engine process is
     /// ever started for it, even when positions change faster than it starts.
     engine_start_locks: DashMap<(String, String), Arc<tokio::sync::Mutex<()>>>,
+    /// Per (tab, engine): the position an engine exited on by itself and the
+    /// reason, so it is not started again and again for it (#103).
+    engine_exits: DashMap<(String, String), chess::EngineExit>,
     analysis_cancel_flags: DashMap<String, Arc<AtomicBool>>,
     auth: AuthState,
     game_manager: GameManager,

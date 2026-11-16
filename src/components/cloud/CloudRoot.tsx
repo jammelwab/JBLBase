@@ -49,6 +49,22 @@ export default function CloudRoot() {
     };
   }, [t]);
 
+  // The Lichess login ended without a token: declined, or the exchange failed (#93).
+  useEffect(() => {
+    const unlisten = listen<string>("lichess_auth_failed", (event) => {
+      notifications.show({
+        color: event.payload === "denied" ? "yellow" : "red",
+        message:
+          event.payload === "denied"
+            ? t("Settings.Cloud.LichessDenied")
+            : t("Settings.Cloud.LichessLoginFailed"),
+      });
+    });
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, [t]);
+
   return (
     <>
       <LoginScreen />

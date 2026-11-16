@@ -824,12 +824,10 @@ function PositionsModal({
                   <Text tt="uppercase" fw="bold" fz="sm">
                     {t("Board.Practice.Status")}
                   </Text>
-                  <Badge
-                    color={c.card.reps === 0 ? "gray" : c.card.due < new Date() ? "yellow" : "blue"}
-                  >
+                  <Badge color={c.card.reps === 0 ? "gray" : isDue(c.card) ? "yellow" : "blue"}>
                     {c.card.reps === 0
                       ? t("Board.Practice.Unseen")
-                      : c.card.due < new Date()
+                      : isDue(c.card)
                         ? t("Board.Practice.Due")
                         : t("Board.Practice.Practiced")}
                   </Badge>
@@ -943,3 +941,11 @@ function LogsModal({
 }
 
 export default PracticePanel;
+
+/**
+ * Cards loaded from the training store have `due` as a string, not a Date
+ * (#91); comparing that with a Date is always false.
+ */
+function isDue(card: { due: Date | string }): boolean {
+  return new Date(card.due).getTime() <= Date.now();
+}
