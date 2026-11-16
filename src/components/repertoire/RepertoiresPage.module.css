@@ -1,0 +1,21 @@
+/* Folder rows keep their actions out of sight until the row is hovered or focused */
+.folderActions {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.folderRow:hover .folderActions,
+.folderRow:focus-within .folderActions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .folderActions {
+    opacity: 1;
+  }
+}
+
+.toggle {
+  cursor: pointer;
+  user-select: none;
+}

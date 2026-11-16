@@ -456,6 +456,13 @@ export const coverageMinGamesAtom = atomWithStorage<number>("coverage-min-games"
 // The user's own name for their repertoires. It only lives in the local settings, never in code.
 export const mainOwnerAtom = atomWithStorage<string>("repertoire-main-owner", "");
 
+// Which parts of the repertoire page are open: the folder area of each player and color
+// and each folder in it. Everything not listed here starts closed.
+export const repertoireOpenAtom = atomWithStorage<Record<string, boolean>>(
+    "repertoire-page-open",
+    {},
+);
+
 // Further databases with games of a player (e.g. imported tournament games), each with the
 // name the player has there. They count together with the player's accounts.
 export const playerDatabasesAtom = atomWithStorage<PlayerDatabase[]>("player-databases", []);
