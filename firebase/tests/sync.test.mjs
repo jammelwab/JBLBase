@@ -8,7 +8,13 @@ import { readFileSync } from "node:fs";
 import { after, before, beforeEach, test } from "node:test";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import * as firestore from "firebase/firestore";
-import { MAX_PGN_LENGTH, cloudRepertoires, syncRepertoires } from "./.build/sync.mjs";
+import {
+  MAX_PGN_LENGTH,
+  cloudRepertoires,
+  listenAfter,
+  parseSyncCursor,
+  syncRepertoires,
+} from "./.build/sync.mjs";
 
 let env;
 
@@ -205,4 +211,101 @@ test("a 1.26 MB repertoire goes up compressed and arrives intact (#100)", async 
   await syncRepertoires(b, "alice");
   await syncRepertoires(a, "alice");
   assert.equal(a.files.get("Ich Black").pgn, `${big}\n`);
+});
+
+/** Calls of a live listener; resolves `next` with the following call. */
+function liveWatch(after) {
+  const db = env
+    .authenticatedContext("alice", { email: "alice@example.org", email_verified: true })
+    .firestore();
+  const w = { calls: 0, errors: [], snapshots: 0 };
+  let wake = () => {};
+  w.next = () => new Promise((resolve) => (wake = resolve));
+  // Count every snapshot (the first one too), so a quiet listener is visible.
+  const fs = {
+    ...firestore,
+    onSnapshot: (q, onNext, onError) =>
+      firestore.onSnapshot(
+        q,
+        (snap) => {
+          w.snapshots++;
+          onNext(snap);
+        },
+        onError,
+      ),
+  };
+  w.stop = listenAfter({ db, firestore: fs })(
+    "alice",
+    "repertoires",
+    after,
+    () => {
+      w.calls++;
+      wake();
+    },
+    (e) => w.errors.push(e),
+  );
+  return w;
+}
+
+const settle = () => new Promise((r) => setTimeout(r, 500));
+
+test("live: a change from another device is noticed, a quiet listener stays silent (#110)", async () => {
+  const a = device("a");
+  const b = device("b");
+  a.file("Weiß/Italienisch", "1. e4 e5 2. Nf3 Nc6 3. Bc4 *");
+  await syncRepertoires(a, "alice");
+  await syncRepertoires(b, "alice");
+  const cursor = b.meta.get("repCursor:alice");
+  assert.ok(cursor);
+
+  // Up to date: the first snapshot is empty, nothing to do.
+  const w = liveWatch(parseSyncCursor(cursor));
+  await settle();
+  assert.equal(w.snapshots, 1);
+  assert.equal(w.calls, 0);
+  assert.deepEqual(w.errors, []);
+
+  // Device a changes the repertoire: b's listener fires.
+  const fired = w.next();
+  a.file("Weiß/Italienisch", "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 *");
+  await syncRepertoires(a, "alice");
+  await fired;
+  assert.equal(w.calls, 1);
+  w.stop();
+
+  // b syncs, gets the change, and listens from its new position: silent again.
+  await syncRepertoires(b, "alice");
+  assert.equal(b.files.get("Weiß/Italienisch").pgn, "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 *");
+  const again = liveWatch(parseSyncCursor(b.meta.get("repCursor:alice")));
+  await settle();
+  assert.equal(again.calls, 0);
+  assert.deepEqual(again.errors, []);
+  again.stop();
+});
+
+test("live: without a position every existing document counts as new (#110)", async () => {
+  const a = device("a");
+  a.file("Schwarz/Sizilianisch", "1. e4 c5 *");
+  await syncRepertoires(a, "alice");
+  const w = liveWatch(null);
+  await settle();
+  assert.equal(w.calls, 1);
+  w.stop();
+});
+
+test("live: another account's repertoires are not readable (#110)", async () => {
+  const db = env
+    .authenticatedContext("bob", { email: "bob@example.org", email_verified: true })
+    .firestore();
+  const errors = [];
+  const stop = listenAfter({ db, firestore })(
+    "alice",
+    "repertoires",
+    null,
+    () => {},
+    (e) => errors.push(e),
+  );
+  await settle();
+  stop();
+  assert.equal(errors[0]?.code, "permission-denied");
 });
