@@ -30,6 +30,7 @@ import {
   IconFolderDown,
   IconFolderPlus,
   IconFolderShare,
+  IconFolders,
   IconPencil,
   IconTrash,
   IconHistory,
@@ -41,7 +42,7 @@ import { useLoaderData, useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { activeTabAtom, tabsAtom } from "@/state/atoms";
+import { activeTabAtom, repertoireOpenAtom, tabsAtom } from "@/state/atoms";
 import { openFile } from "@/utils/files";
 import {
   allFolders,
@@ -80,6 +81,23 @@ import { type FolderEdit, FolderNameModal, ImportFolderModal } from "./Repertoir
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
 import RepertoireTreeView from "./RepertoireTreeView";
+import classes from "./RepertoiresPage.module.css";
+
+// Open or closed state of a part of the page, kept across restarts. Starts closed.
+function useOpen(key: string): [boolean, () => void] {
+  const [open, setOpen] = useAtom(repertoireOpenAtom);
+  const isOpen = !!open[key];
+  return [
+    isOpen,
+    () =>
+      setOpen((prev) => {
+        const next = { ...prev };
+        if (isOpen) delete next[key];
+        else next[key] = true;
+        return next;
+      }),
+  ];
+}
 
 function useColorName() {
   const { t } = useTranslation();
@@ -496,16 +514,43 @@ function FolderButtons({
   folder,
   count,
   actions,
+  compact,
 }: {
   folder: string;
   count: number;
   actions: FolderActions;
+  // Icons only, for the folder rows
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const { owner, color, onView, onNew, onEditFolder } = actions;
   return (
     <Group gap={4} wrap="nowrap">
-      {count > 1 && (
+      {count > 1 && compact && (
+        <>
+          <Tooltip label={t("Repertoire.Folder.Tree")}>
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              aria-label={t("Repertoire.Folder.Tree")}
+              onClick={() => onView({ mode: "tree", owner, color, folder })}
+            >
+              <IconBinaryTree size="0.9rem" />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t("Repertoire.Folder.Compare")}>
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              aria-label={t("Repertoire.Folder.Compare")}
+              onClick={() => onView({ mode: "compare", owner, color, folder })}
+            >
+              <IconGitCompare size="0.9rem" />
+            </ActionIcon>
+          </Tooltip>
+        </>
+      )}
+      {count > 1 && !compact && (
         <>
           <Button
             size="compact-xs"
@@ -547,9 +592,12 @@ function FolderButtons({
 function FolderContents({
   node,
   actions,
+  withFolders = true,
 }: {
   node: FolderNode<Repertoire>;
   actions: FolderActions;
+  // false: only the repertoires directly in it, its folders are shown elsewhere
+  withFolders?: boolean;
 }) {
   return (
     <Stack gap="xs">
@@ -567,9 +615,53 @@ function FolderContents({
           ))}
         </SimpleGrid>
       )}
-      {node.children.map((child) => (
-        <FolderSection key={child.path} node={child} actions={actions} />
-      ))}
+      {withFolders &&
+        node.children.map((child) => (
+          <FolderSection key={child.path} node={child} actions={actions} />
+        ))}
+    </Stack>
+  );
+}
+
+// All folders of a player and color behind one closed header, so the page shows the main
+// repertoires first and the courses only on request
+function FolderArea({ node, actions }: { node: FolderNode<Repertoire>; actions: FolderActions }) {
+  const { t } = useTranslation();
+  const [open, toggle] = useOpen(`${actions.owner}|${actions.color}|*folders`);
+  const inside = node.children.reduce((sum, child) => sum + folderItems(child).length, 0);
+  return (
+    <Stack gap="xs">
+      <Group
+        gap={6}
+        wrap="nowrap"
+        className={classes.toggle}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        }}
+      >
+        {open ? <IconChevronDown size="1rem" /> : <IconChevronRight size="1rem" />}
+        <IconFolders size="1.1rem" color="var(--mantine-color-yellow-6)" />
+        <Text fw={600} size="sm">
+          {t("Repertoire.Folder.Area", { count: node.children.length })}
+        </Text>
+        <Text size="sm" c="dimmed">
+          {t("Repertoire.Folder.AreaInside", { count: inside })}
+        </Text>
+      </Group>
+      {open && (
+        <Stack gap="xs" pl="md">
+          {node.children.map((child) => (
+            <FolderSection key={child.path} node={child} actions={actions} />
+          ))}
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -583,17 +675,18 @@ function FolderSection({
 }) {
   const { t } = useTranslation();
   // Folders start closed and open or close with one click on their header
-  const [open, setOpen] = useState(false);
+  const [open, toggle] = useOpen(`${actions.owner}|${actions.color}|${node.path}`);
   const count = folderItems(node).length;
   const pretty = prettyFolderName(node.name);
   return (
     <Paper withBorder p="xs" radius="md">
-      <Group justify="space-between" wrap="nowrap">
+      <Group justify="space-between" wrap="nowrap" className={classes.folderRow}>
         <Group
           gap={6}
           wrap="nowrap"
-          style={{ cursor: "pointer", flex: 1, minWidth: 0 }}
-          onClick={() => setOpen((o) => !o)}
+          className={classes.toggle}
+          style={{ flex: 1, minWidth: 0 }}
+          onClick={toggle}
         >
           {open ? (
             <IconChevronDown size="1rem" style={{ flexShrink: 0 }} />
@@ -627,13 +720,14 @@ function FolderSection({
             {count}
           </Badge>
         </Group>
-        <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
-          <FolderButtons folder={node.path} count={count} actions={actions} />
+        <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }} className={classes.folderActions}>
+          <FolderButtons folder={node.path} count={count} actions={actions} compact />
           <Tooltip label={t("Repertoire.Folder.Rename")}>
             <ActionIcon
               size="sm"
               variant="subtle"
               color="gray"
+              aria-label={t("Repertoire.Folder.Rename")}
               onClick={() =>
                 actions.onEditFolder({
                   mode: "rename",
@@ -741,7 +835,8 @@ function ColorGroup({
         </Group>
         <FolderButtons folder="" count={list.length} actions={groupActions} />
       </Group>
-      <FolderContents node={tree} actions={groupActions} />
+      <FolderContents node={tree} actions={groupActions} withFolders={false} />
+      {tree.children.length > 0 && <FolderArea node={tree} actions={groupActions} />}
     </Stack>
   );
 }
