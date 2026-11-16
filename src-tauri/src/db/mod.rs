@@ -2274,3 +2274,82 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod import_edge_case_tests {
+    //! Randfälle beim PGN-Import (automatischer Testlauf vor 1.1).
+    use super::*;
+
+    fn import(pgn: &[u8]) -> (Connection, Result<(u32, u32), Error>) {
+        let db = Connection::open_in_memory().unwrap();
+        prepare_pgn_import(&db, false, "test", None).unwrap();
+        let result = (|| {
+            let appender = game_appender(&db)?;
+            let mut proc = pgn::PgnProcessor::new(appender, AixCompressionLevel::Low, true, None);
+            let mut reader = pgn_reader::Reader::new(pgn);
+            while proc.read_batch(&mut reader)? > 0 {}
+            proc.flush()?;
+            Ok((proc.count(), proc.skipped()))
+        })();
+        (db, result)
+    }
+
+    fn plies(db: &Connection) -> Vec<(String, i64)> {
+        let mut stmt = db
+            .prepare("SELECT white, ply_count FROM games ORDER BY id")
+            .unwrap();
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn empty_and_header_only_files() {
+        let (db, res) = import(b"");
+        assert_eq!(res.unwrap(), (0, 0));
+        assert!(plies(&db).is_empty());
+        let (_db, res) = import(b"[White \"a\"]\n[Black \"b\"]\n");
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn garbage_file_does_not_panic() {
+        let data: Vec<u8> = (0..20_000u32).map(|i| (i * 7919 % 251) as u8).collect();
+        let (_db, res) = import(&data);
+        // Either a clean error or nothing imported, but no panic.
+        let _ = res;
+    }
+
+    #[test]
+    fn illegal_main_line_move_keeps_the_moves_before_it_and_the_next_game() {
+        let pgn = b"[White \"a\"]\n\n1. e4 e5 2. Ke3 Nc6 *\n\n[White \"b\"]\n\n1. d4 d5 *\n";
+        let (db, res) = import(pgn);
+        res.unwrap();
+        assert_eq!(plies(&db), vec![("a".into(), 2), ("b".into(), 2)]);
+    }
+
+    #[test]
+    fn illegal_move_in_a_side_variation_keeps_the_main_line() {
+        // #94: ein Tippfehler nur in der Nebenvariante schneidet nicht die ganze Partie ab.
+        let pgn = b"[White \"a\"]\n\n1. e4 (1. d4 Qxh7) 1... e5 2. Nf3 Nc6 3. Bb5 *\n";
+        let (db, res) = import(pgn);
+        res.unwrap();
+        assert_eq!(plies(&db), vec![("a".into(), 5)]);
+    }
+
+    #[test]
+    fn umlauts_and_latin1_names() {
+        let mut pgn = b"[White \"M\xfcller\"]\n[Black \"J\xc3\xbcrgen\"]\n\n1. e4 *\n".to_vec();
+        pgn.extend_from_slice(b"\n");
+        let (db, res) = import(&pgn);
+        res.unwrap();
+        let names: (String, String) = db
+            .query_row("SELECT white, black FROM games", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(names.1, "Jürgen");
+        assert!(names.0.starts_with('M'));
+    }
+}
