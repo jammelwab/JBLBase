@@ -18,7 +18,7 @@ nicht neu gerechnet werden.
 
 ## Funktionen
 
-**Schon da (Version 1.0)**
+**Schon da (Version 1.1)**
 
 - Brett, Notation, Varianten, PGN-Import und -Export
 - Partien von Chess.com und Lichess herunterladen, Konten und Datenbanken pro Spieler zusammenfassen
@@ -32,10 +32,7 @@ nicht neu gerechnet werden.
 - Insight über alle eigenen Partien, Taktiksuche, Lichess-Puzzles und Puzzle-Streak
 - Konto mit Cloud-Sync von Repertoires und Trainingsfortschritt (E-Mail oder Lichess)
 - Updates direkt in der App
-
-**In Arbeit für 1.1**
-
-- Bewertungen über die Cloud teilen, damit keine Stellung doppelt gerechnet wird
+- Neu in 1.1: Bewertungen über die Cloud teilen, damit keine Stellung doppelt gerechnet wird
 
 **Später**
 
