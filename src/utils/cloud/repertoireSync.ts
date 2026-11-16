@@ -209,6 +209,8 @@ export type RepertoireSyncResult = {
     uploaded: number;
     downloaded: number;
     conflicts: number;
+    /** The copies that keep the losing side of a conflict (path below the files folder, file). */
+    conflictCopies: { path: string; file: string }[];
     /** Repertoires that are too big for the cloud. */
     tooBig: string[];
     /** Local deletions were not uploaded because too many files were missing at once. */
@@ -234,6 +236,7 @@ export async function syncRepertoires(
         uploaded: 0,
         downloaded: 0,
         conflicts: 0,
+        conflictCopies: [],
         tooBig: [],
         deletionsHeld: false,
     };
@@ -371,11 +374,13 @@ export async function syncRepertoires(
     const keepCopy = async (path: string, info: Record<string, unknown>, pgn: string) => {
         const { id: _id, ...rest } = info;
         const tags = Array.isArray(rest.tags) ? rest.tags : [];
-        await b.writeLocal(
-            conflictPath(path, new Date(b.now())),
+        const copy = conflictPath(path, new Date(b.now()));
+        const file = await b.writeLocal(
+            copy,
             { ...rest, type: "other", tags: [...tags, "Konflikt"] },
             pgn,
         );
+        result.conflictCopies.push({ path: copy, file });
     };
 
     // Two repertoires in the cloud at the same path: created on two devices (e.g. "Ich Weiß"

@@ -19,6 +19,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { settingsTabAtom } from "@/components/cloud/cloudUi";
+import SyncIndicator from "@/components/cloud/SyncIndicator";
 import { availableUpdateAtom, checkForAppUpdate } from "@/utils/updater";
 import classes from "./CornerMenu.module.css";
 
@@ -40,9 +41,9 @@ const tabs = [
 ] as const;
 
 /**
- * Small rounded panel in the top right corner: a settings menu that jumps
- * straight to a settings tab, and a download arrow while a newer version of
- * JBLBase is available.
+ * Small rounded panel in the top right corner: the cloud sync state while
+ * someone is signed in, a settings menu that jumps straight to a settings
+ * tab, and a download arrow while a newer version of JBLBase is available.
  */
 export default function CornerMenu() {
   const { t } = useTranslation();
@@ -62,6 +63,7 @@ export default function CornerMenu() {
 
   return (
     <div className={classes.panel}>
+      <SyncIndicator />
       {update && (
         <Tooltip label={t("Updater.Available.Short", { version: update.version })}>
           <ActionIcon

@@ -14,10 +14,12 @@ import {
   TextInput,
 } from "@mantine/core";
 import { IconLink, IconLogout, IconRefresh, IconTrash, IconUnlink } from "@tabler/icons-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import LichessLogo from "@/components/home/LichessLogo";
+import { activeTabAtom, tabsAtom } from "@/state/atoms";
 import type { LegalDocument } from "@/legal/legal";
 import {
   type CloudAccount,
@@ -32,7 +34,7 @@ import {
 } from "@/utils/cloud/auth";
 import {
   cloudAccountAtom,
-  cloudSyncStatusAtom,
+  dismissConflicts,
   holdSync,
   startCloudSync,
   syncIdle,
@@ -40,6 +42,8 @@ import {
 } from "@/utils/cloud/sync";
 import { linkChessCom, loginScreenOpenAtom, startLichessLogin } from "./cloudUi";
 import { LegalTextModal } from "./LegalText";
+import { useSyncSummary } from "./SyncIndicator";
+import { openFile } from "@/utils/files";
 
 type Message = { color: "red" | "green" | "blue" | "yellow"; text: string };
 type Run = (action: () => Promise<void>, success?: string) => Promise<void>;
@@ -422,10 +426,14 @@ function ChessComCard({
 }
 
 function SyncStatus() {
-  const { t, i18n } = useTranslation();
-  const status = useAtomValue(cloudSyncStatusAtom);
+  const { t } = useTranslation();
+  const { tone, text, detail, status } = useSyncSummary();
   const syncing = status.state === "syncing";
   const rep = status.repertoires;
+  const copies = status.conflictCopies ?? [];
+  const setTabs = useSetAtom(tabsAtom);
+  const setActiveTab = useSetAtom(activeTabAtom);
+  const navigate = useNavigate();
 
   return (
     <Stack gap="xs">
@@ -434,14 +442,11 @@ function SyncStatus() {
         {t("Settings.Cloud.Sync.Desc")}
       </Text>
       <Group justify="space-between">
-        <Text size="sm">
-          {syncing
-            ? t("Settings.Cloud.Sync.Running")
-            : status.lastSync
-              ? t("Settings.Cloud.Sync.Last", {
-                  time: new Date(status.lastSync).toLocaleTimeString(i18n.language),
-                })
-              : t("Settings.Cloud.Sync.Never")}
+        <Text size="sm" c={tone === "offline" ? "dimmed" : undefined}>
+          {/* Errors and conflicts have their own boxes below. */}
+          {tone === "error" || tone === "warning"
+            ? (detail ?? t("Settings.Cloud.Sync.Never"))
+            : text}
         </Text>
         <Button
           size="compact-sm"
@@ -471,8 +476,35 @@ function SyncStatus() {
             {status.error}
           </Alert>
         ))}
-      {rep && rep.conflicts > 0 && (
-        <Alert color="yellow">{t("Settings.Cloud.Sync.Conflicts", { count: rep.conflicts })}</Alert>
+      {copies.length > 0 && (
+        <Alert color="yellow" title={t("Settings.Cloud.Sync.ConflictShort")}>
+          <Stack gap={6}>
+            <Text size="sm">{t("Settings.Cloud.Sync.ConflictCopies")}</Text>
+            {copies.map((c) => (
+              <Group key={c.file} justify="space-between" wrap="nowrap" gap="xs">
+                <Text size="sm" fw={500} truncate>
+                  {c.path}
+                </Text>
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color="yellow"
+                  onClick={async () => {
+                    await openFile(c.file, setTabs, setActiveTab);
+                    void navigate({ to: "/" });
+                  }}
+                >
+                  {t("Common.Open")}
+                </Button>
+              </Group>
+            ))}
+            <Group justify="flex-end">
+              <Button size="compact-xs" variant="subtle" color="gray" onClick={dismissConflicts}>
+                {t("Settings.Cloud.Sync.Dismiss")}
+              </Button>
+            </Group>
+          </Stack>
+        </Alert>
       )}
       {rep && rep.tooBig.length > 0 && (
         <Alert color="yellow">

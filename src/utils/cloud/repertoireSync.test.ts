@@ -289,6 +289,7 @@ describe("syncRepertoires", () => {
         // The Windows change is newer and wins; the Mac version stays as a copy.
         const copy = [...win.files.keys()].find((p) => p.includes("Konflikt"))!;
         expect(win.pgn(copy)).toBe("1. e4 e5");
+        expect(result.conflictCopies.map((c) => c.path)).toEqual([copy]);
         expect(win.files.get(copy)!.info.type).toBe("other");
         expect(win.pgn("e4")).toBe("1. e4 c5");
         await syncRepertoires(mac, "u");

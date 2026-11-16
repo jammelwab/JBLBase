@@ -64,6 +64,10 @@ export type CloudSyncStatus = {
     notAllowed?: boolean;
     /** Changes from other devices arrive live (see liveSync.ts). */
     live?: boolean;
+    /** The device has no network connection. */
+    offline?: boolean;
+    /** Conflict copies made since they were last dismissed (#111). */
+    conflictCopies?: { path: string; file: string }[];
 };
 
 export const cloudSyncStatusAtom = atom<CloudSyncStatus>({ state: "off" });
@@ -323,6 +327,8 @@ async function runSync(uid: string) {
             : undefined;
         store.set(cloudSyncStatusAtom, (s) => ({
             live: s.live,
+            offline: s.offline,
+            conflictCopies: [...(s.conflictCopies ?? []), ...repertoires.conflictCopies],
             state: "idle",
             lastSync: Date.now(),
             repertoires,
@@ -361,6 +367,11 @@ export function syncNow(): Promise<void> {
     return running;
 }
 
+/** The conflict copies were seen: stop pointing at them. */
+export function dismissConflicts() {
+    getDefaultStore().set(cloudSyncStatusAtom, (s) => ({ ...s, conflictCopies: [] }));
+}
+
 /** A local change: sync a little later, so several changes go up together. */
 export function requestSync() {
     if (!currentUid || held) return;
@@ -382,7 +393,10 @@ export function setSyncAccount(uid: string | null) {
     held = true;
     if (timer) clearTimeout(timer);
     timer = null;
-    getDefaultStore().set(cloudSyncStatusAtom, { state: uid ? "idle" : "off" });
+    getDefaultStore().set(cloudSyncStatusAtom, (s) => ({
+        state: uid ? "idle" : "off",
+        offline: s.offline,
+    }));
 }
 
 /** Resolves when no sync is running. */
@@ -483,6 +497,15 @@ export function startCloudSync(force = false): () => void {
         else void syncNow();
     };
     document.addEventListener("visibilitychange", onVisibility);
+    // Offline: say so; back online: sync right away.
+    const onNetwork = () => {
+        const offline = !navigator.onLine;
+        getDefaultStore().set(cloudSyncStatusAtom, (s) => ({ ...s, offline }));
+        if (!offline) void syncNow();
+    };
+    if (!navigator.onLine) onNetwork();
+    window.addEventListener("online", onNetwork);
+    window.addEventListener("offline", onNetwork);
     const stop = () => {
         active = null;
         stopped = true;
@@ -490,6 +513,8 @@ export function startCloudSync(force = false): () => void {
         clearInterval(interval);
         window.removeEventListener("focus", onFocus);
         document.removeEventListener("visibilitychange", onVisibility);
+        window.removeEventListener("online", onNetwork);
+        window.removeEventListener("offline", onNetwork);
         live.stop();
     };
     active = stop;
