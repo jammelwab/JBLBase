@@ -18,6 +18,7 @@ use shakmaty::{
     Position, Role,
 };
 use specta::Type;
+use tauri::Emitter;
 use tauri_specta::Event;
 use tokio::sync::Mutex;
 use vampirc_uci::{
@@ -72,6 +73,8 @@ pub struct EngineProcess {
     waiting_since: Option<Instant>,
     /// A result of the current search has been shown already.
     emitted_since_go: bool,
+    /// The app ended the process (`kill`); otherwise it exited by itself.
+    killed: bool,
     real_multipv: u16,
     start: Instant,
     /// Engine name as reported by `id name`.
@@ -122,6 +125,7 @@ impl EngineProcess {
                 pending_ready: 0,
                 waiting_since: None,
                 emitted_since_go: false,
+                killed: false,
                 start: Instant::now(),
                 cache_engine: engine_name.clone(),
                 engine_name,
@@ -283,7 +287,28 @@ impl EngineProcess {
         self.running = false;
         self.searching = false;
         self.pending_go = None;
+        self.killed = true;
         self.base.kill_sync();
+    }
+
+    /// Why the engine exited by itself: its last `info string` (Stockfish:
+    /// "CRITICAL ERROR: ... Unsupported position ..."), else its last line.
+    fn exit_reason(&self) -> String {
+        let lines: Vec<String> = self
+            .base
+            .get_logs()
+            .into_iter()
+            .filter_map(|l| match l {
+                EngineLog::Engine(line) => Some(line),
+                _ => None,
+            })
+            .collect();
+        lines
+            .iter()
+            .rev()
+            .find_map(|l| l.strip_prefix("info string ").map(str::to_string))
+            .or_else(|| lines.last().cloned())
+            .unwrap_or_default()
     }
 
     pub fn kill_sync(&mut self) {
@@ -632,6 +657,24 @@ fn engine_start_lock(state: &AppState, key: &EngineKey) -> Arc<Mutex<()>> {
         .clone()
 }
 
+/// A position an analysis engine exited on by itself (#103).
+#[derive(Clone, Debug)]
+pub struct EngineExit {
+    fen: String,
+    moves: Vec<String>,
+    reason: String,
+}
+
+/// Sent when an analysis engine exited without the app ending it.
+#[derive(Clone, Serialize)]
+struct EngineExitedPayload {
+    engine: String,
+    tab: String,
+    reason: String,
+}
+
+const ENGINE_EXITED_EVENT: &str = "engine_exited";
+
 /// Moves a running engine to a new position. Returns the result to show right
 /// away when the engine is already analysing exactly this.
 async fn reuse_engine(
@@ -708,6 +751,15 @@ pub async fn get_best_moves(
         }
     }
 
+    // The engine exited by itself on this very position before: starting it
+    // again would only end the same way.
+    if let Some(exit) = state.engine_exits.get(&key).map(|e| e.clone()) {
+        if exit.fen == options.fen && exit.moves == options.moves {
+            return Err(Error::EngineExited(exit.reason));
+        }
+        state.engine_exits.remove(&key);
+    }
+
     let (mut process, mut reader) = EngineProcess::new(path).await?;
     process.set_options(options.clone()).await?;
     if !process.serve_from_cache(&go_mode, &state.eval_cache, &app, &id, &tab)? {
@@ -753,8 +805,28 @@ pub async fn get_best_moves(
         }
     }
     info!("Engine process finished: tab: {}, engine: {}", tab, engine);
-    process.lock().await.kill().await;
+    let mut proc = process.lock().await;
+    let exited_by_itself = !proc.killed;
+    let exit = EngineExit {
+        fen: proc.options.fen.clone(),
+        moves: proc.options.moves.clone(),
+        reason: proc.exit_reason(),
+    };
+    proc.kill().await;
+    drop(proc);
     unregister_engine(&state, &key, &process);
+    if exited_by_itself {
+        warn!("Engine {} exited by itself: {}", id, exit.reason);
+        let _ = app.emit(
+            ENGINE_EXITED_EVENT,
+            EngineExitedPayload {
+                engine: id.clone(),
+                tab: tab.clone(),
+                reason: exit.reason.clone(),
+            },
+        );
+        state.engine_exits.insert(key, exit);
+    }
     Ok(None)
 }
 
@@ -1658,5 +1730,242 @@ mod engine_handshake_tests {
     async fn a_program_that_exits_is_rejected() {
         let res = get_engine_config(PathBuf::from("/bin/true")).await;
         assert!(matches!(res, Err(Error::NotUciEngine)));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod engine_exit_tests {
+    //! An engine that exits by itself on a position says why (#103).
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// Like Stockfish 19 with too many pieces: complains and exits.
+    const ENGINE: &str = r#"#!/bin/sh
+while read -r cmd rest; do
+  case "$cmd" in
+    uci) echo "id name FakeEngine"; echo "uciok" ;;
+    isready) echo "readyok" ;;
+    position)
+      echo "info string CRITICAL ERROR: Command \`position $rest\` failed. Reason: Unsupported position. Too many pieces for WHITE."
+      exit 1 ;;
+  esac
+done
+"#;
+
+    #[tokio::test]
+    async fn the_reason_is_the_last_info_string() {
+        let path = std::env::temp_dir().join(format!("jbl-exit-engine-{}", std::process::id()));
+        std::fs::write(&path, ENGINE).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut attempt = 0;
+        let (mut proc, mut reader) = loop {
+            match EngineProcess::new(path.clone()).await {
+                Ok(started) => break started,
+                Err(Error::Io(e))
+                    if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < 50 =>
+                {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(e) => panic!("engine did not start: {e:?}"),
+            }
+        };
+        proc.set_options(EngineOptions {
+            fen: "NNNNNNNN/NNNNNNNN/N7/8/8/8/8/K6k w - - 0 1".into(),
+            moves: vec![],
+            extra_options: vec![],
+        })
+        .await
+        .expect("the app accepts the position");
+        while let Ok(Some(line)) = reader.next_line().await {
+            proc.base.log_engine(&line);
+        }
+        assert!(!proc.killed, "it exited by itself");
+        assert!(proc
+            .exit_reason()
+            .starts_with("CRITICAL ERROR: Command `position fen NNNNNNNN"));
+        assert!(proc.exit_reason().ends_with("Too many pieces for WHITE."));
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// The analysis with a real engine, driven like `get_best_moves` does it:
+/// one task reads the engine output, the test changes positions quickly.
+/// Run with:
+/// `JBLBASE_TEST_ENGINE=/path/to/patricia cargo test -- --ignored real_engine_moves`
+/// (`JBLBASE_TEST_HASH` sets the hash in MB, default 1024).
+#[cfg(test)]
+mod real_engine_moves_tests {
+    use super::*;
+
+    const START: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    const LINE: [&str; 8] = [
+        "e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "g8f6",
+    ];
+
+    struct Harness {
+        proc: Arc<Mutex<EngineProcess>>,
+        shown: Arc<std::sync::Mutex<Vec<BestMovesPayload>>>,
+        hash: String,
+    }
+
+    impl Harness {
+        async fn start() -> Option<Harness> {
+            let path = std::env::var("JBLBASE_TEST_ENGINE").ok()?;
+            let hash = std::env::var("JBLBASE_TEST_HASH").unwrap_or_else(|_| "1024".into());
+            let (proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
+            let proc = Arc::new(Mutex::new(proc));
+            let shown = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (p, s) = (proc.clone(), shown.clone());
+            tokio::spawn(async move {
+                let lim = RateLimiter::direct(Quota::per_second(nonzero!(5u32)));
+                let cache = EvalCache::open_in_memory();
+                while let Ok(Some(line)) = reader.next_line().await {
+                    let mut proc = p.lock().await;
+                    proc.base.log_engine(&line);
+                    if line.trim() == "readyok" {
+                        proc.on_ready().await.unwrap();
+                        continue;
+                    }
+                    let mut emit = |payload: BestMovesPayload| {
+                        s.lock().unwrap().push(payload);
+                        Ok(())
+                    };
+                    let _ = handle_engine_line(&mut proc, &line, &lim, "e", "t", &cache, &mut emit);
+                }
+            });
+            Some(Harness { proc, shown, hash })
+        }
+
+        fn options(&self, plies: usize) -> EngineOptions {
+            EngineOptions {
+                fen: START.into(),
+                moves: LINE[..plies].iter().map(|m| m.to_string()).collect(),
+                extra_options: vec![
+                    EngineOption {
+                        name: "Hash".into(),
+                        value: self.hash.clone(),
+                    },
+                    EngineOption {
+                        name: "Threads".into(),
+                        value: "4".into(),
+                    },
+                ],
+            }
+        }
+
+        /// What `reuse_engine` does for a new position (without the cache).
+        async fn show(&self, plies: usize) {
+            let mut proc = self.proc.lock().await;
+            assert!(!proc.stalled(), "engine stalled before ply {plies}");
+            proc.stop().await.unwrap();
+            proc.set_options(self.options(plies)).await.unwrap();
+            if std::env::var("JBLBASE_TEST_OLD_PROTOCOL").is_ok() {
+                // 1.0.28: go right away (to compare).
+                proc.go(&GoMode::Infinite).await.unwrap();
+            } else {
+                proc.request_go(&GoMode::Infinite).await.unwrap();
+            }
+        }
+
+        /// The engine shows lines for `plies` within `secs`, and answers.
+        async fn expect_lines_for(&self, plies: usize, secs: u64) {
+            let want: Vec<String> = LINE[..plies].iter().map(|m| m.to_string()).collect();
+            let deadline = Instant::now() + Duration::from_secs(secs);
+            loop {
+                if self.shown.lock().unwrap().iter().any(|p| p.moves == want) {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "no lines for ply {plies} after {secs} s (engine hangs?)"
+                );
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            let proc = self.proc.lock().await;
+            assert!(!proc.stalled());
+        }
+
+        async fn end(self) {
+            self.proc.lock().await.kill().await;
+        }
+    }
+
+    /// #103: Stockfish 19 exits on a position with too many pieces; the
+    /// reason the app shows is its last `info string`.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_too_many_pieces() {
+        let Ok(path) = std::env::var("JBLBASE_TEST_ENGINE") else {
+            return;
+        };
+        let (mut proc, mut reader) = EngineProcess::new(PathBuf::from(path)).await.unwrap();
+        proc.set_options(EngineOptions {
+            fen: "NNNNNNNN/NNNNNNNN/N7/8/8/8/8/K6k w - - 0 1".into(),
+            moves: vec![],
+            extra_options: vec![],
+        })
+        .await
+        .unwrap();
+        let _ = proc.go(&GoMode::Depth(8)).await;
+        let read = tokio::time::timeout(Duration::from_secs(20), async {
+            while let Ok(Some(line)) = reader.next_line().await {
+                proc.base.log_engine(&line);
+                if line.starts_with("bestmove") {
+                    return false;
+                }
+            }
+            true
+        })
+        .await;
+        match read {
+            Ok(true) => {
+                let reason = proc.exit_reason();
+                eprintln!("engine exited: {reason}");
+                assert!(reason.contains("Too many pieces"), "{reason}");
+            }
+            Ok(false) => eprintln!("engine analysed the position (no exit)"),
+            Err(_) => panic!("engine neither answered nor exited"),
+        }
+        proc.kill().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_moves_right_after_start_with_a_big_hash() {
+        let Some(h) = Harness::start().await else {
+            return;
+        };
+        // Like the app: options and position, go; then a move 0.2 s later.
+        h.show(0).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        h.show(1).await;
+        h.expect_lines_for(1, 15).await;
+        h.end().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn real_engine_moves_through_a_line_quickly() {
+        let Some(h) = Harness::start().await else {
+            return;
+        };
+        h.show(0).await;
+        h.expect_lines_for(0, 15).await;
+        // Clicking through: stop, position, go back to back, and with gaps
+        // of 0 to 3 ms.
+        for round in 0..5 {
+            for plies in 1..=LINE.len() {
+                h.show(plies).await;
+                if (plies + round) % 3 != 0 {
+                    tokio::time::sleep(Duration::from_micros(((plies * 700) % 3000) as u64)).await;
+                }
+            }
+            h.expect_lines_for(LINE.len(), 15).await;
+            h.shown.lock().unwrap().clear();
+            h.show(0).await;
+            h.expect_lines_for(0, 15).await;
+        }
+        h.end().await;
     }
 }

@@ -405,6 +405,8 @@
     "Engines.Add.Title": "Додати движок",
     "Engines.Empty.AddHint": "",
     "Engines.Empty.NoInstalled": "",
+    "Engines.Exited": "",
+    "Engines.Exited.NoReason": "",
     "Engines.Remove.Message": "Ви впевнені, що хочете видалити цей движок із JBLBase?",
     "Engines.Remove.Title": "Видалити движок",
     "Engines.Selection.None": "",

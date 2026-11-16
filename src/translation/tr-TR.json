@@ -393,6 +393,8 @@
     "Engines.Add.Title": "Motor Ekle",
     "Engines.Empty.AddHint": "Başlamak için bir motor ekleyin",
     "Engines.Empty.NoInstalled": "Yüklü motor yok",
+    "Engines.Exited": "",
+    "Engines.Exited.NoReason": "",
     "Engines.Remove.Message": "Bu motoru JBLBase'tan kaldırmak istediğinize emin misiniz?",
     "Engines.Remove.Title": "Motor Kaldır",
     "Engines.Selection.None": "Yüklü motor yok. Lütfen önce <addEngineLink>bir motor ekleyin</addEngineLink>.",

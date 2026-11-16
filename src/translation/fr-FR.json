@@ -399,6 +399,8 @@
     "Engines.Add.Title": "Ajouter un moteur",
     "Engines.Empty.AddHint": "Ajoutez un moteur pour commencer",
     "Engines.Empty.NoInstalled": "Aucun moteur n'est installé",
+    "Engines.Exited": "",
+    "Engines.Exited.NoReason": "",
     "Engines.Remove.Message": "Êtes-vous sûr de vouloir supprimer le moteur ?",
     "Engines.Remove.Title": "Supprimer le moteur",
     "Engines.Selection.None": "Aucun moteur n'est installé. Veuillez d'abord <addEngineLink>ajouter un moteur</addEngineLink>.",
