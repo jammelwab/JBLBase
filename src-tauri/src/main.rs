@@ -209,6 +209,7 @@ fn main() {
             tactics::calibration::calibrate_rating,
             tactics::calibration::get_rating_calibration,
             tactics::calibration::reset_rating_calibration,
+            tactics::calibration::rerate_tactics,
             tactics::review::report_puzzle,
             tactics::review::list_puzzle_reports,
             tactics::review::check_puzzle_reports,

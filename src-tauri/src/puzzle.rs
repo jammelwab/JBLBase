@@ -237,6 +237,15 @@ impl<R: std::io::Read> std::io::Read for CountingReader<R> {
     }
 }
 
+/// Whether a file starting with `magic` is zstd-compressed. Besides a normal
+/// zstd frame this takes a skippable frame (magic 0x184D2A50 to 0x184D2A5F),
+/// which is how files packed with `pzstd`, like the Lichess puzzle database,
+/// begin.
+fn is_zstd_magic(magic: [u8; 4]) -> bool {
+    magic == [0x28, 0xB5, 0x2F, 0xFD]
+        || (magic[0] & 0xF0 == 0x50 && magic[1..] == [0x2A, 0x4D, 0x18])
+}
+
 fn invalid_data(message: impl Into<String>) -> Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message.into()).into()
 }
@@ -259,7 +268,7 @@ fn import_lichess_csv(
     let mut file = std::fs::File::open(source)?;
     let total = file.metadata()?.len().max(1);
     let mut magic = [0u8; 4];
-    let is_zstd = file.read_exact(&mut magic).is_ok() && magic == [0x28, 0xB5, 0x2F, 0xFD];
+    let is_zstd = file.read_exact(&mut magic).is_ok() && is_zstd_magic(magic);
     file.seek(SeekFrom::Start(0))?;
 
     let read = Arc::new(AtomicU64::new(0));
@@ -476,13 +485,32 @@ mod tests {
 0008Q,8/4R3/1p2P3/p4r2/P6p/1P3Pk1/4K3/8 w - - 1 64,e7f7 f5e5 e2f1 e5e6,1296,75,91,632,advantage endgame rookEndgame short,https://lichess.org/MQSyb3KW#127,Kings_Pawn_Game
 ";
 
-    fn check_import(compressed: bool) {
+    enum Packing {
+        Plain,
+        Zstd,
+        /// Like `pzstd`: a skippable frame first, then the CSV in two frames.
+        Pzstd,
+    }
+
+    fn pzstd(data: &[u8]) -> Vec<u8> {
+        let mut out = vec![0x50, 0x2A, 0x4D, 0x18, 4, 0, 0, 0];
+        // pzstd stores the size of the next frame here, which is not UTF-8.
+        out.extend_from_slice(&[0xF2, 0xA3, 0x01, 0x00]);
+        let half = data.len() / 2;
+        out.extend(zstd::encode_all(&data[..half], 3).unwrap());
+        out.extend(zstd::encode_all(&data[half..], 3).unwrap());
+        out
+    }
+
+    fn check_import(packing: Packing) {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("puzzles.csv");
-        if compressed {
-            std::fs::write(&source, zstd::encode_all(SAMPLE.as_bytes(), 3).unwrap()).unwrap();
-        } else {
-            std::fs::write(&source, SAMPLE).unwrap();
+        match packing {
+            Packing::Plain => std::fs::write(&source, SAMPLE).unwrap(),
+            Packing::Zstd => {
+                std::fs::write(&source, zstd::encode_all(SAMPLE.as_bytes(), 3).unwrap()).unwrap()
+            }
+            Packing::Pzstd => std::fs::write(&source, pzstd(SAMPLE.as_bytes())).unwrap(),
         }
         let dest = dir.path().join("lichess.duckdb");
         let mut last = 0.0;
@@ -515,12 +543,19 @@ mod tests {
 
     #[test]
     fn imports_plain_lichess_csv() {
-        check_import(false);
+        check_import(Packing::Plain);
     }
 
     #[test]
     fn imports_zstd_lichess_csv() {
-        check_import(true);
+        check_import(Packing::Zstd);
+    }
+
+    /// The file from database.lichess.org starts with a skippable frame; read
+    /// as plain text it failed with "invalid UTF-8 in field 0".
+    #[test]
+    fn imports_pzstd_lichess_csv() {
+        check_import(Packing::Pzstd);
     }
 
     /// Timing check with a real file:
