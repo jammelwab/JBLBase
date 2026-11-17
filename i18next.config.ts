@@ -53,6 +53,8 @@ export default defineConfig({
             // Messages chosen at runtime (cloudErrorKey, status texts).
             "Settings.Cloud.*",
             "Login.*",
+            // Tutorial texts, named by the tutorial and step ids in tutorials.ts
+            "Tutorial.*",
         ],
         sort: true,
     },

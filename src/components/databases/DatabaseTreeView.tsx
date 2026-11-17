@@ -12,20 +12,17 @@ import {
 import { useDebouncedValue } from "@mantine/hooks";
 import { IconSwitchVertical } from "@tabler/icons-react";
 import { INITIAL_FEN } from "chessops/fen";
-import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import BoardPreview from "@/components/repertoire/BoardPreview";
 import TreeDiagram, { type DiagramNode, expandLine } from "@/components/repertoire/TreeDiagram";
 import { useOpenLine } from "@/components/repertoire/useOpenLine";
 import { PlayerSearchInput } from "./PlayerSearchInput";
+import { useAccountPlayer } from "./useAccountPlayer";
 import { usePositionData } from "@/components/repertoire/usePositionData";
 import { type DatabaseMove, DEFAULT_MIN_SHARE, frequentMoves } from "@/utils/databaseTree";
-import { sessionsAtom } from "@/state/atoms";
-import { accountDatabaseFilename, sameName } from "@/utils/accountDatabase";
-import { query_players, type SuccessDatabaseInfo, searchPosition } from "@/utils/db";
+import { type SuccessDatabaseInfo, searchPosition } from "@/utils/db";
 import type { MoveStat } from "@/utils/gamesTree";
-import { sessionUsername } from "@/utils/session";
 
 const SHARE_COLOR = "var(--mantine-color-blue-5)";
 
@@ -77,40 +74,13 @@ export default function DatabaseTreeView({ database }: { database: SuccessDataba
   const [debouncedPlayer] = useDebouncedValue(player?.trim() || undefined, 400);
 
   // A database of your own account starts with your games as White
-  const sessions = useAtomValue(sessionsAtom);
-  const accountName = useMemo(() => {
-    for (const session of sessions) {
-      const names = [
-        session.lichess && ([sessionUsername(session), "lichess"] as const),
-        session.chessCom && ([session.chessCom.username, "chesscom"] as const),
-      ];
-      for (const entry of names) {
-        if (entry && sameName(database.filename, accountDatabaseFilename(entry[0], entry[1])))
-          return entry[0];
-      }
-    }
-    return undefined;
-  }, [sessions, database.filename]);
+  const accountPlayer = useAccountPlayer(database.file, database.filename);
   useEffect(() => {
-    if (!accountName) return;
-    let active = true;
-    // The name as the games spell it: "beispielkonto" can be "BeispielKonto" there
-    query_players(database.file, {
-      name: accountName,
-      options: { skipCount: true, pageSize: 50, sort: "name", direction: "asc" },
-    })
-      .then((res) => res.data.find((p) => sameName(p.name, accountName))?.name ?? accountName)
-      .catch(() => accountName)
-      .then((name) => {
-        if (!active) return;
-        setPlayer((prev) => prev ?? name);
-        setColor("white");
-        setOrientation("white");
-      });
-    return () => {
-      active = false;
-    };
-  }, [accountName, database.file]);
+    if (!accountPlayer) return;
+    setPlayer((prev) => prev ?? accountPlayer);
+    setColor("white");
+    setOrientation("white");
+  }, [accountPlayer]);
 
   const filterKey = debouncedPlayer ? `${debouncedPlayer}|${color}` : "";
   const loadStats = useCallback(

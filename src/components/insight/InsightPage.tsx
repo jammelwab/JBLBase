@@ -75,6 +75,7 @@ import {
 } from "@/utils/lichessPuzzles";
 import { createTab } from "@/utils/tabs";
 import { defaultTree } from "@/utils/treeReducer";
+import { repertoireTacticsPath } from "@/utils/tactics";
 import { unwrap } from "@/utils/unwrap";
 import {
   tooltipContentStyle,
@@ -453,16 +454,23 @@ function Statistics({
 }
 
 const CALIBRATION_ID = "rating_calibration";
+const RERATE_ID = "rating_rerate";
 
 /**
- * Fits the rating estimate of our own puzzles to the ratings of real Lichess puzzles.
+ * Estimates the rating of our own puzzles: the estimate is first fitted to the ratings of
+ * real Lichess puzzles (once, or again on request), then every puzzle found in the
+ * repertoire and the games is rated anew with it.
  */
 function RatingCalibration({ engine }: { engine: LocalEngine | undefined }) {
   const { t } = useTranslation();
   const [samples, setSamples] = useState<number>(2000);
-  const [running, setRunning] = useState(false);
+  // Which step runs: fitting the estimate, or rating our own puzzles.
+  const [step, setStep] = useState<"calibrate" | "rerate" | null>(null);
+  const running = step !== null;
+  const [rated, setRated] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { progress, clear } = useProgress(CALIBRATION_ID);
+  const calibrating = useProgress(CALIBRATION_ID);
+  const rerating = useProgress(RERATE_ID);
   const { data: calibration, mutate } = useSWR("rating-calibration", async () =>
     unwrap(await commands.getRatingCalibration()),
   );
@@ -491,23 +499,78 @@ function RatingCalibration({ engine }: { engine: LocalEngine | undefined }) {
     }
   }
 
-  useEffect(() => () => void commands.cancelAnalysis(CALIBRATION_ID), []);
+  useEffect(
+    () => () => {
+      void commands.cancelAnalysis(CALIBRATION_ID);
+      void commands.cancelAnalysis(RERATE_ID);
+    },
+    [],
+  );
 
-  async function calibrate() {
-    if (!engine || !lichessDb) return;
-    setError(null);
-    setRunning(true);
+  // Fits the estimate to the Lichess ratings. Returns whether it worked.
+  async function runCalibration(): Promise<boolean> {
+    if (!engine || !lichessDb) return false;
+    setStep("calibrate");
     try {
       const res = await commands.calibrateRating(CALIBRATION_ID, engine.path, lichessDb, samples);
-      if (res.status === "error" && !/cancel/i.test(res.error)) setError(res.error);
-    } catch (e) {
-      setError(String(e));
+      if (res.status === "error") {
+        if (!/cancel/i.test(res.error)) setError(res.error);
+        return false;
+      }
+      return true;
     } finally {
-      clear();
-      setRunning(false);
+      calibrating.clear();
       mutate();
     }
   }
+
+  async function rerate() {
+    if (!engine) return;
+    setStep("rerate");
+    try {
+      const files = [await repertoireTacticsPath(), await gameTacticsPath()];
+      const res = await commands.rerateTactics(RERATE_ID, engine.path, files);
+      if (res.status === "error") {
+        if (!/cancel/i.test(res.error)) setError(res.error);
+      } else {
+        setRated(res.data);
+      }
+    } finally {
+      rerating.clear();
+    }
+  }
+
+  // The main button: calibrate first when that has not happened yet, then rate.
+  async function estimate() {
+    setError(null);
+    setRated(null);
+    try {
+      if (!calibration && !(await runCalibration())) return;
+      await rerate();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setStep(null);
+    }
+  }
+
+  async function recalibrate() {
+    setError(null);
+    setRated(null);
+    try {
+      await runCalibration();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setStep(null);
+    }
+  }
+
+  function cancel() {
+    void commands.cancelAnalysis(step === "rerate" ? RERATE_ID : CALIBRATION_ID);
+  }
+
+  const progress = step === "rerate" ? rerating.progress : calibrating.progress;
 
   return (
     <Paper withBorder p="md">
@@ -539,6 +602,44 @@ function RatingCalibration({ engine }: { engine: LocalEngine | undefined }) {
             </Stack>
           </Alert>
         )}
+        {lichessDb && (
+          <>
+            <Group>
+              {running ? (
+                <Button variant="default" onClick={cancel}>
+                  {t("Common.Cancel")}
+                </Button>
+              ) : (
+                <Button
+                  leftSection={<IconTargetArrow size="1rem" />}
+                  onClick={estimate}
+                  disabled={!engine}
+                >
+                  {t("Insight.Calibration.Estimate")}
+                </Button>
+              )}
+            </Group>
+            {!engine && (
+              <Text size="xs" c="dimmed">
+                {t("Insight.Calibration.NeedsEngine")}
+              </Text>
+            )}
+            {running && (
+              <Stack gap={4}>
+                <Progress value={progress} animated />
+                <Text size="xs" c="dimmed">
+                  {step === "calibrate"
+                    ? t("Insight.Calibration.StepCalibrate")
+                    : t("Insight.Calibration.StepRerate")}{" "}
+                  {Math.floor(progress)} %
+                </Text>
+              </Stack>
+            )}
+            {rated !== null && !running && (
+              <Text size="sm">{t("Insight.Calibration.Rated", { count: rated })}</Text>
+            )}
+          </>
+        )}
         {reference && (
           <Text size="xs" c="dimmed">
             {t("Insight.Calibration.Using", {
@@ -557,40 +658,35 @@ function RatingCalibration({ engine }: { engine: LocalEngine | undefined }) {
               })
             : t("Insight.Calibration.NotYet")}
         </Text>
-        <Group align="flex-end">
-          <NumberInput
-            label={t("Insight.Calibration.Samples")}
-            min={200}
-            max={50000}
-            step={500}
-            w={170}
-            value={samples}
-            onChange={(value) => typeof value === "number" && setSamples(value)}
-            disabled={running}
-          />
-          {running ? (
-            <Button variant="default" onClick={() => commands.cancelAnalysis(CALIBRATION_ID)}>
-              {t("Common.Cancel")}
+        {lichessDb && (
+          <Group align="flex-end">
+            <NumberInput
+              label={t("Insight.Calibration.Samples")}
+              min={200}
+              max={50000}
+              step={500}
+              w={170}
+              value={samples}
+              onChange={(value) => typeof value === "number" && setSamples(value)}
+              disabled={running}
+            />
+            <Button variant="default" onClick={recalibrate} disabled={!engine || running}>
+              {calibration ? t("Insight.Calibration.Again") : t("Insight.Calibration.Start")}
             </Button>
-          ) : (
-            <Button onClick={calibrate} disabled={!engine || !lichessDb}>
-              {t("Insight.Calibration.Start")}
-            </Button>
-          )}
-          {calibration && !running && (
-            <Button
-              variant="subtle"
-              color="gray"
-              onClick={async () => {
-                await commands.resetRatingCalibration();
-                mutate();
-              }}
-            >
-              {t("Insight.Calibration.Reset")}
-            </Button>
-          )}
-        </Group>
-        {running && <Progress value={progress} animated />}
+            {calibration && !running && (
+              <Button
+                variant="subtle"
+                color="gray"
+                onClick={async () => {
+                  await commands.resetRatingCalibration();
+                  mutate();
+                }}
+              >
+                {t("Insight.Calibration.Reset")}
+              </Button>
+            )}
+          </Group>
+        )}
         {error && (
           <Alert icon={<IconAlertCircle size="1rem" />} title={t("Common.Error")} color="red">
             {error}

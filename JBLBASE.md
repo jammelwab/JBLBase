@@ -154,6 +154,33 @@ deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
 vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
 spielt ihn auf dem Brett.
 
+### Lücken finden (Hilfe beim Aufbau)
+
+**Lücken finden** auf der Repertoire-Karte sagt dir Schritt für Schritt, was deinem
+Repertoire als Nächstes fehlt, das Wichtigste zuerst:
+
+- **Gegnerzug offen:** Ein Zug, den der Gegner auf Lichess oft spielt (ab 5 %, oben
+  einstellbar), hat noch keine Linie.
+- **Dein Zug fehlt:** Eine Linie endet nach einem Gegnerzug, du hast dort keinen Zug.
+- **Weiterführen:** Eine Linie endet nach deinem Zug; gezeigt wird, was der Gegner dort
+  oft spielt. Das ist keine Lücke, nur ein Hinweis, und zählt halb so viel.
+
+Sortiert wird danach, in wie vielen Partien eine Lücke vorkommt: die Lichess-Anteile der
+Gegnerzüge auf dem Weg dorthin, multipliziert (deine eigenen Züge zählen voll). Oben steht
+der **nächste Schritt** mit **Auf dem Brett öffnen** (öffnet das Repertoire genau an der
+Stelle, was du dort ziehst, landet direkt darin) und **Vorschlag übernehmen** (nimmt den
+Gegnerzug und die auf Lichess meistgespielte Antwort auf, mit Eintrag in der
+Import-Historie). Häufig ist nicht immer am besten, prüfe Vorschläge mit der Engine. Die
+**geschätzte Abdeckung** ist der Anteil der Partien, die bis zum eingestellten Zug bzw. bis
+zum Ende deiner Linien im Repertoire bleiben. Für die Lichess-Zahlen musst du unter
+**Benutzer** bei Lichess angemeldet sein; ohne Anmeldung findet die Suche nur Linien, die
+nach einem Gegnerzug enden. Geprüft werden bis zu 150 Stellungen, die häufigsten zuerst.
+
+Auch auf dem Brett hilft die App beim Aufbau: Im Tab **Repertoire** stehen in jeder
+Stellung deines Repertoires die häufigen Gegnerzüge ohne Antwort (ab 5 %) und, wo dir ein
+Zug fehlt, die drei meistgespielten Züge, jeweils mit Anteil. Ein Klick spielt den Zug. Ist
+gerade ein Repertoire geöffnet, zählen seine Züge so, wie sie auf dem Brett stehen.
+
 ### Ordner anlegen und Ordner importieren
 
 Ordner legst du mit dem Ordner-Plus-Symbol an, unter Weiß/Schwarz oder in einem
@@ -181,6 +208,33 @@ Züge, die das Haupt-Repertoire schon hat, bleiben unverändert; was du nur aus 
 Unter-Repertoire löschst, bleibt im Haupt-Repertoire stehen. Beim ersten Abgleich wird
 es in der `.info` als Haupt-Repertoire markiert (`main`), damit es das auch nach dem
 Umbenennen bleibt.
+
+### Repertoire mit einem anderen Konto teilen
+
+Ein einzelnes Repertoire lässt sich mit einem anderen JBLBase-Konto teilen, zum Beispiel
+mit einem Schüler. Auf der Karte des Repertoires öffnet das Teilen-Symbol den Dialog:
+E-Mail-Adresse oder Lichess-Name des anderen Kontos eintragen, „Teilen“. Dafür musst du
+in der Cloud angemeldet sein und das Repertoire muss einmal abgeglichen sein.
+
+- **Nur ausdrücklich:** Geteilt wird nur dieses eine Repertoire (Name, Farbe, Züge),
+  sonst nichts: keine anderen Repertoires, Partien, Trainingsdaten oder Konto-Daten.
+  Lesen können es nur du und das eingetragene Konto (Firestore-Regeln, `shares/{id}`).
+- **Annehmen:** Beim anderen Konto erscheint oben auf der Repertoire-Seite „Mit dir
+  geteilt“. Erst nach „Annehmen“ wird das Repertoire auf das Gerät geladen, und zwar in den
+  Ordner „Geteilt von …“. „Ablehnen“ löscht die Einladung.
+- **Immer aktuell:** Jede Änderung am Repertoire geht beim nächsten Abgleich an alle, mit
+  denen es geteilt ist. Eigene Änderungen des Empfängers am geteilten Repertoire werden
+  dabei überschrieben; dafür gibt es „Eigene Kopie anlegen“.
+- **Zurücknehmen:** Im Teilen-Dialog beendet „Zurücknehmen“ die Freigabe. Der Empfänger
+  behält den zuletzt erhaltenen Stand, markiert mit „Freigabe beendet“, und bekommt
+  keine Updates mehr. Löscht der Empfänger das Repertoire, endet die Freigabe ebenfalls.
+- Geteilte Repertoires zählen nicht zum eigenen Repertoire-Baum des Spielers und werden
+  nicht in die eigenen Cloud-Repertoires übernommen. Beim Löschen des Kontos werden alle
+  Freigaben in beide Richtungen gelöscht.
+- Beide Konten müssen auf der Zugangsliste `config/access` stehen. Nach dem Update
+  müssen die Firestore-Regeln neu veröffentlicht werden (`firebase deploy --only
+  firestore:rules`), sonst schlägt das Teilen mit „Missing or insufficient permissions“
+  fehl.
 
 ### Repertoire im Datenbank-Bereich des Analysebretts
 
@@ -299,6 +353,24 @@ Linie, ähnlich wie bei Chessable:
 - **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
   **Alle Linien** das ganze Repertoire.
 
+## Tutorials
+
+Beim ersten Öffnen der Repertoire-Seite startet das Tutorial **Repertoire aufbauen**: Es
+hebt nacheinander die echten Knöpfe hervor (Repertoire anlegen, Züge eintragen, Lücken
+finden, Baum, Vergleich mit deinen Partien) und erklärt sie. Wo ein Schritt einen Klick
+verlangt, macht **Weiter** den Klick für dich, oder du klickst selbst. Klicks gehen auch
+während des Tutorials an die App, du kannst also alles gleich ausprobieren.
+**Überspringen**, das Kreuz oder Esc beenden es; es kommt dann nicht von selbst wieder.
+
+Unter **Einstellungen → Tutorials** startest du jedes Tutorial neu: **Repertoire
+aufbauen**, **Am Brett arbeiten** (Tab Repertoire mit den Hinweisen, Linien aufnehmen,
+Training, Engine und Brillant, Datenbank) und **Eigene Partien laden** (Konto hinzufügen,
+Partien herunterladen, Eröffnungen vergleichen).
+
+Für Entwickler: Ein Tutorial ist ein Eintrag in `src/components/tutorial/tutorials.ts`
+(Schritte mit dem `data-tour`-Namen des Elements), seine Texte stehen unter
+`Tutorial.<Tutorial>.<Schritt>.Title`/`.Body` in `en-US.json` und `de-DE.json`.
+
 ## Meine Spieler: Konten und Datenbanken zusammenfassen
 
 Unter **Konten** (Personen-Symbol) stehen deine Lichess- und Chess.com-Konten
@@ -387,6 +459,19 @@ So wird gesucht:
 Jeder Fund zeigt Zug, Bewertung, die Variante dorthin und die Fortsetzung.
 **Aufs Brett** fügt die Variante mit „!!“ bzw. „!“ in die Partie ein und
 springt zum Zug.
+
+**In dieser Variante** (oben unter „Wo suchen“) baut keine eigenen Varianten, sondern
+prüft jede Stellung der Varianten, die ab der aktuellen Stellung schon in der Partie bzw.
+im Repertoire stehen: Gibt es dort für deine Seite einen brillanten Zug? „Seite am Zug“
+heißt hier die Seite unten auf dem Brett, also die Seite des Repertoires. Funde, deren Zug
+schon in der Variante steht (dein eigener Repertoire-Zug ist brillant), tragen „In deiner
+Variante“; **Markieren** bzw. **N Funde in der Variante markieren** setzt dort nur das
+„!!“/„!“, ohne Engine-Fortsetzung, damit das Repertoire seine Linien behält. Andere Funde
+fügst du wie gewohnt mit **Aufs Brett** als Nebenvariante ein. Im Repertoire-Baum öffnet
+**Brillante Züge in dieser Variante** unter dem kleinen Brett das Repertoire an dieser
+Stelle mit dem Tab Brillant und dieser Einstellung. Gerechnet wird in der Reihenfolge der
+Tiefe (erst alle ersten Züge, dann die nächsten), höchstens **Stellungen** viele; schon
+bewertete Stellungen kommen aus dem Positionsspeicher.
 
 Die tiefen Rechnungen landen im Positionsspeicher (mit der Grenze Tiefe 28
 für normale Konten), die flachen Club-Rechnungen nicht.
@@ -621,6 +706,25 @@ Im Puzzle-Tab schaltest du oben zwischen **Training** und **Streak** um.
 Gespeichert wird lokal in `puzzle_stats.json` im App-Datenordner (derselbe
 Ordner wie der Positionsspeicher). Eine laufende Streak übersteht auch einen
 Neustart der App.
+
+## Blind-Puzzles
+
+Im Puzzle-Tab stellst du unter dem Modus **Blind** auf 30, 20 oder 10 Sekunden.
+Die Stellung ist dann so lange zu sehen (mit „Jetzt ausblenden“ früher), danach
+verschwinden die Figuren und du ziehst auf dem leeren Brett. Der letzte
+Gegnerzug steht über dem Brett in Notation, bei längeren Aufgaben auch jeder
+weitere Gegnerzug und die bisherigen Züge. Zugpunkte, Zughervorhebung und
+Schach-Markierung sind im Blindmodus aus, weil sie die Figuren verraten würden.
+Ist die Aufgabe gelöst oder falsch, kommen die Figuren zurück. Blind gilt im
+Training wie in der Streak.
+
+- **Feldnamen zeigen:** schreibt a1 bis h8 auf jedes Feld, solange die Figuren
+  ausgeblendet sind. Ohne den Schalter gibt es gar keine Koordinaten.
+- **Zug eintippen:** ein Eingabefeld über dem Brett. Erkannt wird deutsche und
+  englische Notation (`Sxd4`, `Nxd4`, `S:d4`, `Dh5`, `e8D`, `0-0`), auch klein
+  geschrieben, mit Schachzeichen oder Zugnummer, und UCI (`f3d4`). Ein Zug, den
+  es in der Stellung nicht gibt, wird nur angemerkt und zählt nicht als Fehler.
+  Ziehen auf dem Brett geht weiterhin.
 
 ## Taktiksuche im Repertoire
 

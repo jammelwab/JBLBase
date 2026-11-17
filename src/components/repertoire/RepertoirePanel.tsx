@@ -14,7 +14,10 @@ import { IconBookmarkPlus, IconChevronDown, IconChevronRight } from "@tabler/ico
 import { Link, useLoaderData } from "@tanstack/react-router";
 import { useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAtomValue } from "jotai";
 import { useStore } from "zustand";
+import { currentTabAtom } from "@/state/atoms";
+import { getTabFile } from "@/utils/tabs";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { findMainRepertoire, folderLabel } from "@/utils/repertoireFolders";
 import { positionKey } from "@/utils/repertoireTree";
@@ -27,6 +30,7 @@ import {
 } from "@/utils/repertoires";
 import { getNodeAtPath } from "@/utils/treeReducer";
 import AddToRepertoireModal from "./AddToRepertoireModal";
+import RepertoireBuildHints from "./RepertoireBuildHints";
 import { ColorDot } from "./RepertoireLabel";
 
 function MoveChips({
@@ -122,6 +126,7 @@ export default function RepertoirePanel() {
   const mainOwner = useMainOwner();
   const [adding, setAdding] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  const tabFile = getTabFile(useAtomValue(currentTabAtom));
 
   const key = positionKey(node.fen);
   const sideToMove: RepertoireColor = node.halfMoves % 2 === 0 ? "white" : "black";
@@ -148,6 +153,15 @@ export default function RepertoirePanel() {
       );
     return { mains, others };
   }, [repertoires, mainOwner, orientation, key]);
+
+  // The repertoire being built: the one open on the board (with the moves as they are now,
+  // also unsaved ones), otherwise the main repertoire of the board's color
+  const editing = (repertoires ?? []).find((r) => r.file.path === tabFile?.path);
+  const building = editing
+    ? { color: editing.color, moves: node.children.map((c) => c.san ?? "") }
+    : mains[0]?.index.has(key)
+      ? { color: mains[0].color, moves: mains[0].index.get(key) ?? [] }
+      : null;
 
   return (
     <ScrollArea h="100%" offsetScrollbars>
@@ -183,6 +197,15 @@ export default function RepertoirePanel() {
               ))}
             </Stack>
           </Paper>
+        )}
+
+        {building && (
+          <RepertoireBuildHints
+            fen={node.fen}
+            color={building.color}
+            moves={building.moves}
+            onPlay={play}
+          />
         )}
 
         {others.length > 0 && (

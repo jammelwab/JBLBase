@@ -335,7 +335,12 @@ export default function RepertoireCompareView({
       <Stack gap="sm">
         <Group justify="space-between">
           <Group gap="sm">
-            <ActionIcon variant="subtle" onClick={onBack}>
+            <ActionIcon
+              variant="subtle"
+              data-tour="rep-view-back"
+              aria-label={t("Common.Back")}
+              onClick={onBack}
+            >
               <IconArrowLeft size="1.2rem" />
             </ActionIcon>
             <ColorDot color={repertoire.color} />
@@ -348,6 +353,7 @@ export default function RepertoireCompareView({
           </Group>
           <Group gap="sm" align="flex-end">
             <Select
+              data-tour="rep-compare-player"
               size="xs"
               w={220}
               allowDeselect={false}
@@ -378,7 +384,7 @@ export default function RepertoireCompareView({
         </Text>
 
         {ownAvailable === false ? (
-          <Alert color="gray" py="xs">
+          <Alert color="gray" py="xs" data-tour="rep-compare-nogames">
             <Text size="sm">{t("Repertoire.Tree.NoOwnGames")}</Text>
           </Alert>
         ) : (
@@ -391,7 +397,7 @@ export default function RepertoireCompareView({
                 </Text>
               </Group>
             ) : (
-              <SimpleGrid cols={{ base: 1, md: 3 }}>
+              <SimpleGrid cols={{ base: 1, md: 3 }} data-tour="rep-compare-lists">
                 <IssueList
                   title={t("Repertoire.Compare.Surprises")}
                   hint={t("Repertoire.Compare.SurprisesHint")}
@@ -419,7 +425,7 @@ export default function RepertoireCompareView({
               </SimpleGrid>
             )}
 
-            <Paper withBorder p="sm">
+            <Paper withBorder p="sm" data-tour="rep-compare-tree">
               <Group justify="space-between" mb="xs">
                 <Text fw={600} size="sm">
                   {t("Repertoire.Compare.GamesTree")}

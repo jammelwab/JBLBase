@@ -248,6 +248,99 @@ pub async fn calibrate_rating(
     result
 }
 
+/// Estimates the rating of every puzzle in our own tactic databases `files`
+/// anew with the current weights (calibrated or built-in), measured with
+/// `engine` the same way as in the search. Files that do not exist are
+/// skipped. Progress goes to the progress bar `id`; `cancel_analysis(id)`
+/// stops it, keeping what is done. Returns the number of puzzles rated.
+#[tauri::command]
+#[specta::specta]
+pub async fn rerate_tactics(
+    id: String,
+    engine: String,
+    files: Vec<PathBuf>,
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<u32, Error> {
+    let cancel = Arc::new(AtomicBool::new(false));
+    state
+        .analysis_cancel_flags
+        .insert(id.clone(), cancel.clone());
+
+    let result = async {
+        let mut puzzles = Vec::new();
+        for file in files.iter().filter(|f| f.exists()) {
+            for puzzle in super::store::list_puzzles(file)? {
+                puzzles.push((file.clone(), puzzle));
+            }
+        }
+        if puzzles.is_empty() {
+            return Ok(0);
+        }
+        let probe_options = [
+            EngineOption {
+                name: "Threads".into(),
+                value: "1".into(),
+            },
+            EngineOption {
+                name: "Hash".into(),
+                value: "16".into(),
+            },
+        ];
+        let mut prober = Analyzer::new(PathBuf::from(&engine), &probe_options).await?;
+        let model = state.rating.model();
+        let mut rated: Vec<(PathBuf, i64, i32)> = Vec::with_capacity(puzzles.len());
+        let mut last = -1.0f32;
+        let mut outcome = Ok(());
+        for (i, (file, (puzzle, fen, moves))) in puzzles.iter().enumerate() {
+            if cancel.load(Ordering::SeqCst) {
+                break;
+            }
+            let progress = (i as f32 / puzzles.len() as f32 * 100.0).min(99.9);
+            if progress - last >= 0.2 {
+                last = progress;
+                let _ = update_progress(&state.progress_state, &app, id.clone(), progress, false);
+            }
+            let Some((start, solution)) = parse_puzzle(fen, moves) else {
+                continue;
+            };
+            let themes = motifs::detect(&start, &solution);
+            match features_of(&mut prober, &start, &solution, &themes).await {
+                Ok(features) => rated.push((file.clone(), *puzzle, model.estimate(&features))),
+                Err(e) => {
+                    outcome = Err(e);
+                    break;
+                }
+            }
+        }
+        prober.quit().await;
+
+        // Whatever was measured is kept, also after a cancel.
+        for file in &files {
+            let ratings: Vec<(i64, i32)> = rated
+                .iter()
+                .filter(|(f, _, _)| f == file)
+                .map(|(_, id, rating)| (*id, *rating))
+                .collect();
+            if !ratings.is_empty() {
+                super::store::set_ratings(file, &ratings)?;
+                crate::puzzle::forget_cached_puzzles(file);
+            }
+        }
+        outcome.map(|_| rated.len() as u32)
+    }
+    .await;
+
+    state.analysis_cancel_flags.remove(&id);
+    match &result {
+        Ok(_) => update_progress(&state.progress_state, &app, id, 100.0, true)?,
+        Err(_) => {
+            state.progress_state.remove(&id);
+        }
+    }
+    result
+}
+
 /// The calibration in use, `None` while the built-in weights apply.
 #[tauri::command]
 #[specta::specta]

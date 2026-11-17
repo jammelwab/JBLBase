@@ -25,6 +25,7 @@ import {
   IconMouse,
   IconReload,
   IconSearch,
+  IconSchool,
   IconShield,
   IconUserCircle,
   IconVolume,
@@ -81,6 +82,7 @@ import KeybindInput from "./KeybindInput";
 import PiecesSelect from "./PiecesSelect";
 import RepertoireMainOwnerSetting from "./RepertoireMainOwnerSetting";
 import RepertoireMinGamesSetting from "./RepertoireMinGamesSetting";
+import TutorialSettings from "./TutorialSettings";
 import classes from "./SettingsPage.module.css";
 import { LegalLinks } from "@/components/cloud/LegalText";
 import { usageStatsConfigured } from "@/utils/usageStats";
@@ -98,6 +100,7 @@ type SettingCategory =
   | "keybinds"
   | "directories"
   | "repertoire"
+  | "tutorials"
   | "privacy";
 
 interface SettingItem {
@@ -599,6 +602,14 @@ export default function Page() {
           />
         ),
       },
+      {
+        id: "tutorials",
+        category: "tutorials",
+        title: t("Settings.Tutorials"),
+        description: t("Settings.Tutorials.Desc"),
+        keywords: ["tutorial", "hilfe", "help", "anleitung", "einführung"],
+        render: () => <TutorialSettings />,
+      },
       // Sound settings
       {
         id: "volume",
@@ -798,6 +809,11 @@ export default function Page() {
         description: t("Settings.Repertoire.Desc"),
         icon: <IconBook size="1rem" />,
       },
+      tutorials: {
+        title: t("Settings.Tutorials"),
+        description: t("Settings.Tutorials.Desc"),
+        icon: <IconSchool size="1rem" />,
+      },
       privacy: {
         title: t("Settings.Privacy"),
         description: t("Settings.Privacy.Desc"),
@@ -944,6 +960,9 @@ export default function Page() {
             <Tabs.Tab value="repertoire" leftSection={<IconBook size="1rem" />}>
               {t("Settings.Repertoire")}
             </Tabs.Tab>
+            <Tabs.Tab value="tutorials" leftSection={<IconSchool size="1rem" />}>
+              {t("Settings.Tutorials")}
+            </Tabs.Tab>
             <Tabs.Tab value="evalcache" leftSection={<IconDatabase size="1rem" />}>
               {t("Settings.EvalCache")}
             </Tabs.Tab>
@@ -1072,6 +1091,16 @@ export default function Page() {
                     {t("Settings.Repertoire.Desc")}
                   </Text>
                   {renderCategorySettings("repertoire")}
+                </Tabs.Panel>
+
+                <Tabs.Panel value="tutorials">
+                  <Text size="lg" fw={500} className={classes.title}>
+                    {t("Settings.Tutorials")}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={3} mb="lg">
+                    {t("Settings.Tutorials.Desc")}
+                  </Text>
+                  <TutorialSettings />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="evalcache">

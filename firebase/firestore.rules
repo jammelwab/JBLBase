@@ -10,6 +10,10 @@ rules_version = '2';
 //   Admins have no limit.
 // - The shared position store evals/{id} can be read by every signed-in
 //   user, but only admins may write to it.
+// - A repertoire is shared only on purpose (#120): shares/{id} holds a copy
+//   for one recipient (e-mail address or Lichess name). Only the owner and
+//   that recipient can read it; the owner can update or withdraw it, the
+//   recipient can accept or decline it. users/{uid} stays private.
 //
 // Keep USER_MAX_DEPTH in sync with USER_MAX_STORE_DEPTH in
 // src-tauri/src/eval_cache.rs.
@@ -218,6 +222,69 @@ service cloud.firestore {
           && validEval(request.resource.data)
           && withinUserLimit(request.resource.data);
       }
+    }
+
+    // A shared repertoire is meant for the account with this e-mail address
+    // (confirmed) or this Lichess name.
+    function isShareRecipient(d) {
+      return signedIn()
+        && (
+          (request.auth.token.get('email_verified', false) == true
+            && request.auth.token.get('email', null) is string
+            && d.recipientKey == 'email:' + request.auth.token.email.lower())
+          || (request.auth.token.get('lichess', null) is string
+            && d.recipientKey == 'lichess:' + request.auth.token.lichess.lower())
+        );
+    }
+
+    // The content of a share: the repertoire as text or gzip bytes, never
+    // both (like validRepertoire), with its name and color.
+    function validShareContent(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 200
+        && d.color in ['white', 'black']
+        && d.ownerName is string && d.ownerName.size() > 0 && d.ownerName.size() <= 80
+        && d.hash is string && d.hash.size() <= 128
+        && (
+          (d.keys().hasAll(['pgn']) && !d.keys().hasAny(['pgnGz'])
+            && d.pgn is string && d.pgn.size() <= 900000)
+          || (d.keys().hasAll(['pgnGz']) && !d.keys().hasAny(['pgn'])
+            && d.pgnGz is bytes && d.pgnGz.size() <= 900000)
+        )
+        && d.updatedAt == request.time;
+    }
+
+    // Shared repertoires (#120). Nobody can list shares of others: queries
+    // must ask for ownerUid == own uid or recipientKey == own address/name.
+    match /shares/{shareId} {
+      allow read: if member()
+        && (resource.data.ownerUid == request.auth.uid || isShareRecipient(resource.data));
+      allow create: if member()
+        && request.resource.data.keys().hasOnly(['ownerUid', 'ownerName', 'recipientKey', 'sourceId', 'name', 'color', 'pgn', 'pgnGz', 'hash', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['ownerUid', 'ownerName', 'recipientKey', 'sourceId', 'name', 'color', 'hash', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.recipientKey is string
+        && request.resource.data.recipientKey.size() <= 210
+        && request.resource.data.recipientKey.matches('^(email|lichess):[^ ]+$')
+        && request.resource.data.sourceId is string
+        && request.resource.data.sourceId.size() > 0 && request.resource.data.sourceId.size() <= 64
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && validShareContent(request.resource.data);
+      // The owner sends a new version of the repertoire.
+      allow update: if member()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerName', 'name', 'color', 'pgn', 'pgnGz', 'hash', 'updatedAt'])
+        && validShareContent(request.resource.data);
+      // The recipient accepts, once.
+      allow update: if member()
+        && isShareRecipient(resource.data)
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'recipientUid'])
+        && request.resource.data.status == 'accepted'
+        && request.resource.data.recipientUid == request.auth.uid;
+      // The owner withdraws it, or the recipient declines or removes it.
+      allow delete: if member()
+        && (resource.data.ownerUid == request.auth.uid || isShareRecipient(resource.data));
     }
 
     // Shared position store: every member reads, only admins write.

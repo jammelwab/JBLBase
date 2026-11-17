@@ -259,6 +259,30 @@ pub fn replace_source(
     Ok(stored)
 }
 
+/// The puzzles of the database at `path` as (id, fen, moves), to estimate
+/// their rating anew.
+pub fn list_puzzles(path: &Path) -> Result<Vec<(i64, String, String)>, Error> {
+    let db = Connection::open(path)?;
+    let mut stmt = db.prepare("SELECT id, fen, moves FROM puzzles ORDER BY id")?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// Writes new ratings, given as (id, rating), into the database at `path`.
+pub fn set_ratings(path: &Path, ratings: &[(i64, i32)]) -> Result<(), Error> {
+    let mut db = Connection::open(path)?;
+    let tx = db.transaction()?;
+    for (id, rating) in ratings {
+        tx.execute(
+            "UPDATE puzzles SET rating = ? WHERE id = ?",
+            params![rating, id],
+        )?;
+    }
+    tx.commit()?;
+    db.execute_batch("CHECKPOINT;")?;
+    Ok(())
+}
+
 /// Carries out a review decision on the puzzle `fen`/`moves` of the database
 /// at `path` and remembers it for later searches. `corrected` holds the new
 /// moves (starting with the opponent's move, as always) and rating.
@@ -369,6 +393,27 @@ mod tests {
         let puzzle = crate::puzzle::get_puzzle(file, 1000, 1400, Some("skewer".into())).unwrap();
         assert_eq!(puzzle.fen, "d w - - 0 1");
         assert_eq!(puzzle.moves, "e7e5 d1h5");
+    }
+
+    #[test]
+    fn ratings_can_be_estimated_anew() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tactics.duckdb");
+        replace_source(&path, "a", &[tactic("8/8/8/8/8/8/8/K6k", &["fork"])]).unwrap();
+        let puzzles = list_puzzles(&path).unwrap();
+        assert_eq!(puzzles.len(), 1);
+        let (id, fen, moves) = &puzzles[0];
+        assert_eq!(fen, "8/8/8/8/8/8/8/K6k w - - 0 1");
+        assert_eq!(moves, "e7e5 d1h5");
+
+        set_ratings(&path, &[(*id, 1850)]).unwrap();
+        let db = Connection::open(&path).unwrap();
+        let rating: i32 = db
+            .query_row("SELECT rating FROM puzzles WHERE id = ?", [id], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(rating, 1850);
     }
 
     #[test]

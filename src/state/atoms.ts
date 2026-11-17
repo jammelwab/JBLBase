@@ -449,6 +449,30 @@ export const puzzleRatingRangeAtom = atomWithStorage<[number, number]>(
 
 export const puzzleModeAtom = atomWithStorage<"normal" | "streak">("puzzle-mode", "normal");
 
+// Blind puzzles: seconds the position stays visible before the pieces vanish (0 = off)
+export const puzzleBlindSecondsAtom = atomWithStorage<number>(
+    "puzzle-blind-seconds",
+    0,
+    undefined,
+    {
+        getOnInit: true,
+    },
+);
+export const puzzleBlindSquareNamesAtom = atomWithStorage<boolean>(
+    "puzzle-blind-square-names",
+    false,
+    undefined,
+    { getOnInit: true },
+);
+export const puzzleBlindTextInputAtom = atomWithStorage<boolean>(
+    "puzzle-blind-text-input",
+    false,
+    undefined,
+    {
+        getOnInit: true,
+    },
+);
+
 export const puzzleThemeAtom = atomWithStorage<string | null>("puzzle-theme", null);
 
 export const coverageMinGamesAtom = atomWithStorage<number>("coverage-min-games", 50);
@@ -546,6 +570,12 @@ export type DbType = "local" | "lch_all" | "lch_master" | "rep";
 const dbTypeFamily = atomFamily((_tab: string) => atom<DbType>("local"));
 export const currentDbTypeAtom = tabValue(dbTypeFamily);
 
+// Which of your own games the analysis board counts when the reference database is one of
+// your Chess.com or Lichess accounts: all of them, the ones you had White or Black, or only
+// your own moves (your White games where White moves, your Black games where Black moves)
+export type OwnGamesFilter = "all" | "white" | "black" | "mine";
+export const ownGamesFilterAtom = atomWithStorage<OwnGamesFilter>("own-games-filter", "mine");
+
 // Arrows on the analysis board for the most played Lichess moves (blue) and the repertoire
 // moves with the most lines (green), top 3 each
 export const explorerArrowsAtom = atomWithStorage<{ lichess: boolean; repertoire: boolean }>(
@@ -566,7 +596,7 @@ export const repertoireDbSourceAtom = atomWithStorage<string>(
 const dbTabFamily = atomFamily((_tab: string) => atom("stats"));
 export const currentDbTabAtom = tabValue(dbTabFamily);
 
-const analysisTabFamily = atomFamily((_tab: string) => atom("engines"));
+export const analysisTabFamily = atomFamily((_tab: string) => atom("engines"));
 export const currentAnalysisTabAtom = tabValue(analysisTabFamily);
 
 const practiceTabFamily = atomFamily((_tab: string) => atom("train"));

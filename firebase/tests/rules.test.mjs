@@ -7,7 +7,19 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { Bytes, deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  Bytes,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 
 const FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq";
 
@@ -344,5 +356,108 @@ describe("usage and limits (#114)", () => {
     await assertFails(setDoc(doc(admin(), "config/limits"), { evalReads: 1e9 }));
     // The allowlist stays unreadable.
     await assertFails(getDoc(doc(user(), "config/access")));
+  });
+});
+
+function shareDoc(over = {}) {
+  return {
+    ownerUid: "alice",
+    ownerName: "Alice",
+    recipientKey: "email:bob@example.org",
+    sourceId: "rep1",
+    name: "Alice Weiß",
+    color: "white",
+    pgn: "1. e4 *",
+    hash: "h1",
+    status: "pending",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...over,
+  };
+}
+
+const carla = () => env.authenticatedContext("lichess:carla", { lichess: "Carla" }).firestore();
+
+describe("shared repertoires (#120)", () => {
+  test("a member shares a repertoire with one address", async () => {
+    await assertSucceeds(setDoc(doc(user(), "shares/s1"), shareDoc()));
+    await assertSucceeds(
+      setDoc(doc(user(), "shares/s2"), shareDoc({ recipientKey: "lichess:carla" })),
+    );
+    // Not in someone else's name, not already accepted, no extra fields.
+    await assertFails(setDoc(doc(user(), "shares/s3"), shareDoc({ ownerUid: "bob" })));
+    await assertFails(setDoc(doc(user(), "shares/s4"), shareDoc({ status: "accepted" })));
+    await assertFails(setDoc(doc(user(), "shares/s5"), shareDoc({ games: [] })));
+    await assertFails(setDoc(doc(user(), "shares/s6"), shareDoc({ recipientKey: "bob" })));
+    // Text and bytes together are refused, as is no content at all.
+    await assertFails(
+      setDoc(
+        doc(user(), "shares/s7"),
+        shareDoc({ pgnGz: Bytes.fromUint8Array(new Uint8Array(4)) }),
+      ),
+    );
+    const { pgn, ...empty } = shareDoc();
+    await assertFails(setDoc(doc(user(), "shares/s8"), empty));
+    // Accounts outside the allowlist cannot share.
+    await assertFails(setDoc(doc(user("eve"), "shares/s9"), shareDoc({ ownerUid: "eve" })));
+  });
+
+  test("only the owner and the recipient can read it", async () => {
+    await assertSucceeds(setDoc(doc(user(), "shares/s1"), shareDoc()));
+    await assertSucceeds(getDoc(doc(user("alice"), "shares/s1")));
+    await assertSucceeds(getDoc(doc(user("bob"), "shares/s1")));
+    await assertFails(getDoc(doc(carla(), "shares/s1")));
+    await assertFails(getDoc(doc(anon(), "shares/s1")));
+    // An unconfirmed address is not the recipient.
+    const unconfirmed = env
+      .authenticatedContext("bob2", { email: "bob@example.org", email_verified: false })
+      .firestore();
+    await assertFails(getDoc(doc(unconfirmed, "shares/s1")));
+    // Queries must name the own uid or address.
+    const shares = (db) => collection(db, "shares");
+    await assertSucceeds(getDocs(query(shares(user("alice")), where("ownerUid", "==", "alice"))));
+    await assertSucceeds(
+      getDocs(query(shares(user("bob")), where("recipientKey", "==", "email:bob@example.org"))),
+    );
+    await assertFails(getDocs(shares(user("bob"))));
+    await assertFails(getDocs(query(shares(carla()), where("ownerUid", "==", "alice"))));
+  });
+
+  test("the owner sends new versions, the recipient only accepts", async () => {
+    await assertSucceeds(setDoc(doc(user(), "shares/s1"), shareDoc()));
+    const next = { pgn: "1. d4 *", hash: "h2", updatedAt: serverTimestamp() };
+    await assertSucceeds(updateDoc(doc(user("alice"), "shares/s1"), next));
+    await assertFails(updateDoc(doc(user("bob"), "shares/s1"), next));
+    // The owner cannot accept for the recipient or move the share.
+    await assertFails(updateDoc(doc(user("alice"), "shares/s1"), { status: "accepted" }));
+    await assertFails(
+      updateDoc(doc(user("alice"), "shares/s1"), { recipientKey: "email:eve@example.org" }),
+    );
+    // The recipient accepts once, for the own account.
+    await assertFails(
+      updateDoc(doc(user("bob"), "shares/s1"), { status: "accepted", recipientUid: "alice" }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(user("bob"), "shares/s1"), { status: "accepted", recipientUid: "bob" }),
+    );
+    await assertFails(
+      updateDoc(doc(user("bob"), "shares/s1"), { status: "accepted", recipientUid: "bob" }),
+    );
+    // Others cannot accept.
+    await assertSucceeds(setDoc(doc(user(), "shares/s2"), shareDoc()));
+    await assertFails(
+      updateDoc(doc(carla(), "shares/s2"), {
+        status: "accepted",
+        recipientUid: "lichess:carla",
+      }),
+    );
+  });
+
+  test("owner and recipient can end it, nobody else", async () => {
+    await assertSucceeds(setDoc(doc(user(), "shares/s1"), shareDoc()));
+    await assertSucceeds(setDoc(doc(user(), "shares/s2"), shareDoc()));
+    await assertFails(deleteDoc(doc(carla(), "shares/s1")));
+    await assertSucceeds(deleteDoc(doc(user("alice"), "shares/s1")));
+    await assertSucceeds(deleteDoc(doc(user("bob"), "shares/s2")));
   });
 });

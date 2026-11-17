@@ -1,5 +1,11 @@
 import { ActionIcon, Box, Button, Group, Paper, Text } from "@mantine/core";
-import { IconArrowBackUp, IconArrowsDiagonal2, IconPlus, IconX } from "@tabler/icons-react";
+import {
+  IconArrowBackUp,
+  IconArrowsDiagonal2,
+  IconPlus,
+  IconSparkles,
+  IconX,
+} from "@tabler/icons-react";
 import type { DrawBrushes, DrawShape } from "@lichess-org/chessground/draw";
 import type { Key } from "@lichess-org/chessground/types";
 import { useAtom } from "jotai";
@@ -155,6 +161,7 @@ export default function BoardPreview({
   status,
   onAdd,
   known,
+  onBrilliance,
 }: {
   rootFen: string;
   rootHalfMoves: number;
@@ -174,6 +181,8 @@ export default function BoardPreview({
   onAdd?: () => void;
   // How many moves of `line` are on a repertoire line; the rest get an orange frame
   known?: number;
+  // Looks for brilliant moves in the variations from here on (opens the board)
+  onBrilliance?: () => void;
 }) {
   const { t } = useTranslation();
   const { fen, lastMove } = useMemo(() => playLine(rootFen, line), [rootFen, line]);
@@ -252,6 +261,7 @@ export default function BoardPreview({
 
   return (
     <Paper
+      data-tour="rep-tree-preview"
       ref={paperRef}
       withBorder
       shadow="md"
@@ -450,6 +460,18 @@ export default function BoardPreview({
       {onOpen && (
         <Button size="xs" variant="light" fullWidth mt={6} onClick={onOpen}>
           {t("Repertoire.Preview.Open")}
+        </Button>
+      )}
+      {onBrilliance && (
+        <Button
+          size="xs"
+          variant="subtle"
+          fullWidth
+          mt={4}
+          leftSection={<IconSparkles size="0.9rem" />}
+          onClick={onBrilliance}
+        >
+          {t("Repertoire.Preview.Brilliance")}
         </Button>
       )}
     </Paper>

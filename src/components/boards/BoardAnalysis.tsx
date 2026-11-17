@@ -266,17 +266,33 @@ function BoardAnalysis() {
                 </Tabs.Tab>
               )}
               {isRepertoire && (
-                <Tabs.Tab value="practice" leftSection={<IconTargetArrow size="1rem" />}>
+                <Tabs.Tab
+                  value="practice"
+                  data-tour="board-tab-practice"
+                  leftSection={<IconTargetArrow size="1rem" />}
+                >
                   {t("Board.Tabs.Practice")}
                 </Tabs.Tab>
               )}
-              <Tabs.Tab value="repertoire" leftSection={<IconBooks size="1rem" />}>
+              <Tabs.Tab
+                value="repertoire"
+                data-tour="board-tab-repertoire"
+                leftSection={<IconBooks size="1rem" />}
+              >
                 {t("Board.Tabs.Repertoire")}
               </Tabs.Tab>
-              <Tabs.Tab value="analysis" leftSection={<IconZoomCheck size="1rem" />}>
+              <Tabs.Tab
+                value="analysis"
+                data-tour="board-tab-analysis"
+                leftSection={<IconZoomCheck size="1rem" />}
+              >
                 {t("Board.Tabs.Analysis")}
               </Tabs.Tab>
-              <Tabs.Tab value="database" leftSection={<IconDatabase size="1rem" />}>
+              <Tabs.Tab
+                value="database"
+                data-tour="board-tab-database"
+                leftSection={<IconDatabase size="1rem" />}
+              >
                 {t("Board.Tabs.Database")}
               </Tabs.Tab>
               <Tabs.Tab value="annotate" leftSection={<IconNotes size="1rem" />}>

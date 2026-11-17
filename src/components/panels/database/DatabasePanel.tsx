@@ -25,6 +25,8 @@ import {
   currentTabAtom,
   lichessOptionsAtom,
   masterOptionsAtom,
+  type OwnGamesFilter,
+  ownGamesFilterAtom,
   referenceDbAtom,
   sessionsAtom,
 } from "@/state/atoms";
@@ -33,6 +35,8 @@ import { formatNumber } from "@/utils/format";
 import { convertToNormalized, getLichessGames, getMasterGames } from "@/utils/lichess/api";
 import type { LichessGamesOptions, MasterGamesOptions } from "@/utils/lichess/explorer";
 import type { GameQuery } from "@/bindings";
+import { useAccountPlayer } from "@/components/databases/useAccountPlayer";
+import { ownGamesOptions } from "@/utils/ownGames";
 import DatabaseLoader from "./DatabaseLoader";
 import GamesTable from "./GamesTable";
 import NoDatabaseWarning from "./NoDatabaseWarning";
@@ -139,6 +143,21 @@ function DatabasePanel() {
 
   const { data: databases } = useSWR(db === "local" ? "databases" : null, () => getDatabases());
 
+  const referenceInfo = (databases ?? []).find(
+    (d) => d.type === "success" && d.file === referenceDatabase,
+  );
+  const accountPlayer = useAccountPlayer(
+    db === "local" ? referenceDatabase : null,
+    referenceInfo?.filename,
+  );
+  const [ownGamesFilter, setOwnGamesFilter] = useAtom(ownGamesFilterAtom);
+  const queryOptions = ownGamesOptions(
+    localOptions,
+    accountPlayer,
+    ownGamesFilter,
+    localOptions.position?.fen ?? debouncedFen,
+  );
+
   const dbSelectData = (databases ?? [])
     .filter((d) => d.type === "success")
     .map((d) => ({ value: d.file, label: d.title || d.filename }));
@@ -163,7 +182,7 @@ function DatabasePanel() {
   const dbType: DBType = match(explorerDb)
     .with("local", (v) => ({
       type: v,
-      options: localOptions,
+      options: queryOptions,
     }))
     .with("lch_all", (v) => ({
       type: v,
@@ -182,15 +201,15 @@ function DatabasePanel() {
   const tab = useAtomValue(currentTabAtom);
   const [tabType, setTabType] = useAtom(currentDbTabAtom);
   const [gamesPagination, setGamesPagination] = useState({ key: "", page: 1 });
-  const localGamesKey = JSON.stringify(localOptions);
+  const localGamesKey = JSON.stringify(queryOptions);
   const gamesPage = gamesPagination.key === localGamesKey ? gamesPagination.page : 1;
   const {
     data: localGames,
     isLoading: gamesLoading,
     error: gamesError,
   } = useSWR(
-    db === "local" && tabType === "games" && localOptions.path && localOptions.position?.fen
-      ? (["position-games", localOptions, gamesPage] as const)
+    db === "local" && tabType === "games" && queryOptions.path && queryOptions.position?.fen
+      ? (["position-games", queryOptions, gamesPage] as const)
       : null,
     ([, options, page]) =>
       query_games(options.path!, {
@@ -265,6 +284,24 @@ function DatabasePanel() {
           </Text>
         )}
       </Group>
+      {db === "local" && accountPlayer && (
+        <Group gap="xs" mt={6} wrap="nowrap">
+          <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+            {t("Board.Database.OwnGames.Label", { player: accountPlayer })}
+          </Text>
+          <SegmentedControl
+            size="xs"
+            data={[
+              { label: t("Board.Database.OwnGames.Mine"), value: "mine" },
+              { label: t("Board.Database.OwnGames.White"), value: "white" },
+              { label: t("Board.Database.OwnGames.Black"), value: "black" },
+              { label: t("Board.Database.OwnGames.All"), value: "all" },
+            ]}
+            value={ownGamesFilter}
+            onChange={(value) => setOwnGamesFilter(value as OwnGamesFilter)}
+          />
+        </Group>
+      )}
       <DatabaseLoader isLoading={isLoading || gamesLoading} tab={tab?.value ?? null} />
     </>
   );

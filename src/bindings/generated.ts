@@ -526,6 +526,21 @@ async resetRatingCalibration() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Estimates the rating of every puzzle in our own tactic databases `files`
+ * anew with the current weights (calibrated or built-in), measured with
+ * `engine` the same way as in the search. Files that do not exist are
+ * skipped. Progress goes to the progress bar `id`; `cancel_analysis(id)`
+ * stops it, keeping what is done. Returns the number of puzzles rated.
+ */
+async rerateTactics(id: string, engine: string, files: string[]) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rerate_tactics", { id, engine, files }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async reportPuzzle(report: NewPuzzleReport) : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("report_puzzle", { report }) };
@@ -958,7 +973,13 @@ minSacrifice: number;
 /**
  * Upper bound for the number of positions searched.
  */
-maxPositions: number }
+maxPositions: number; 
+/**
+ * Lines (UCI moves after `fen` + `moves`), e.g. the variations of a
+ * repertoire. When set, the search looks at every position on these lines
+ * instead of building its own tree: is there a brilliant move there?
+ */
+along?: string[][] }
 export type BrillianceResult = { finds: BrillianceFind[]; positions: number; engineName: string }
 export type CachedEvalJs = { engine: string; depth: number; multipv: number; score: Score; uciMoves: string[] }
 export type ClockUpdateEvent = { gameId: string; whiteTime: bigint | null; blackTime: bigint | null }

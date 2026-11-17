@@ -1,0 +1,4 @@
+/* Blind puzzles: the pieces are still there for moving, only invisible */
+.hidden :global(piece) {
+  visibility: hidden;
+}

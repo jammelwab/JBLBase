@@ -1,10 +1,12 @@
 import { ActionIcon, Box, Menu, Portal, Text, Tooltip } from "@mantine/core";
 import { useClickOutside } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
 import {
   IconArrowsJoin,
   IconChevronsUp,
   IconChevronUp,
   IconCopy,
+  IconCopyPlus,
   IconFlag,
   IconX,
 } from "@tabler/icons-react";
@@ -74,6 +76,7 @@ function MoveMenu({
   const promoteVariation = useStore(store, (s) => s.promoteVariation);
   const promoteToMainline = useStore(store, (s) => s.promoteToMainline);
   const copyVariationPgn = useStore(store, (s) => s.copyVariationPgn);
+  const copyVariationWithSidelinesPgn = useStore(store, (s) => s.copyVariationWithSidelinesPgn);
   const setStart = useStore(store, (s) => s.setStart);
   const ref = useClickOutside<HTMLButtonElement>(onClose);
   const currentTab = useAtomValue(currentTabAtom);
@@ -114,6 +117,23 @@ function MoveMenu({
             onClick={() => copyVariationPgn(movePath)}
           >
             {t("Menu.CopyVariationPGN")}
+          </Menu.Item>
+
+          <Menu.Item
+            leftSection={<IconCopyPlus size="0.875rem" />}
+            onClick={() =>
+              copyVariationWithSidelinesPgn(movePath).then(
+                () => notifications.show({ message: t("Menu.CopiedVariationWithSidelines") }),
+                (e) =>
+                  notifications.show({
+                    color: "red",
+                    title: t("Common.Error"),
+                    message: String(e),
+                  }),
+              )
+            }
+          >
+            {t("Menu.CopyVariationWithSidelinesPGN")}
           </Menu.Item>
 
           <Menu.Item
