@@ -242,6 +242,16 @@ export async function cloudFirestore() {
     return { db: firestore.getFirestore(app), firestore };
 }
 
+/**
+ * The full Firestore SDK, only for the live listeners of the sync (see
+ * liveSync.ts). Loaded on demand, once someone is signed in. It runs beside
+ * the lite SDK on the same app; its documents and timestamps are its own.
+ */
+export async function cloudFirestoreLive() {
+    const [app, firestore] = await Promise.all([firebaseApp(), import("firebase/firestore")]);
+    return { db: firestore.getFirestore(app), firestore };
+}
+
 async function profileRef(uid: string) {
     const [app, { doc, getFirestore }] = await Promise.all([
         firebaseApp(),

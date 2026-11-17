@@ -14,7 +14,7 @@ import {
 import { evalCloudSyncAtom, reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
 import { bumpRepertoires } from "@/utils/repertoires";
-import { type CloudAccount, cloudFirestore, watchCloudAccount } from "./auth";
+import { type CloudAccount, cloudFirestore, cloudFirestoreLive, watchCloudAccount } from "./auth";
 import {
     EVAL_PAGE,
     type EvalSource,
@@ -28,6 +28,8 @@ import {
     syncEvals,
 } from "./evalSync";
 import { cloudRepertoires, fetchAfter } from "./firestoreDocs";
+import { type LiveFirestore, listenAfter } from "./liveFirestore";
+import { LiveSync } from "./liveSync";
 import { setLocalChangeListener } from "./syncSignal";
 import {
     type LocalRepertoire,
@@ -45,6 +47,8 @@ import {
 } from "./trainingSync";
 
 export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+/** While the live listeners run, the periodic sync only runs this often. */
+export const LIVE_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 const CHANGE_DELAY_MS = 15 * 1000;
 
 export type CloudSyncStatus = {
@@ -58,6 +62,12 @@ export type CloudSyncStatus = {
     evals?: EvalSyncResult;
     /** The cloud refused access: account not on the allowlist (or e-mail unconfirmed). */
     notAllowed?: boolean;
+    /** Changes from other devices arrive live (see liveSync.ts). */
+    live?: boolean;
+    /** The device has no network connection. */
+    offline?: boolean;
+    /** Conflict copies made since they were last dismissed (#111). */
+    conflictCopies?: { path: string; file: string }[];
 };
 
 export const cloudSyncStatusAtom = atom<CloudSyncStatus>({ state: "off" });
@@ -266,6 +276,34 @@ let running: Promise<void> | null = null;
 let again = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
+let liveFirestore: Promise<LiveFirestore> | null = null;
+let liveFs: LiveFirestore | null = null;
+const live = new LiveSync(
+    {
+        ...meta,
+        listen: (uid, name, after, onNew, onError) => {
+            if (!liveFs) throw new Error("Firestore not loaded");
+            return listenAfter(liveFs)(uid, name, after, onNew, onError);
+        },
+    },
+    () => void syncNow(),
+    (on) => getDefaultStore().set(cloudSyncStatusAtom, (s) => ({ ...s, live: on })),
+);
+
+/** Starts or moves the live listeners, unless the sync is held or the window hidden. */
+async function refreshLive(uid: string) {
+    if (held || uid !== currentUid || document.hidden) return;
+    try {
+        liveFirestore ??= cloudFirestoreLive();
+        liveFs = await liveFirestore;
+        if (held || uid !== currentUid || document.hidden) return;
+        await live.refresh(uid);
+    } catch (e) {
+        liveFirestore = null;
+        console.warn("Live sync unavailable", e);
+    }
+}
+
 async function runSync(uid: string) {
     const store = getDefaultStore();
     store.set(cloudSyncStatusAtom, (s) => ({ ...s, state: "syncing" }));
@@ -287,14 +325,17 @@ async function runSync(uid: string) {
                   today: today(),
               })
             : undefined;
-        store.set(cloudSyncStatusAtom, {
+        store.set(cloudSyncStatusAtom, (s) => ({
+            live: s.live,
+            offline: s.offline,
+            conflictCopies: [...(s.conflictCopies ?? []), ...repertoires.conflictCopies],
             state: "idle",
             lastSync: Date.now(),
             repertoires,
             trainingUploaded: training.uploaded,
             trainingDownloaded: training.downloaded,
             evals,
-        });
+        }));
     } catch (e) {
         console.error("Cloud sync failed", e);
         store.set(cloudSyncStatusAtom, (s) => ({
@@ -317,12 +358,18 @@ export function syncNow(): Promise<void> {
     const uid = currentUid;
     running = runSync(uid).finally(() => {
         running = null;
+        void refreshLive(uid);
         if (again && currentUid) {
             again = false;
             void syncNow();
         }
     });
     return running;
+}
+
+/** The conflict copies were seen: stop pointing at them. */
+export function dismissConflicts() {
+    getDefaultStore().set(cloudSyncStatusAtom, (s) => ({ ...s, conflictCopies: [] }));
 }
 
 /** A local change: sync a little later, so several changes go up together. */
@@ -341,11 +388,15 @@ setLocalChangeListener(requestSync);
 export function setSyncAccount(uid: string | null) {
     if (uid === currentUid) return;
     currentUid = uid;
+    live.stop();
     // A new account waits for ConsentGate.
     held = true;
     if (timer) clearTimeout(timer);
     timer = null;
-    getDefaultStore().set(cloudSyncStatusAtom, { state: uid ? "idle" : "off" });
+    getDefaultStore().set(cloudSyncStatusAtom, (s) => ({
+        state: uid ? "idle" : "off",
+        offline: s.offline,
+    }));
 }
 
 /** Resolves when no sync is running. */
@@ -360,6 +411,7 @@ export function holdSync(hold: boolean) {
     if (hold) {
         if (timer) clearTimeout(timer);
         timer = null;
+        live.stop();
     } else {
         void syncNow();
     }
@@ -429,17 +481,41 @@ export function startCloudSync(force = false): () => void {
 
     // While the window is hidden or minimised, skip the periodic sync: nothing
     // changes locally then, and focusing the window syncs right away.
+    // With live listeners running, only a rare run as a safety net.
     const interval = setInterval(() => {
-        if (!document.hidden) void syncNow();
+        if (document.hidden) return;
+        const { lastSync } = getDefaultStore().get(cloudSyncStatusAtom);
+        if (live.live && lastSync && Date.now() - lastSync < LIVE_SYNC_INTERVAL_MS) return;
+        void syncNow();
     }, SYNC_INTERVAL_MS);
     const onFocus = () => requestSync();
     window.addEventListener("focus", onFocus);
+    // Hidden: no listeners (nothing to show). Visible again: sync, which
+    // starts them at the new positions.
+    const onVisibility = () => {
+        if (document.hidden) live.stop();
+        else void syncNow();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    // Offline: say so; back online: sync right away.
+    const onNetwork = () => {
+        const offline = !navigator.onLine;
+        getDefaultStore().set(cloudSyncStatusAtom, (s) => ({ ...s, offline }));
+        if (!offline) void syncNow();
+    };
+    if (!navigator.onLine) onNetwork();
+    window.addEventListener("online", onNetwork);
+    window.addEventListener("offline", onNetwork);
     const stop = () => {
         active = null;
         stopped = true;
         unwatch?.();
         clearInterval(interval);
         window.removeEventListener("focus", onFocus);
+        document.removeEventListener("visibilitychange", onVisibility);
+        window.removeEventListener("online", onNetwork);
+        window.removeEventListener("offline", onNetwork);
+        live.stop();
     };
     active = stop;
     return stop;
