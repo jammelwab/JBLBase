@@ -546,6 +546,12 @@ export type DbType = "local" | "lch_all" | "lch_master" | "rep";
 const dbTypeFamily = atomFamily((_tab: string) => atom<DbType>("local"));
 export const currentDbTypeAtom = tabValue(dbTypeFamily);
 
+// Which of your own games the analysis board counts when the reference database is one of
+// your Chess.com or Lichess accounts: all of them, the ones you had White or Black, or only
+// your own moves (your White games where White moves, your Black games where Black moves)
+export type OwnGamesFilter = "all" | "white" | "black" | "mine";
+export const ownGamesFilterAtom = atomWithStorage<OwnGamesFilter>("own-games-filter", "mine");
+
 // Arrows on the analysis board for the most played Lichess moves (blue) and the repertoire
 // moves with the most lines (green), top 3 each
 export const explorerArrowsAtom = atomWithStorage<{ lichess: boolean; repertoire: boolean }>(
