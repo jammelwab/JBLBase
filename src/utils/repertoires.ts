@@ -52,6 +52,7 @@ import {
 } from "./repertoireHistory";
 import { notifyLocalChange } from "./cloud/syncSignal";
 import { restoreFromTrash, type TrashEntry } from "./trash";
+import { parseSharedInfo, type SharedInfo } from "./cloud/shareSync";
 import { unwrap } from "./unwrap";
 
 export type RepertoireColor = "white" | "black";
@@ -73,6 +74,10 @@ export type Repertoire = {
     // Set when this is several repertoires (a folder) looked at together; it has no file of
     // its own then, `file` is the first part's
     parts?: Repertoire[];
+    // Someone shared it with this account (#120): it is updated from the share
+    shared?: SharedInfo;
+    // Its id in the cloud sync, once synced (needed to share it)
+    cloudId?: string;
 };
 
 // Who a repertoire belongs to: the main user (see ./mainOwner) or anyone else by name.
@@ -150,6 +155,8 @@ async function loadRepertoire(
         owner,
         folder: normalizeFolder(info.folder),
         main: info.main === true,
+        shared: parseSharedInfo(info.shared) ?? undefined,
+        cloudId: typeof info.id === "string" ? info.id : undefined,
         root: tree.root,
         headers: tree.headers,
         index: indexRepertoire(tree.root),
@@ -231,6 +238,23 @@ export async function createRepertoire({
         bumpRepertoires();
     }
     return result;
+}
+
+/**
+ * An own, editable copy of a repertoire someone shared (#120): same moves, color and player,
+ * at the top level, no longer updated from the share.
+ */
+export async function copySharedRepertoire(r: Repertoire, dir: string, name: string) {
+    const result = await createRepertoire({
+        name,
+        color: r.color,
+        owner: r.owner,
+        dir,
+    });
+    if (result.isErr) throw result.error;
+    await writeTextFile(result.value.path, await readTextFile(r.file.path));
+    bumpRepertoires();
+    return result.value;
 }
 
 // Moves a repertoire into another folder ("" for the top level).

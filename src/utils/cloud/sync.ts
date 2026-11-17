@@ -4,6 +4,7 @@
 import { dirname, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readDir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import type * as Firestore from "firebase/firestore/lite";
+import i18n from "i18next";
 import { atom, getDefaultStore } from "jotai";
 import { commands, type SyncCard, type SyncReview } from "@/bindings";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/components/files/file";
 import { evalCloudSyncAtom, reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
+import { DEFAULT_MAIN_OWNER, getMainOwner } from "@/utils/mainOwner";
 import { bumpRepertoires } from "@/utils/repertoires";
 import { type CloudAccount, cloudFirestore, cloudFirestoreLive, watchCloudAccount } from "./auth";
 import {
@@ -36,6 +38,16 @@ import {
 } from "./firestoreDocs";
 import { type LiveFirestore, listenAfter } from "./liveFirestore";
 import { LiveSync } from "./liveSync";
+import {
+    type LocalSharedFile,
+    type OwnRepertoire,
+    parseSharedInfo,
+    safeFileName,
+    type ShareSyncBackend,
+    type ShareSyncResult,
+    syncShares,
+} from "./shareSync";
+import { cloudShares, ownRecipientKeys } from "./shares";
 import { setLocalChangeListener } from "./syncSignal";
 import {
     addCounts,
@@ -253,6 +265,9 @@ async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
                 } catch {
                     info = { ...f.metadata };
                 }
+                // A repertoire someone shared with this account stays out of its own
+                // repertoires; it comes from the share (see shareSync.ts)
+                if (parseSharedInfo(info.shared)) continue;
                 result.push({
                     file: f.path,
                     path,
@@ -291,6 +306,109 @@ async function repertoireBackend(uid: string): Promise<RepertoireSyncBackend> {
         newId: () => crypto.randomUUID(),
         now: () => Date.now(),
         ...countedRepertoires(cloudRepertoires(await cloudFirestore(), uid)),
+    };
+}
+
+/** The name a share shows as its sender: the player name, else the account's name. */
+export function shareOwnerName(account: CloudAccount | null | undefined): string {
+    const main = getMainOwner();
+    if (main && main !== DEFAULT_MAIN_OWNER) return main;
+    return account?.displayName || account?.email?.split("@")[0] || main;
+}
+
+async function localRepertoireFiles(dir: string) {
+    const files = flatten(await processEntriesRecursively(dir, await readDir(dir))).filter(
+        (f) => f.metadata.type === "repertoire",
+    );
+    const out: { file: string; info: Record<string, unknown> }[] = [];
+    for (const f of files) {
+        try {
+            out.push({ file: f.path, info: JSON.parse(await readTextFile(infoFile(f.path))) });
+        } catch {
+            // without .info it is neither shared nor synced
+        }
+    }
+    return out;
+}
+
+/** Shared repertoires (#120), sent and received with the cloud sync. */
+async function shareBackend(account: CloudAccount): Promise<ShareSyncBackend> {
+    const dir = await getDocumentDir();
+    const cloud = cloudShares(await cloudFirestore());
+    const writeInfo = (file: string, info: Record<string, unknown>) =>
+        writeTextFile(infoFile(file), JSON.stringify(info));
+    return {
+        uid: account.uid,
+        ownerName: shareOwnerName(account),
+        async listOwn() {
+            const own = await cloud.listOwn(account.uid);
+            usageMeter.read("repertoires", Math.max(1, own.length));
+            return own;
+        },
+        async listIncoming() {
+            const keys = ownRecipientKeys(account);
+            if (keys.length === 0) return [];
+            const incoming = await cloud.listIncoming(keys);
+            usageMeter.read("repertoires", Math.max(keys.length, incoming.length));
+            return incoming;
+        },
+        async update(id, content) {
+            await cloud.update(id, content);
+            usageMeter.write("repertoires", 1);
+        },
+        async ownRepertoires() {
+            const out: OwnRepertoire[] = [];
+            for (const { file, info } of await localRepertoireFiles(dir)) {
+                if (typeof info.id !== "string" || parseSharedInfo(info.shared)) continue;
+                const name = file
+                    .split(/[\\/]/)
+                    .pop()!
+                    .replace(/\.pgn$/i, "");
+                out.push({
+                    id: info.id,
+                    name,
+                    color: info.color === "black" ? "black" : "white",
+                    pgn: await readTextFile(file),
+                });
+            }
+            return out;
+        },
+        async sharedFiles() {
+            const out: LocalSharedFile[] = [];
+            for (const { file, info } of await localRepertoireFiles(dir)) {
+                const shared = parseSharedInfo(info.shared);
+                if (shared) out.push({ file, shared });
+            }
+            return out;
+        },
+        async writeShared(share, existing) {
+            const shared = { id: share.id, from: share.ownerName, hash: share.hash };
+            if (existing) {
+                const info = JSON.parse(await readTextFile(infoFile(existing.file)));
+                await writeTextFile(existing.file, share.pgn);
+                await writeInfo(existing.file, { ...info, color: share.color, shared });
+                return;
+            }
+            const folder = await join(dir, "Geteilt", safeFileName(share.ownerName));
+            if (!(await exists(folder))) await mkdir(folder, { recursive: true });
+            let file = await join(folder, `${safeFileName(share.name)}.pgn`);
+            for (let n = 2; await exists(file); n++) {
+                file = await join(folder, `${safeFileName(share.name)} (${n}).pgn`);
+            }
+            await writeTextFile(file, share.pgn);
+            await writeInfo(file, {
+                type: "repertoire",
+                tags: [],
+                color: share.color,
+                owner: getMainOwner(),
+                folder: i18n.t("Repertoire.Share.Folder", { name: share.ownerName }),
+                shared,
+            });
+        },
+        async markEnded(f) {
+            const info = JSON.parse(await readTextFile(infoFile(f.file)));
+            await writeInfo(f.file, { ...info, shared: { ...f.shared, ended: true } });
+        },
     };
 }
 
@@ -476,6 +594,16 @@ async function runSync(uid: string) {
         // Repertoires first: they give local files the ids the training uses.
         const repertoires = await syncRepertoires(await repertoireBackend(uid), uid);
         if (repertoires.downloaded > 0 || repertoires.conflicts > 0) bumpRepertoires();
+        // Shared repertoires: a failure here must not stop the rest of the sync
+        const account = store.get(cloudAccountAtom);
+        let shares: ShareSyncResult | undefined;
+        if (account && account.uid === uid) {
+            shares = await syncShares(await shareBackend(account)).catch((e) => {
+                console.warn("Shared repertoires not synced", e);
+                return undefined;
+            });
+            if (shares && shares.received + shares.ended > 0) bumpRepertoires();
+        }
         const training = await syncTraining(trainingBackend(uid), uid);
         if (training.changedDecks.length > 0) await reloadTrainingDecks(training.changedDecks);
         // Position store last: its first upload can take several runs.

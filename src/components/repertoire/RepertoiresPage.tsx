@@ -38,6 +38,8 @@ import {
   IconGitCompare,
   IconListSearch,
   IconPlus,
+  IconCopy,
+  IconShare,
 } from "@tabler/icons-react";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
@@ -59,6 +61,7 @@ import {
 import { mergeTree, missingMoves } from "@/utils/repertoireTree";
 import {
   combineRepertoires,
+  copySharedRepertoire,
   createRepertoire,
   defaultRepertoires,
   DEFAULT_MAIN_OWNER,
@@ -84,6 +87,8 @@ import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
 import RepertoireTrash, { showDeletedNotification } from "./RepertoireTrash";
 import RepertoireTreeView from "./RepertoireTreeView";
+import ShareRepertoireModal from "./ShareRepertoireModal";
+import SharedWithMe, { declineShare } from "./SharedWithMe";
 import { useFirstTimeTutorial } from "@/components/tutorial/tutorialState";
 import { FIRST_TIME_TUTORIAL } from "@/components/tutorial/tutorials";
 import classes from "./RepertoiresPage.module.css";
@@ -136,6 +141,34 @@ function RepertoireCard({
   const [syncing, setSyncing] = useState(false);
   const [searchingTactics, setSearchingTactics] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const { documentDir } = useLoaderData({ from: "/repertoires" });
+  const { shared } = repertoire;
+
+  async function copyShared() {
+    setCopying(true);
+    try {
+      await copySharedRepertoire(
+        repertoire,
+        documentDir,
+        t("Repertoire.Share.CopyName", { name: repertoire.name }),
+      );
+      notifications.show({
+        color: "green",
+        title: repertoire.name,
+        message: t("Repertoire.Share.Copied"),
+      });
+    } catch (e) {
+      notifications.show({
+        color: "red",
+        title: repertoire.name,
+        message: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setCopying(false);
+    }
+  }
 
   return (
     <Card withBorder padding="md" data-tour="rep-card">
@@ -145,6 +178,9 @@ function RepertoireCard({
           main={!!main}
           onClose={() => setConfirmDelete(false)}
         />
+      )}
+      {sharing && (
+        <ShareRepertoireModal repertoire={repertoire} onClose={() => setSharing(false)} />
       )}
       {searchingTactics && (
         <TacticSearchModal repertoire={repertoire} onClose={() => setSearchingTactics(false)} />
@@ -159,6 +195,19 @@ function RepertoireCard({
           <Text fw={600} truncate style={{ flex: 1 }}>
             {repertoire.name}
           </Text>
+          {!shared && (
+            <Tooltip label={t("Repertoire.Share.Button")}>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="sm"
+                aria-label={t("Repertoire.Share.Button")}
+                onClick={() => setSharing(true)}
+              >
+                <IconShare size="1rem" />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <Tooltip label={t("Repertoire.Folder.Move")}>
             <ActionIcon variant="subtle" color="gray" size="sm" onClick={onMove}>
               <IconFolderShare size="1rem" />
@@ -194,6 +243,21 @@ function RepertoireCard({
             <Tooltip label={t("Repertoire.Main.Hint")} multiline w={260}>
               <Badge size="sm" variant="light" color="green">
                 {t("Repertoire.Main.Badge")}
+              </Badge>
+            </Tooltip>
+          )}
+          {shared && (
+            <Tooltip
+              label={
+                shared.ended ? t("Repertoire.Share.EndedHint") : t("Repertoire.Share.FromHint")
+              }
+              multiline
+              w={260}
+            >
+              <Badge size="sm" variant="light" color={shared.ended ? "gray" : "blue"}>
+                {shared.ended
+                  ? t("Repertoire.Share.Ended")
+                  : t("Repertoire.Share.From", { name: shared.from })}
               </Badge>
             </Tooltip>
           )}
@@ -265,6 +329,17 @@ function RepertoireCard({
         >
           {t("Repertoire.Tactics.Button")}
         </Button>
+        {shared && (
+          <Button
+            variant="light"
+            size="xs"
+            leftSection={<IconCopy size="1rem" />}
+            loading={copying}
+            onClick={copyShared}
+          >
+            {t("Repertoire.Share.Copy")}
+          </Button>
+        )}
         {main && main.missing > 0 && (
           <Button
             variant="light"
@@ -310,6 +385,8 @@ function DeleteRepertoireModal({
   async function remove() {
     setDeleting(true);
     try {
+      // A received share is declined too, so the next sync does not bring it back
+      if (repertoire.shared && !repertoire.shared.ended) await declineShare(repertoire.shared.id);
       const deleted = await deleteRepertoire(repertoire.file);
       showDeletedNotification(
         {
@@ -347,6 +424,11 @@ function DeleteRepertoireModal({
         {main && (
           <Alert color="yellow" variant="light">
             {t("Repertoire.Delete.Main")}
+          </Alert>
+        )}
+        {repertoire.shared && !repertoire.shared.ended && (
+          <Alert color="blue" variant="light">
+            {t("Repertoire.Share.DeleteHint", { name: repertoire.shared.from })}
           </Alert>
         )}
         <Text size="sm" c="dimmed">
@@ -892,8 +974,10 @@ export default function RepertoiresPage() {
     if (!view) return undefined;
     const list = repertoires ?? [];
     if (view.path) return list.find((r) => r.file.path === view.path);
+    // Repertoires shared with this account belong to someone else: not part of the player's tree
     const parts = list.filter(
       (r) =>
+        !r.shared &&
         r.owner.toLowerCase() === viewOwner.toLowerCase() &&
         r.color === view.color &&
         inFolder(r.folder, view.folder ?? ""),
@@ -1070,6 +1154,7 @@ export default function RepertoiresPage() {
         <Text c="dimmed" size="sm">
           {t("Repertoire.Page.Help")}
         </Text>
+        <SharedWithMe />
         {view && !viewRepertoire && !isLoading && (
           <Alert color="blue" withCloseButton onClose={() => setView(null)}>
             {t("Repertoire.Compare.NoRepertoire", {
