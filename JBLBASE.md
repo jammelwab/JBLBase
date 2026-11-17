@@ -209,6 +209,33 @@ Unter-Repertoire löschst, bleibt im Haupt-Repertoire stehen. Beim ersten Abglei
 es in der `.info` als Haupt-Repertoire markiert (`main`), damit es das auch nach dem
 Umbenennen bleibt.
 
+### Repertoire mit einem anderen Konto teilen
+
+Ein einzelnes Repertoire lässt sich mit einem anderen JBLBase-Konto teilen, zum Beispiel
+mit einem Schüler. Auf der Karte des Repertoires öffnet das Teilen-Symbol den Dialog:
+E-Mail-Adresse oder Lichess-Name des anderen Kontos eintragen, „Teilen“. Dafür musst du
+in der Cloud angemeldet sein und das Repertoire muss einmal abgeglichen sein.
+
+- **Nur ausdrücklich:** Geteilt wird nur dieses eine Repertoire (Name, Farbe, Züge),
+  sonst nichts: keine anderen Repertoires, Partien, Trainingsdaten oder Konto-Daten.
+  Lesen können es nur du und das eingetragene Konto (Firestore-Regeln, `shares/{id}`).
+- **Annehmen:** Beim anderen Konto erscheint oben auf der Repertoire-Seite „Mit dir
+  geteilt“. Erst nach „Annehmen“ wird das Repertoire auf das Gerät geladen, und zwar in den
+  Ordner „Geteilt von …“. „Ablehnen“ löscht die Einladung.
+- **Immer aktuell:** Jede Änderung am Repertoire geht beim nächsten Abgleich an alle, mit
+  denen es geteilt ist. Eigene Änderungen des Empfängers am geteilten Repertoire werden
+  dabei überschrieben; dafür gibt es „Eigene Kopie anlegen“.
+- **Zurücknehmen:** Im Teilen-Dialog beendet „Zurücknehmen“ die Freigabe. Der Empfänger
+  behält den zuletzt erhaltenen Stand, markiert mit „Freigabe beendet“, und bekommt
+  keine Updates mehr. Löscht der Empfänger das Repertoire, endet die Freigabe ebenfalls.
+- Geteilte Repertoires zählen nicht zum eigenen Repertoire-Baum des Spielers und werden
+  nicht in die eigenen Cloud-Repertoires übernommen. Beim Löschen des Kontos werden alle
+  Freigaben in beide Richtungen gelöscht.
+- Beide Konten müssen auf der Zugangsliste `config/access` stehen. Nach dem Update
+  müssen die Firestore-Regeln neu veröffentlicht werden (`firebase deploy --only
+  firestore:rules`), sonst schlägt das Teilen mit „Missing or insufficient permissions“
+  fehl.
+
 ### Repertoire im Datenbank-Bereich des Analysebretts
 
 Im Datenbank-Bereich des Analysebretts gibt es neben Lokal, Lichess Alle und Lichess

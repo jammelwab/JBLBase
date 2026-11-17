@@ -119,6 +119,21 @@ export const deleteAccount = onCall({ cors: true, timeoutSeconds: 120 }, async (
 
     const db = getFirestore();
     await db.recursiveDelete(db.doc(`users/${uid}`));
+    // Shared repertoires (#120): the account's own shares, the ones it accepted, and
+    // invitations still waiting for one of its addresses
+    const token: Record<string, unknown> = request.auth?.token ?? {};
+    const keys = [
+        token.email && token.email_verified ? `email:${String(token.email).toLowerCase()}` : null,
+        typeof token.lichess === "string" ? `lichess:${token.lichess.toLowerCase()}` : null,
+    ].filter((k): k is string => !!k);
+    const shares = db.collection("shares");
+    const found = [
+        await shares.where("ownerUid", "==", uid).get(),
+        await shares.where("recipientUid", "==", uid).get(),
+        ...(await Promise.all(keys.map((k) => shares.where("recipientKey", "==", k).get()))),
+    ];
+    const refs = new Map(found.flatMap((q) => q.docs.map((d) => [d.id, d.ref] as const)));
+    await Promise.all([...refs.values()].map((ref) => ref.delete()));
     try {
         await getAuth().deleteUser(uid);
     } catch (e) {
