@@ -80,6 +80,7 @@ import TacticSearchModal from "./TacticSearchModal";
 import { type FolderEdit, FolderNameModal, ImportFolderModal } from "./RepertoireFolderModals";
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
+import RepertoireTrash, { showDeletedNotification } from "./RepertoireTrash";
 import RepertoireTreeView from "./RepertoireTreeView";
 import classes from "./RepertoiresPage.module.css";
 
@@ -286,12 +287,16 @@ function DeleteRepertoireModal({
   async function remove() {
     setDeleting(true);
     try {
-      await deleteRepertoire(repertoire.file);
-      notifications.show({
-        color: "gray",
-        title: t("Repertoire.Delete.Done"),
-        message: repertoire.name,
-      });
+      const deleted = await deleteRepertoire(repertoire.file);
+      showDeletedNotification(
+        {
+          done: t("Repertoire.Delete.Done"),
+          undo: t("Repertoire.Trash.Undo"),
+          restored: t("Repertoire.Trash.Restored"),
+        },
+        repertoire.name,
+        deleted,
+      );
       onClose();
     } catch (e) {
       notifications.show({
@@ -1063,6 +1068,7 @@ export default function RepertoiresPage() {
               ))}
           </Stack>
         ))}
+        <RepertoireTrash documentDir={documentDir} repertoires={repertoires ?? []} />
       </Stack>
     </ScrollArea>
   );

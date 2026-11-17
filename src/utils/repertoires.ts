@@ -51,6 +51,7 @@ import {
     writeHistory,
 } from "./repertoireHistory";
 import { notifyLocalChange } from "./cloud/syncSignal";
+import { restoreFromTrash, type TrashEntry } from "./trash";
 import { unwrap } from "./unwrap";
 
 export type RepertoireColor = "white" | "black";
@@ -246,7 +247,7 @@ export async function setRepertoireFolder(file: FileMetadata, folder: string) {
 // cloud sync does), so they can still be restored by hand. Open tabs of it stay open as
 // unsaved boards, so saving them cannot bring the file back. With the cloud sync on, the
 // next sync deletes it on the other devices too.
-export async function deleteRepertoire(file: FileMetadata) {
+export async function deleteRepertoire(file: FileMetadata): Promise<DeletedRepertoire> {
     const suffix = `.deleted-${Date.now()}`;
     await rename(file.path, file.path + suffix);
     const info = file.path.replace(/\.pgn$/, ".info");
@@ -267,6 +268,17 @@ export async function deleteRepertoire(file: FileMetadata) {
     );
     store.set(removeRecentFilesAtom, file.path);
     bumpRepertoires();
+    return { file: file.path + suffix, original: file.path, suffix };
+}
+
+/** What `deleteRepertoire` moved to the trash; enough to undo it. */
+export type DeletedRepertoire = Pick<TrashEntry, "file" | "original" | "suffix">;
+
+/** Puts a deleted repertoire back (undo, or from the trash); see utils/trash.ts. */
+export async function restoreRepertoire(deleted: DeletedRepertoire): Promise<string> {
+    const path = await restoreFromTrash(deleted);
+    bumpRepertoires();
+    return path;
 }
 
 // Several repertoires of one player and color as one, e.g. a whole folder.
