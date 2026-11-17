@@ -295,8 +295,16 @@ function RepertoireCard({
             variant="default"
             data-tour="rep-open"
             onClick={async () => {
-              await openFile(repertoire.file, setTabs, setActiveTab);
-              navigate({ to: "/" });
+              try {
+                await openFile(repertoire.file, setTabs, setActiveTab);
+                navigate({ to: "/" });
+              } catch (e) {
+                notifications.show({
+                  color: "red",
+                  title: repertoire.name,
+                  message: e instanceof Error ? e.message : String(e),
+                });
+              }
             }}
           >
             {t("Common.Open")}

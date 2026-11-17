@@ -32,6 +32,7 @@ import { unwrap } from "@/utils/unwrap";
 import GenericCard from "../common/GenericCard";
 import ImportImageButton from "../common/ImportImageButton";
 import type { FileMetadata, FileType } from "../files/file";
+import { writeTabState } from "@/state/store/tabStorage";
 
 type ImportType = "PGN" | "Link" | "FEN";
 
@@ -87,7 +88,7 @@ export default function ImportModal({
     if (!currentTab || currentTab.type !== "new") return;
     const tree = defaultTree(parsedFen);
     tree.headers.fen = parsedFen;
-    sessionStorage.setItem(currentTab.value, JSON.stringify({ version: 0, state: tree }));
+    writeTabState(currentTab.value, JSON.stringify({ version: 0, state: tree }));
     store.set(boardEditingFamily(currentTab.value), editingMode);
     store.set(tabsAtom, (tabs) =>
       tabs.map((tab) =>
@@ -143,7 +144,7 @@ export default function ImportModal({
           const tree = await parsePGN(input);
           const originKind = (await isInTempDir(fileInfo.path)) ? "temp_file" : "file";
           setCurrentTab((prev) => {
-            sessionStorage.setItem(prev.value, JSON.stringify({ version: 0, state: tree }));
+            writeTabState(prev.value, JSON.stringify({ version: 0, state: tree }));
             return {
               ...prev,
               name: getGameName(tree.headers),
@@ -184,7 +185,7 @@ export default function ImportModal({
 
       const tree = await parsePGN(pgn);
       setCurrentTab((prev) => {
-        sessionStorage.setItem(prev.value, JSON.stringify({ version: 0, state: tree }));
+        writeTabState(prev.value, JSON.stringify({ version: 0, state: tree }));
         return {
           ...prev,
           name: getGameName(tree.headers),

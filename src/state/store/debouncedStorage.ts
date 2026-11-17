@@ -1,4 +1,5 @@
 import { type PersistStorage, type StorageValue } from "zustand/middleware";
+import { readTabState, removeTabState, writeTabState } from "./tabStorage";
 
 const DEBOUNCE_MS = 300;
 const pendingWrites = new Map<string, StorageValue<unknown>>();
@@ -12,7 +13,7 @@ function flush() {
     }
 
     for (const [name, value] of pendingWrites) {
-        sessionStorage.setItem(name, JSON.stringify(value));
+        writeTabState(name, JSON.stringify(value));
     }
 
     pendingWrites.clear();
@@ -59,7 +60,7 @@ export function createDebouncedSessionStorage<S>(delay = DEBOUNCE_MS): PersistSt
                 return pending as StorageValue<S>;
             }
 
-            const stored = sessionStorage.getItem(name);
+            const stored = readTabState(name);
             return stored ? (JSON.parse(stored) as StorageValue<S>) : null;
         },
         setItem: (name, value) => {
@@ -68,7 +69,7 @@ export function createDebouncedSessionStorage<S>(delay = DEBOUNCE_MS): PersistSt
         },
         removeItem: (name) => {
             pendingWrites.delete(name);
-            sessionStorage.removeItem(name);
+            removeTabState(name);
         },
     };
 }
@@ -77,7 +78,7 @@ export function createDebouncedSessionStorage<S>(delay = DEBOUNCE_MS): PersistSt
 // background). Pending debounced writes are taken into account.
 export function updatePersistedState<S>(name: string, update: (state: S) => S): boolean {
     const pending = pendingWrites.get(name);
-    const stored = pending ?? JSON.parse(sessionStorage.getItem(name) ?? "null");
+    const stored = pending ?? JSON.parse(readTabState(name) ?? "null");
     if (!stored || typeof stored !== "object" || !("state" in stored)) {
         return false;
     }
@@ -85,7 +86,14 @@ export function updatePersistedState<S>(name: string, update: (state: S) => S): 
     if (pending) {
         pendingWrites.set(name, next);
     } else {
-        sessionStorage.setItem(name, JSON.stringify(next));
+        writeTabState(name, JSON.stringify(next));
     }
     return true;
+}
+
+// Drops the persisted state of a tab that was closed, so closed tabs do not fill up
+// sessionStorage over a session.
+export function forgetPersistedState(name: string): void {
+    pendingWrites.delete(name);
+    removeTabState(name);
 }
