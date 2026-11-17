@@ -622,6 +622,25 @@ Gespeichert wird lokal in `puzzle_stats.json` im App-Datenordner (derselbe
 Ordner wie der Positionsspeicher). Eine laufende Streak übersteht auch einen
 Neustart der App.
 
+## Blind-Puzzles
+
+Im Puzzle-Tab stellst du unter dem Modus **Blind** auf 30, 20 oder 10 Sekunden.
+Die Stellung ist dann so lange zu sehen (mit „Jetzt ausblenden“ früher), danach
+verschwinden die Figuren und du ziehst auf dem leeren Brett. Der letzte
+Gegnerzug steht über dem Brett in Notation, bei längeren Aufgaben auch jeder
+weitere Gegnerzug und die bisherigen Züge. Zugpunkte, Zughervorhebung und
+Schach-Markierung sind im Blindmodus aus, weil sie die Figuren verraten würden.
+Ist die Aufgabe gelöst oder falsch, kommen die Figuren zurück. Blind gilt im
+Training wie in der Streak.
+
+- **Feldnamen zeigen:** schreibt a1 bis h8 auf jedes Feld, solange die Figuren
+  ausgeblendet sind. Ohne den Schalter gibt es gar keine Koordinaten.
+- **Zug eintippen:** ein Eingabefeld über dem Brett. Erkannt wird deutsche und
+  englische Notation (`Sxd4`, `Nxd4`, `S:d4`, `Dh5`, `e8D`, `0-0`), auch klein
+  geschrieben, mit Schachzeichen oder Zugnummer, und UCI (`f3d4`). Ein Zug, den
+  es in der Stellung nicht gibt, wird nur angemerkt und zählt nicht als Fehler.
+  Ziehen auf dem Brett geht weiterhin.
+
 ## Taktiksuche im Repertoire
 
 Jede Repertoire-Karte hat den Knopf **Taktiken suchen**. Die Engine prüft jede
