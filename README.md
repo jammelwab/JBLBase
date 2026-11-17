@@ -33,10 +33,10 @@ nicht neu gerechnet werden.
 - Konto mit Cloud-Sync von Repertoires und Trainingsfortschritt (E-Mail oder Lichess)
 - Updates direkt in der App
 - Neu in 1.1: Bewertungen über die Cloud teilen, damit keine Stellung doppelt gerechnet wird
+- Neu in 1.1.3: Papierkorb mit Rückgängig, automatische Sicherung, Tutorials, „Lücken finden“ und Hinweise beim Repertoire-Aufbau, brillante Züge in einer Variante suchen, Repertoire mit einem anderen Konto teilen
 
 **Später**
 
-- Repertoire an Freunde freigeben, die mit eigenem Fortschritt trainieren
 - Stockfish und Patricia direkt mitliefern
 
 ## Installieren
