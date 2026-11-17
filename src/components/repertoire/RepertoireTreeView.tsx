@@ -12,12 +12,16 @@ import {
 } from "@mantine/core";
 import { IconArrowLeft, IconArrowsExchange } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
+import { getDefaultStore, useSetAtom } from "jotai";
+import {
+  brillianceSettingsAtom,
+  DEFAULT_BRILLIANCE_SETTINGS,
+} from "@/components/panels/analysis/BrilliancePanel";
 import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useSWR from "swr";
-import { activeTabAtom, tabsAtom } from "@/state/atoms";
+import { activeTabAtom, analysisTabFamily, tabFamily, tabsAtom } from "@/state/atoms";
 import { updatePersistedState } from "@/state/store/debouncedStorage";
 import { openFile } from "@/utils/files";
 import { lineText, lineTree, playLine } from "@/utils/gamesTree";
@@ -192,6 +196,24 @@ export default function RepertoireTreeView({
       navigate({ to: "/" });
     },
     [repertoire, openLine, setTabs, setActiveTab, navigate],
+  );
+
+  // Opens the repertoire at `path` with the brilliant-move search set to its variations
+  const searchBrilliant = useCallback(
+    async (path: number[]) => {
+      const id = await openFile(repertoire.file, setTabs, setActiveTab);
+      updatePersistedState<TreeState>(id, (state) => ({ ...state, position: path }));
+      const store = getDefaultStore();
+      store.set(tabFamily(id), "analysis");
+      store.set(analysisTabFamily(id), "brilliance");
+      store.set(brillianceSettingsAtom, (prev) => ({
+        ...DEFAULT_BRILLIANCE_SETTINGS,
+        ...prev,
+        scope: "line",
+      }));
+      navigate({ to: "/" });
+    },
+    [repertoire.file, setTabs, setActiveTab, navigate],
   );
 
   // Opens everything above `path` and moves the view there
@@ -548,6 +570,11 @@ export default function RepertoireTreeView({
             status={selected.status}
             known={selected.known}
             onAdd={repertoire.parts ? undefined : () => addLine(selected.line)}
+            onBrilliance={
+              selected.status === "in" && !repertoire.parts
+                ? () => searchBrilliant(selected.path)
+                : undefined
+            }
             onClose={() => {
               setSelected(null);
               setHighlight(null);

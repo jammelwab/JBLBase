@@ -965,7 +965,13 @@ minSacrifice: number;
 /**
  * Upper bound for the number of positions searched.
  */
-maxPositions: number }
+maxPositions: number; 
+/**
+ * Lines (UCI moves after `fen` + `moves`), e.g. the variations of a
+ * repertoire. When set, the search looks at every position on these lines
+ * instead of building its own tree: is there a brilliant move there?
+ */
+along?: string[][] }
 export type BrillianceResult = { finds: BrillianceFind[]; positions: number; engineName: string }
 export type CachedEvalJs = { engine: string; depth: number; multipv: number; score: Score; uciMoves: string[] }
 export type ClockUpdateEvent = { gameId: string; whiteTime: bigint | null; blackTime: bigint | null }

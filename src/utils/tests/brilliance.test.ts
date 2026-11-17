@@ -1,5 +1,14 @@
-import { expect, test } from "vitest";
-import { numberedLine, numberedMove, pickBrillianceEngine } from "@/utils/brilliance";
+import { describe, expect, it, test } from "vitest";
+import {
+    existingMove,
+    linesBelow,
+    numberedLine,
+    numberedMove,
+    pickBrillianceEngine,
+} from "@/utils/brilliance";
+import { INITIAL_FEN } from "chessops/fen";
+import { lineTree } from "@/utils/gamesTree";
+import { mergeTree } from "@/utils/repertoireTree";
 import type { LocalEngine } from "@/utils/engines";
 
 const engine = (id: string, name: string, path = `${id}.exe`) =>
@@ -22,4 +31,23 @@ test("moves are numbered from the start position", () => {
     expect(numberedLine(white, ["c3", "Nf6", "d4"])).toBe("4.c3 Nf6 5.d4");
     expect(numberedLine(black, ["Nf6", "Ng5", "d5"])).toBe("2...Nf6 3.Ng5 d5");
     expect(numberedLine(white, [])).toBe("");
+});
+
+describe("linesBelow and existingMove", () => {
+    const line = (...sans: string[]) => lineTree(INITIAL_FEN, 0, sans);
+    const root = line("e4", "e5", "Nf3");
+    mergeTree(root, line("e4", "c5"));
+
+    it("lists every variation below a node in UCI", () => {
+        expect(linesBelow(root)).toEqual([
+            ["e2e4", "e7e5", "g1f3"],
+            ["e2e4", "c7c5"],
+        ]);
+        expect(linesBelow(root.children[0].children[1])).toEqual([]);
+    });
+
+    it("finds a move that is already in the variation", () => {
+        expect(existingMove(root, { pathUci: ["e2e4", "e7e5"], moveUci: "g1f3" })?.san).toBe("Nf3");
+        expect(existingMove(root, { pathUci: ["e2e4", "e7e5"], moveUci: "f1c4" })).toBeNull();
+    });
 });
