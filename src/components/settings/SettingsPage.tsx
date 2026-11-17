@@ -34,6 +34,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useAtom } from "jotai";
 import { RESET } from "jotai/utils";
 import { TRASH_RETENTION_CHOICES, trashRetentionDaysAtom } from "@/utils/trash";
+import BackupSetting from "./BackupSetting";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -568,6 +569,14 @@ export default function Page() {
             onChange={(val) => setPracticeAutoDifficulty(val as "none" | "1" | "2" | "3" | "4")}
           />
         ),
+      },
+      {
+        id: "repertoire-backup",
+        category: "repertoire",
+        title: t("Settings.Backup"),
+        description: t("Settings.Backup.Desc"),
+        keywords: ["backup", "sicherung", "restore", "zip", "repertoire"],
+        render: () => <BackupSetting />,
       },
       {
         id: "repertoire-trash",

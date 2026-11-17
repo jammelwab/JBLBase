@@ -778,6 +778,49 @@ async syncMetaSet(key: string, value: string | null) : Promise<Result<null, stri
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Makes a backup. `daily`: the automatic one, skipped when today's exists.
+ */
+async backupCreate(filesDir: string, daily: boolean) : Promise<Result<BackupInfo | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_create", { filesDir, daily }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async backupList() : Promise<Result<BackupInfo[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async backupRepertoires(file: string) : Promise<Result<BackupRepertoire[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_repertoires", { file }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async backupRestore(file: string, paths: string[], filesDir: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_restore", { file, paths, filesDir }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async backupFolder() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_folder") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -807,6 +850,24 @@ progressEvent: "progress-event"
 /** user-defined types **/
 
 export type AnalysisOptions = { fen: string; moves: string[]; annotateNovelties: boolean; referenceDb: string | null; reversed: boolean }
+export type BackupInfo = { 
+/**
+ * Absolute path of the ZIP file.
+ */
+file: string; 
+/**
+ * Day of the backup, YYYY-MM-DD.
+ */
+date: string; 
+/**
+ * Milliseconds since 1970 (file time).
+ */
+createdAt: number; size: number; repertoires: number }
+export type BackupRepertoire = { 
+/**
+ * Path below the files folder, "/"-separated, without ".pgn".
+ */
+path: string; size: number }
 export type BestMoves = { nodes: number; depth: number; score: Score; uciMoves: string[]; sanMoves: string[]; multipv: number; nps: number }
 export type BestMovesPayload = { bestLines: BestMoves[]; engine: string; tab: string; fen: string; moves: string[]; progress: number }
 /**
