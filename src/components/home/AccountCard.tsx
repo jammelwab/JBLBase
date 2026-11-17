@@ -291,6 +291,7 @@ export function AccountCard({
             </Tooltip>
             <Tooltip label={t("Home.Accounts.DownloadGames")}>
               <ActionIcon
+                data-tour="acc-download"
                 variant="subtle"
                 color="gray"
                 loading={loading}

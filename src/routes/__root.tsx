@@ -14,6 +14,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import { checkForAppUpdate } from "@/utils/updater";
 import CornerMenu from "@/components/corner/CornerMenu";
 import UsageStats from "@/components/UsageStats";
+import TutorialOverlay from "@/components/tutorial/TutorialOverlay";
 import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -428,6 +429,7 @@ function RootLayout() {
       </AppShell.Main>
       <CornerMenu />
       <UsageStats />
+      <TutorialOverlay />
     </AppShell>
   );
 }

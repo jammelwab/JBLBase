@@ -15,7 +15,7 @@ export function EmptyAccounts({ onAddAccount }: { onAddAccount: () => void }) {
         <Text c="dimmed" ta="center" maw={400}>
           {t("Home.Accounts.Empty.Description")}
         </Text>
-        <Button onClick={onAddAccount} size="md" mt="sm">
+        <Button data-tour="acc-add-empty" onClick={onAddAccount} size="md" mt="sm">
           {t("Home.Accounts.Add")}
         </Button>
       </Stack>
