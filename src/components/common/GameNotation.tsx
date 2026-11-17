@@ -12,11 +12,14 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useColorScheme } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
 import {
   IconArrowRight,
   IconArrowsSplit,
   IconArticle,
   IconArticleOff,
+  IconCheck,
+  IconCopy,
   IconEye,
   IconEyeOff,
   IconLayoutList,
@@ -148,6 +151,14 @@ function GameNotation({ topBar, controls }: { topBar?: boolean; controls?: React
 
 function NotationHeader() {
   const { t } = useTranslation();
+  const store = useContext(TreeStateContext)!;
+  const copyPgn = useStore(store, (s) => s.copyPgn);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
   const [invisible, setInvisible] = useAtom(currentInvisibleAtom);
   const [showComments, setShowComments] = useAtom(currentShowCommentsAtom);
   const [showVariations, setShowVariations] = useAtom(currentShowVariationsAtom);
@@ -157,6 +168,25 @@ function NotationHeader() {
       <Group justify="space-between" px="sm">
         <OpeningName />
         <Group gap="sm">
+          <Tooltip label={copied ? t("Common.Copied") : t("Notation.CopyPgnWithVariations")}>
+            <ActionIcon
+              color={copied ? "teal" : undefined}
+              aria-label={t("Notation.CopyPgnWithVariations")}
+              onClick={() =>
+                copyPgn().then(
+                  () => setCopied(true),
+                  (e) =>
+                    notifications.show({
+                      color: "red",
+                      title: t("Common.Error"),
+                      message: String(e),
+                    }),
+                )
+              }
+            >
+              {copied ? <IconCheck size="1rem" /> : <IconCopy size="1rem" />}
+            </ActionIcon>
+          </Tooltip>
           <Tooltip label={invisible ? t("Notation.ShowMoves") : t("Notation.HideMoves")}>
             <ActionIcon onClick={() => setInvisible((v) => !v)}>
               {invisible ? <IconEyeOff size="1rem" /> : <IconEye size="1rem" />}

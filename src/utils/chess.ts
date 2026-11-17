@@ -239,6 +239,41 @@ export function defaultPGN() {
     return `[Event "?"]\n[Site "?"]\n[Date "????.??.??"]\n[Round "?"]\n[White "?"]\n[Black "?"]\n[Result "*"]\n\n*`;
 }
 
+/**
+ * PGN of the line leading to the move at `path`, followed by everything after
+ * that move, including all side lines, comments and NAGs. Side lines that branch
+ * off before the move are alternatives to the line and are left out.
+ */
+export function getVariationWithSidelinesPGN(root: TreeNode, path: number[]): string {
+    if (path.length === 0) return "";
+    const pruned: TreeNode = { ...root, children: [] };
+    let src = root;
+    let dst = pruned;
+    for (const index of path) {
+        const child = src.children[index];
+        if (!child) return "";
+        const copy: TreeNode = { ...child, children: [] };
+        dst.children = [copy];
+        src = child;
+        dst = copy;
+    }
+    dst.children = src.children;
+    const pgn = getPGN(pruned, {
+        headers: null,
+        glyphs: true,
+        comments: true,
+        variations: true,
+        extraMarkups: true,
+    });
+    // Tidy the spacing around variations, leaving comments untouched.
+    return pgn
+        .split(/(\{[^}]*\})/)
+        .map((part, i) =>
+            i % 2 === 1 ? part : part.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+\)/g, ")"),
+        )
+        .join("");
+}
+
 export function getPGN(
     tree: TreeNode,
     {
