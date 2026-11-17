@@ -2,6 +2,8 @@ import { expect, test } from "vitest";
 import {
     addStoredFolder,
     buildFolderTree,
+    moveStoredFolders,
+    planFolderMerge,
     parseStoredFolders,
     planFolderImport,
     removeStoredFolder,
@@ -94,4 +96,66 @@ test("a folder of PGNs keeps its structure and file names", () => {
     const flat = planFolderImport(files, [], "", null);
     expect(flat.items.map((i) => i.folder)).toEqual(["", "1.d4", "1.d4/Colle"]);
     expect(flat.folders).toEqual([]);
+});
+
+type Rep = {
+    name: string;
+    owner: string;
+    color: "white" | "black";
+    folder: string;
+    shared?: unknown;
+};
+const rep = (name: string, folder: string, color: "white" | "black" = "white"): Rep => ({
+    name,
+    owner: "Ich",
+    color,
+    folder,
+});
+
+test("a folder dragged onto a repertoire brings everything inside it", () => {
+    const main = rep("Ich Weiß", "");
+    const kg = rep("Königsgambit", "Kurse/KG");
+    const kgSub = rep("Falkbeer", "Kurse/KG/Abgelehnt");
+    const other = rep("London", "1.d4");
+    const blackSame = rep("KG Schwarz", "Kurse/KG", "black");
+    const shared = { ...rep("Geteilt", "Kurse/KG"), shared: {} };
+    const all = [main, kg, kgSub, other, blackSame, shared];
+    const plan = planFolderMerge(all, { owner: "ich", color: "white", path: "kurse/kg" }, main);
+    expect(plan.parts).toEqual([kg, kgSub]);
+    expect(plan.move).toBe(false);
+});
+
+test("a folder of the other color dragged onto a repertoire moves over to its color", () => {
+    const main = rep("Ich Weiß", "");
+    const course = rep("Kurs", "Gambits", "black");
+    const plan = planFolderMerge(
+        [main, course],
+        { owner: "Ich", color: "black", path: "Gambits" },
+        main,
+    );
+    expect(plan.parts).toEqual([course]);
+    expect(plan.move).toBe(true);
+});
+
+test("the target inside the dragged folder is not merged into itself", () => {
+    const inside = rep("A", "X");
+    const b = rep("B", "X");
+    const plan = planFolderMerge([inside, b], { owner: "Ich", color: "white", path: "X" }, inside);
+    expect(plan.parts).toEqual([b]);
+});
+
+test("stored folders move to another color with their subfolders", () => {
+    const list = [
+        me("Gambits", "black"),
+        me("Gambits/KG", "black"),
+        me("Andere", "black"),
+        me("Gambits"),
+    ];
+    const moved = moveStoredFolders(
+        list,
+        { owner: "Ich", color: "black" },
+        { owner: "Ich", color: "white" },
+        "Gambits",
+    );
+    expect(moved).toEqual([me("Gambits"), me("Gambits/KG"), me("Andere", "black")]);
 });
