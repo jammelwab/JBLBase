@@ -1555,7 +1555,7 @@
     "Settings.Tutorials": "Tutorials",
     "Settings.Tutorials.Desc": "Schritt-für-Schritt-Anleitungen durch die App, jederzeit neu startbar.",
     "Settings.VariationArrows": "Variantenpfeile",
-    "Settings.VariationArrows.Desc": "Pfeile für alternative Züge in der aktuellen Stellung anzeigen",
+    "Settings.VariationArrows.Desc": "Dünne graue Pfeile für die nächsten Züge aller Varianten in der aktuellen Stellung anzeigen",
     "SideBar.Board": "Brett",
     "SideBar.Databases": "Datenbanken",
     "SideBar.Engines": "Engines",
