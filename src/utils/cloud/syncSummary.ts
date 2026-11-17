@@ -23,6 +23,9 @@ export function syncSummary(status: CloudSyncStatus): SyncSummary {
             ? { tone: "error", key: "Settings.Cloud.NotAllowed" }
             : { tone: "error", key: "Settings.Cloud.Sync.Failed", lastSync };
     }
+    if (status.limited) {
+        return { tone: "warning", key: "Settings.Cloud.Sync.Limited", lastSync };
+    }
     if ((status.conflictCopies?.length ?? 0) > 0) {
         return { tone: "warning", key: "Settings.Cloud.Sync.ConflictShort", lastSync };
     }

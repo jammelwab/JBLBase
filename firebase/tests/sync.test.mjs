@@ -10,7 +10,15 @@ import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import * as firestore from "firebase/firestore";
 import {
   MAX_PGN_LENGTH,
+  addCounts,
   cloudRepertoires,
+  decide,
+  emptyCounts,
+  fetchAccountUsage,
+  fetchLimits,
+  parseCounts,
+  parseLimits,
+  putDeviceUsage,
   listenAfter,
   parseSyncCursor,
   syncRepertoires,
@@ -308,4 +316,35 @@ test("live: another account's repertoires are not readable (#110)", async () => 
   await settle();
   stop();
   assert.equal(errors[0]?.code, "permission-denied");
+});
+
+test("usage of all devices adds up per account and day (#114)", async () => {
+  const db = env
+    .authenticatedContext("alice", { email: "alice@example.org", email_verified: true })
+    .firestore();
+  const cf = { db, firestore };
+  const day = "2026-11-17";
+  const a = emptyCounts();
+  a.repertoires = { reads: 10, writes: 2 };
+  a.evals = { reads: 3000, writes: 100 };
+  const b = emptyCounts();
+  b.evals = { reads: 1500, writes: 0 };
+  await putDeviceUsage(cf, "alice", day, "laptop", a);
+  await putDeviceUsage(cf, "alice", day, "desktop", b);
+  // A second run of the same device replaces its field, it does not add.
+  await putDeviceUsage(cf, "alice", day, "laptop", a);
+
+  const stored = await fetchAccountUsage(cf, "alice", day);
+  assert.deepEqual(Object.keys(stored).sort(), ["desktop", "laptop"]);
+  const account = Object.values(stored).map(parseCounts).reduce(addCounts, emptyCounts());
+  assert.equal(account.evals.reads, 4500);
+  assert.equal(account.repertoires.reads, 10);
+
+  // No config/limits: the defaults apply, the position store pauses at 4000.
+  const limits = parseLimits(await fetchLimits(cf));
+  assert.deepEqual(decide(account, limits, false), { evals: false, sync: true });
+  assert.deepEqual(decide(account, limits, true), { evals: true, sync: true });
+
+  // Another day starts from nothing.
+  assert.deepEqual(await fetchAccountUsage(cf, "alice", "2026-11-18"), {});
 });

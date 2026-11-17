@@ -201,6 +201,16 @@ service cloud.firestore {
           && request.resource.data.syncedAt == request.time;
       }
 
+      // Cloud usage per day (#114): one map of counts per device, written
+      // by the app at the end of each sync run. The id is the local date.
+      match /usage/{day} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.size() <= 20
+          && request.resource.data.updatedAt == request.time;
+      }
+
       // Own evaluations, limited to depth 28 for normal users.
       match /evals/{evalId} {
         allow read, delete: if isOwner(uid);
@@ -215,6 +225,12 @@ service cloud.firestore {
       allow read: if member();
       allow create, update: if isAdmin() && validEval(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    // Usage limits per account and day (#114). Edited in the Firebase
+    // console; missing fields fall back to the defaults in the app.
+    match /config/limits {
+      allow read: if member();
     }
 
     // Everything else is closed.

@@ -100,3 +100,39 @@ export function cloudRepertoires(cf: CloudFirestore, uid: string) {
         },
     };
 }
+
+/**
+ * Today's usage of an account (users/{uid}/usage/{day}): one field per
+ * device with its counts (see usage.ts). Empty when there is none yet.
+ */
+export async function fetchAccountUsage(
+    { db, firestore: fs }: CloudFirestore,
+    uid: string,
+    day: string,
+): Promise<Record<string, unknown>> {
+    const snap = await fs.getDoc(fs.doc(db, "users", uid, "usage", day));
+    if (!snap.exists()) return {};
+    const { updatedAt: _updatedAt, ...devices } = snap.data();
+    return devices;
+}
+
+/** Stores this device's counts in today's usage document of the account. */
+export async function putDeviceUsage(
+    { db, firestore: fs }: CloudFirestore,
+    uid: string,
+    day: string,
+    device: string,
+    counts: Record<string, { reads: number; writes: number }>,
+): Promise<void> {
+    await fs.setDoc(
+        fs.doc(db, "users", uid, "usage", day),
+        { [device]: counts, updatedAt: fs.serverTimestamp() },
+        { merge: true },
+    );
+}
+
+/** The limits set in config/limits; null when there are none. */
+export async function fetchLimits({ db, firestore: fs }: CloudFirestore) {
+    const snap = await fs.getDoc(fs.doc(db, "config", "limits"));
+    return snap.exists() ? (snap.data() as Record<string, unknown>) : null;
+}
