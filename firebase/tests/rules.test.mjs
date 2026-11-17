@@ -294,3 +294,55 @@ describe("shared position store", () => {
     await assertFails(setDoc(doc(admin(), "evals/e1"), { position: FEN }));
   });
 });
+
+describe("usage and limits (#114)", () => {
+  const counts = { repertoires: { reads: 3, writes: 1 } };
+
+  test("users write their own usage per day", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "users/alice/usage/2026-11-17"), {
+        dev1: counts,
+        updatedAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(getDoc(doc(user(), "users/alice/usage/2026-11-17")));
+    await assertFails(getDoc(doc(user("bob"), "users/alice/usage/2026-11-17")));
+    await assertFails(
+      setDoc(doc(user("bob"), "users/alice/usage/2026-11-17"), {
+        dev1: counts,
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  test("usage documents are bounded", async () => {
+    // Not a date as id.
+    await assertFails(
+      setDoc(doc(user(), "users/alice/usage/today"), {
+        dev1: counts,
+        updatedAt: serverTimestamp(),
+      }),
+    );
+    // No server time.
+    await assertFails(
+      setDoc(doc(user(), "users/alice/usage/2026-11-17"), { dev1: counts, updatedAt: 1 }),
+    );
+    // Too many fields.
+    const many = { updatedAt: serverTimestamp() };
+    for (let i = 0; i < 20; i++) many[`dev${i}`] = counts;
+    await assertFails(setDoc(doc(user(), "users/alice/usage/2026-11-17"), many));
+  });
+
+  test("members read the limits, nobody writes them", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "config/limits"), { evalReads: 10 });
+    });
+    await assertSucceeds(getDoc(doc(user(), "config/limits")));
+    await assertFails(getDoc(doc(anon(), "config/limits")));
+    await assertFails(getDoc(doc(user("mallory"), "config/limits")));
+    await assertFails(setDoc(doc(user(), "config/limits"), { evalReads: 1e9 }));
+    await assertFails(setDoc(doc(admin(), "config/limits"), { evalReads: 1e9 }));
+    // The allowlist stays unreadable.
+    await assertFails(getDoc(doc(user(), "config/access")));
+  });
+});

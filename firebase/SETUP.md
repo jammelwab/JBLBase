@@ -137,6 +137,30 @@ E-Mail-Konten zählen erst, wenn die Adresse bestätigt ist. Wer sich mit
 Lichess anmeldet und nicht auf der Liste steht, bekommt gar kein Konto. Ein
 E-Mail-Konto kann technisch jeder anlegen, es kommt aber an keine Daten.
 
+## Verbrauchsgrenzen pro Konto (#114)
+
+Die App zählt jeden Cloud-Zugriff (Dokumente gelesen und geschrieben) pro
+Gerät und Tag und legt die Zahlen am Ende jedes Abgleichs in
+`users/{uid}/usage/{JJJJ-MM-TT}` ab, ein Feld pro Gerät. Daraus rechnet sie
+den Verbrauch des ganzen Kontos. Die Grenzen sind so hoch, dass normale
+Nutzung sie nie erreicht:
+
+| Feld          | Standard | Was passiert darüber                                        |
+| ------------- | -------: | ----------------------------------------------------------- |
+| `evalReads`   |     4000 | Nur der Positionsspeicher pausiert bis morgen, still.       |
+| `evalWrites`  |     1500 | wie oben                                                    |
+| `totalReads`  |    20000 | Die ganze Synchronisierung pausiert bis morgen und sagt es. |
+| `totalWrites` |     8000 | wie oben                                                    |
+
+Admins haben keine Grenzen. Ändern ohne neue Version: in Firestore das
+Dokument `config/limits` anlegen und die gewünschten Felder als **number**
+eintragen. Fehlende oder falsche Felder nehmen den Standard. Mitglieder
+dürfen das Dokument lesen, aber niemand außer der Konsole darf es ändern.
+
+Die Grenzen schützen das gemeinsame Tageskontingent vor einem Konto oder
+einem Fehler (wie #99). Sie ersetzen nicht das Budget aus Schritt 2: die
+E-Mails bei 50 % und 90 % warnen früh, die Kostenbremse greift bei 100 %.
+
 ## Eigene E-Mails (Bestätigung, Passwort)
 
 Firebase erlaubt keinen eigenen Text für seine Mails. JBLBase verschickt

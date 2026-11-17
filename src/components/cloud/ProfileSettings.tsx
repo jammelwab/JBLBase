@@ -426,7 +426,7 @@ function ChessComCard({
 }
 
 function SyncStatus() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { tone, text, detail, status } = useSyncSummary();
   const syncing = status.state === "syncing";
   const rep = status.repertoires;
@@ -465,6 +465,35 @@ function SyncStatus() {
             down: (rep?.downloaded ?? 0) + (status.trainingDownloaded ?? 0),
           })}
         </Text>
+      )}
+      {status.usage && (
+        <Text size="xs" c="dimmed">
+          {t("Settings.Cloud.Sync.Usage", {
+            reads: (
+              status.usage.device.repertoires.reads +
+              status.usage.device.training.reads +
+              status.usage.device.evals.reads +
+              status.usage.device.live.reads +
+              status.usage.device.meta.reads
+            ).toLocaleString(i18n.language),
+            writes: (
+              status.usage.device.repertoires.writes +
+              status.usage.device.training.writes +
+              status.usage.device.evals.writes +
+              status.usage.device.live.writes +
+              status.usage.device.meta.writes
+            ).toLocaleString(i18n.language),
+            evalReads: status.usage.device.evals.reads.toLocaleString(i18n.language),
+            evalWrites: status.usage.device.evals.writes.toLocaleString(i18n.language),
+            accountReads: status.usage.account.reads.toLocaleString(i18n.language),
+            accountWrites: status.usage.account.writes.toLocaleString(i18n.language),
+          })}
+        </Text>
+      )}
+      {status.limited && (
+        <Alert color="yellow" title={t("Settings.Cloud.Sync.Limited")}>
+          {t("Settings.Cloud.Sync.Limited.Desc")}
+        </Alert>
       )}
       {status.state === "error" &&
         (status.notAllowed ? (
