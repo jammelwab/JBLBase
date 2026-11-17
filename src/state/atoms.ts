@@ -449,6 +449,30 @@ export const puzzleRatingRangeAtom = atomWithStorage<[number, number]>(
 
 export const puzzleModeAtom = atomWithStorage<"normal" | "streak">("puzzle-mode", "normal");
 
+// Blind puzzles: seconds the position stays visible before the pieces vanish (0 = off)
+export const puzzleBlindSecondsAtom = atomWithStorage<number>(
+    "puzzle-blind-seconds",
+    0,
+    undefined,
+    {
+        getOnInit: true,
+    },
+);
+export const puzzleBlindSquareNamesAtom = atomWithStorage<boolean>(
+    "puzzle-blind-square-names",
+    false,
+    undefined,
+    { getOnInit: true },
+);
+export const puzzleBlindTextInputAtom = atomWithStorage<boolean>(
+    "puzzle-blind-text-input",
+    false,
+    undefined,
+    {
+        getOnInit: true,
+    },
+);
+
 export const puzzleThemeAtom = atomWithStorage<string | null>("puzzle-theme", null);
 
 export const coverageMinGamesAtom = atomWithStorage<number>("coverage-min-games", 50);

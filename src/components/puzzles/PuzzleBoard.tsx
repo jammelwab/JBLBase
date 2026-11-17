@@ -1,26 +1,48 @@
-import { Box } from "@mantine/core";
+import { Box, Button, Group, Paper, Stack, Text, TextInput } from "@mantine/core";
 import { useElementSize, useForceUpdate } from "@mantine/hooks";
-import { type Move, makeUci, type NormalMove, parseSquare } from "chessops";
+import { IconEyeOff } from "@tabler/icons-react";
+import { type Move, makeUci, type NormalMove, parseSquare, parseUci } from "chessops";
 import { chessgroundDests, chessgroundMove } from "chessops/compat";
 import { parseFen } from "chessops/fen";
 import equal from "fast-deep-equal";
 import { useAtom, useAtomValue } from "jotai";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import { Chessground } from "@/chessground/Chessground";
 import {
   eraseDrawablesOnClickAtom,
   jumpToNextPuzzleAtom,
   moveHighlightAtom,
+  puzzleBlindSecondsAtom,
+  puzzleBlindSquareNamesAtom,
+  puzzleBlindTextInputAtom,
   showCoordinatesAtom,
   showDestsAtom,
 } from "@/state/atoms";
 import classes from "@/styles/Chessboard.module.css";
 import { positionFromFen } from "@/utils/chessops";
+import { localSan, parseMoveInput } from "@/utils/moveInput";
 import type { Completion, Puzzle } from "@/utils/puzzles";
 import { getNodeAtPath, treeIteratorMainLine } from "@/utils/treeReducer";
 import PromotionModal from "../boards/PromotionModal";
 import { TreeStateContext } from "../common/TreeStateContext";
+import blindClasses from "./BlindPuzzle.module.css";
+
+/** The puzzle moves played so far, numbered, in the app's notation. */
+function numberedMoves(fen: string, moves: string[], language: string) {
+  const [pos] = positionFromFen(fen);
+  if (!pos) return [];
+  const result: { text: string; byOpponent: boolean }[] = [];
+  for (const [i, uci] of moves.entries()) {
+    const move = parseUci(uci);
+    if (!move || !pos.isLegal(move)) break;
+    const prefix = pos.turn === "white" ? `${pos.fullmoves}. ` : `${pos.fullmoves}… `;
+    result.push({ text: prefix + localSan(pos, move, language), byOpponent: i % 2 === 0 });
+    pos.play(move);
+  }
+  return result;
+}
 
 function PuzzleBoard({
   puzzles,
@@ -47,6 +69,7 @@ function PuzzleBoard({
   const makeMove = useStore(store, (s) => s.makeMove);
   const makeMoves = useStore(store, (s) => s.makeMoves);
   const reset = useForceUpdate();
+  const { t, i18n } = useTranslation();
   const [jumpToNextPuzzleImmediately] = useAtom(jumpToNextPuzzleAtom);
 
   const currentNode = getNodeAtPath(root, position);
@@ -81,6 +104,64 @@ function PuzzleBoard({
   const dests = pos ? chessgroundDests(pos) : new Map();
   const turn = pos?.turn || "white";
   const showCoordinates = useAtomValue(showCoordinatesAtom);
+
+  // Blind mode: the position shows for a few seconds, then the pieces vanish
+  const blindSeconds = useAtomValue(puzzleBlindSecondsAtom);
+  const squareNames = useAtomValue(puzzleBlindSquareNamesAtom);
+  const textInput = useAtomValue(puzzleBlindTextInputAtom);
+  const blind = blindSeconds > 0;
+  const [phase, setPhase] = useState<"preview" | "hidden" | "off">(() =>
+    blind && puzzle?.completion === "incomplete" ? "preview" : "off",
+  );
+  const [previewEnd] = useState(() => Date.now() + blindSeconds * 1000);
+  const [remaining, setRemaining] = useState(blindSeconds);
+  useEffect(() => {
+    if (!blind) setPhase("off");
+  }, [blind]);
+  useEffect(() => {
+    if (phase !== "preview") return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((previewEnd - Date.now()) / 1000));
+      setRemaining(left);
+      if (left === 0) setPhase("hidden");
+    };
+    tick();
+    const interval = setInterval(tick, 200);
+    return () => clearInterval(interval);
+  }, [phase, previewEnd]);
+  // A finished puzzle shows its pieces again
+  const solving = puzzle?.completion === "incomplete";
+  const piecesHidden = phase === "hidden" && solving;
+  const inPreview = phase === "preview" && solving;
+  const blindActive = phase !== "off" && solving;
+  // Hidden pieces: square names on every square, or none at all
+  const coordinates = piecesHidden ? (squareNames ? "all" : "no") : showCoordinates;
+
+  const canMove =
+    !!puzzle &&
+    !inPreview &&
+    equal(position, Array(currentMove).fill(0)) &&
+    (puzzle.completion === "incomplete" || puzzle.completion === "incorrect");
+
+  const played =
+    puzzle && blindActive
+      ? numberedMoves(puzzle.fen, puzzle.moves.slice(0, currentMove), i18n.language)
+      : [];
+  const lastOpponentMove = [...played].reverse().find((m) => m.byOpponent);
+
+  const [typed, setTyped] = useState("");
+  const [typedError, setTypedError] = useState(false);
+  function submitTyped() {
+    if (!pos || !canMove) return;
+    const move = parseMoveInput(pos, typed);
+    if (!move) {
+      setTypedError(true);
+      return;
+    }
+    setTyped("");
+    setTypedError(false);
+    checkMove(move);
+  }
 
   async function checkMove(move: Move) {
     if (!pos) return;
@@ -126,78 +207,141 @@ function PuzzleBoard({
   const { ref: parentRef, height: parentHeight } = useElementSize();
 
   return (
-    <Box w="100%" h="100%" ref={parentRef}>
-      <Box
-        className={classes.chessboard}
-        onClick={() => {
-          if (eraseDrawablesOnClick) clearShapes();
-        }}
-        style={{
-          maxWidth: parentHeight,
-        }}
-      >
-        <PromotionModal
-          pendingMove={pendingMove}
-          cancelMove={() => setPendingMove(null)}
-          confirmMove={async (p) => {
-            if (pendingMove) {
-              await checkMove({ ...pendingMove, promotion: p });
-              setPendingMove(null);
-            }
+    <Stack w="100%" h="100%" gap="xs">
+      {blindActive && (
+        <Paper withBorder p="xs">
+          <Stack gap={4}>
+            <Group justify="space-between" wrap="nowrap">
+              <Text fw={600}>
+                {inPreview
+                  ? t("Puzzle.Blind.Memorize", { seconds: remaining })
+                  : t("Puzzle.Blind.Hidden")}
+              </Text>
+              {inPreview && (
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconEyeOff size={16} />}
+                  onClick={() => setPhase("hidden")}
+                >
+                  {t("Puzzle.Blind.HideNow")}
+                </Button>
+              )}
+            </Group>
+            {lastOpponentMove && (
+              <Text size="lg">
+                {t("Puzzle.Blind.OpponentPlayed")}{" "}
+                <Text span fw={700} ff="monospace" fz="lg">
+                  {lastOpponentMove.text}
+                </Text>
+              </Text>
+            )}
+            {played.length > 1 && (
+              <Text size="sm" c="dimmed" ff="monospace">
+                {played.map((m) => m.text).join("  ")}
+              </Text>
+            )}
+            {textInput && (
+              <Group gap="xs" wrap="nowrap" align="flex-start">
+                <TextInput
+                  style={{ flex: 1 }}
+                  size="sm"
+                  aria-label={t("Puzzle.Blind.TextInput")}
+                  placeholder={t("Puzzle.Blind.InputPlaceholder")}
+                  value={typed}
+                  disabled={!canMove}
+                  error={typedError ? t("Puzzle.Blind.InputInvalid") : undefined}
+                  onChange={(e) => {
+                    setTyped(e.currentTarget.value);
+                    setTypedError(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitTyped();
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <Button size="sm" disabled={!canMove || !typed.trim()} onClick={submitTyped}>
+                  {t("Puzzle.Blind.Submit")}
+                </Button>
+              </Group>
+            )}
+          </Stack>
+        </Paper>
+      )}
+      <Box w="100%" flex={1} mih={0} ref={parentRef}>
+        <Box
+          className={`${classes.chessboard} ${piecesHidden ? blindClasses.hidden : ""}`}
+          onClick={() => {
+            if (eraseDrawablesOnClick) clearShapes();
           }}
-          turn={turn}
-          orientation={orientation}
-        />
-        <Chessground
-          animation={{
-            enabled: true,
+          style={{
+            maxWidth: parentHeight,
           }}
-          coordinates={showCoordinates !== "no"}
-          coordinatesOnSquares={showCoordinates === "all"}
-          orientation={orientation}
-          drawable={{
-            enabled: true,
-            visible: true,
-            autoShapes: boardShapes,
-            onChange: (shapes) => {
-              setShapes(shapes);
-            },
-          }}
-          movable={{
-            free: false,
-            color:
-              puzzle &&
-              equal(position, Array(currentMove).fill(0)) &&
-              (puzzle.completion === "incomplete" || puzzle.completion === "incorrect")
-                ? turn
-                : undefined,
-            dests,
-            showDests,
-            events: {
-              after: (orig, dest) => {
-                const from = parseSquare(orig)!;
-                const to = parseSquare(dest)!;
-                const move: NormalMove = { from, to };
-                if (
-                  pos?.board.get(from)?.role === "pawn" &&
-                  ((dest[1] === "8" && turn === "white") || (dest[1] === "1" && turn === "black"))
-                ) {
-                  setPendingMove(move);
-                } else {
-                  checkMove(move);
-                }
+        >
+          <PromotionModal
+            pendingMove={pendingMove}
+            cancelMove={() => setPendingMove(null)}
+            confirmMove={async (p) => {
+              if (pendingMove) {
+                await checkMove({ ...pendingMove, promotion: p });
+                setPendingMove(null);
+              }
+            }}
+            turn={turn}
+            orientation={orientation}
+          />
+          <Chessground
+            animation={{
+              enabled: true,
+            }}
+            // Chessground draws coordinates only when it starts, so a change needs a new board
+            key={coordinates}
+            coordinates={coordinates !== "no"}
+            coordinatesOnSquares={coordinates === "all"}
+            orientation={orientation}
+            drawable={{
+              enabled: true,
+              visible: true,
+              autoShapes: boardShapes,
+              onChange: (shapes) => {
+                setShapes(shapes);
               },
-            },
-          }}
-          lastMove={
-            moveHighlight && currentNode.move ? chessgroundMove(currentNode.move) : undefined
-          }
-          turnColor={turn}
-          fen={currentNode.fen}
-          check={moveHighlight && pos?.isCheck()}
-        />
+            }}
+            movable={{
+              free: false,
+              color: canMove ? turn : undefined,
+              dests,
+              // Move dots would give away where the pieces are
+              showDests: showDests && !piecesHidden,
+              events: {
+                after: (orig, dest) => {
+                  const from = parseSquare(orig)!;
+                  const to = parseSquare(dest)!;
+                  const move: NormalMove = { from, to };
+                  if (
+                    pos?.board.get(from)?.role === "pawn" &&
+                    ((dest[1] === "8" && turn === "white") || (dest[1] === "1" && turn === "black"))
+                  ) {
+                    setPendingMove(move);
+                  } else {
+                    checkMove(move);
+                  }
+                },
+              },
+            }}
+            lastMove={
+              moveHighlight && currentNode.move && !piecesHidden
+                ? chessgroundMove(currentNode.move)
+                : undefined
+            }
+            turnColor={turn}
+            fen={currentNode.fen}
+            check={moveHighlight && !piecesHidden && pos?.isCheck()}
+          />
+        </Box>
       </Box>
-    </Box>
+    </Stack>
   );
 }
 

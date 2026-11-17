@@ -23,6 +23,7 @@ import { useSessionStorage } from "@mantine/hooks";
 import {
   IconAlertTriangle,
   IconChartLine,
+  IconEyeOff,
   IconFlag,
   IconFlame,
   IconListCheck,
@@ -47,6 +48,9 @@ import {
   hidePuzzleRatingAtom,
   jumpToNextPuzzleAtom,
   progressivePuzzlesAtom,
+  puzzleBlindSecondsAtom,
+  puzzleBlindSquareNamesAtom,
+  puzzleBlindTextInputAtom,
   puzzleModeAtom,
   puzzleRatingRangeAtom,
   puzzleThemeAtom,
@@ -97,6 +101,9 @@ function Puzzles({ id }: { id: string }) {
   const [mode, setMode] = useAtom(puzzleModeAtom);
   const streakMode = mode === "streak";
   const stats = usePuzzleStats();
+  const [blindSeconds, setBlindSeconds] = useAtom(puzzleBlindSecondsAtom);
+  const [blindSquareNames, setBlindSquareNames] = useAtom(puzzleBlindSquareNamesAtom);
+  const [blindTextInput, setBlindTextInput] = useAtom(puzzleBlindTextInputAtom);
 
   useEffect(() => {
     getPuzzleDatabases().then((databases) => {
@@ -356,7 +363,8 @@ function Puzzles({ id }: { id: string }) {
     <>
       <Portal target="#left" style={{ height: "100%" }}>
         <PuzzleBoard
-          key={currentPuzzle}
+          // A new puzzle in the same slot (after clearing the session) starts fresh too
+          key={`${currentPuzzle}:${puzzles[currentPuzzle]?.fen ?? ""}`}
           puzzles={puzzles}
           currentPuzzle={currentPuzzle}
           changeCompletion={changeCompletion}
@@ -479,6 +487,44 @@ function Puzzles({ id }: { id: string }) {
               { label: t("Puzzle.Mode.Streak"), value: "streak" },
             ]}
           />
+          <Group gap="xs" mb="sm" wrap="nowrap">
+            <Tooltip label={t("Puzzle.Blind.Desc")} multiline w={260}>
+              <Group gap={4} wrap="nowrap">
+                <IconEyeOff size={18} />
+                <Text size="sm" fw={500}>
+                  {t("Puzzle.Blind.Label")}
+                </Text>
+              </Group>
+            </Tooltip>
+            <SegmentedControl
+              size="xs"
+              style={{ flex: 1 }}
+              value={String(blindSeconds)}
+              onChange={(v) => setBlindSeconds(Number(v))}
+              data={[
+                { label: t("Puzzle.Blind.Off"), value: "0" },
+                { label: "30 s", value: "30" },
+                { label: "20 s", value: "20" },
+                { label: "10 s", value: "10" },
+              ]}
+            />
+          </Group>
+          {blindSeconds > 0 && (
+            <Group gap="lg" mb="sm">
+              <Switch
+                size="xs"
+                label={t("Puzzle.Blind.SquareNames")}
+                checked={blindSquareNames}
+                onChange={(event) => setBlindSquareNames(event.currentTarget.checked)}
+              />
+              <Switch
+                size="xs"
+                label={t("Puzzle.Blind.TextInput")}
+                checked={blindTextInput}
+                onChange={(event) => setBlindTextInput(event.currentTarget.checked)}
+              />
+            </Group>
+          )}
           <Accordion
             value={settingsOpened ? "settings" : null}
             onChange={(v) => setSettingsOpened(v === "settings")}
