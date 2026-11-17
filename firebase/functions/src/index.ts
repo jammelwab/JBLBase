@@ -121,7 +121,7 @@ export const deleteAccount = onCall({ cors: true, timeoutSeconds: 120 }, async (
     await db.recursiveDelete(db.doc(`users/${uid}`));
     // Shared repertoires (#120): the account's own shares, the ones it accepted, and
     // invitations still waiting for one of its addresses
-    const token = request.auth?.token ?? {};
+    const token: Record<string, unknown> = request.auth?.token ?? {};
     const keys = [
         token.email && token.email_verified ? `email:${String(token.email).toLowerCase()}` : null,
         typeof token.lichess === "string" ? `lichess:${token.lichess.toLowerCase()}` : null,
