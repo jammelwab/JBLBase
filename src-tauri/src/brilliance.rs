@@ -57,6 +57,10 @@ const ONLY_MOVE_GAP: i32 = 150;
 /// "Versteckt": the club search rates the move at least this much worse than
 /// its own favourite (or does not list it at all).
 const HIDDEN_GAP: i32 = 100;
+/// Moves this close to the engine's best move count as best too. At the same
+/// depth two lines often differ by a few centipawns only; which one ends up
+/// as line 1 is chance.
+const BEST_MARGIN: i32 = 10;
 /// Hero moves followed further per position (best move + brilliancies).
 const MAX_HERO_CHILDREN: usize = 3;
 
@@ -220,6 +224,11 @@ impl Searcher {
 
     /// Searches `fen` + `moves` with `multipv` lines. Deep searches use the
     /// position store; club searches always run so they stay shallow.
+    ///
+    /// `fresh` clears the engine's hash table first. The club search needs
+    /// that: right after the deep search the hash table already holds the
+    /// deep results for this position and its subtree, so a "depth 8" search
+    /// would simply return them and every hidden move would look obvious.
     async fn search(
         &mut self,
         fen: &str,
@@ -227,6 +236,7 @@ impl Searcher {
         multipv: u16,
         go_mode: &GoMode,
         cache: Option<&EvalCache>,
+        fresh: bool,
     ) -> Result<Vec<Line>, Error> {
         let pos = parse_fen_and_apply_moves(fen, moves)?;
         let legal = pos.legal_moves().len() as u16;
@@ -268,6 +278,11 @@ impl Searcher {
         if self.multipv != multipv {
             self.base.set_option("MultiPV", multipv).await?;
             self.multipv = multipv;
+        }
+        if fresh {
+            self.base.send("ucinewgame").await?;
+            self.base.send("isready").await?;
+            self.base.wait_for("readyok").await?;
         }
         self.base.set_position(fen, moves).await?;
         self.base.go(go_mode).await?;
@@ -446,12 +461,12 @@ fn judge(
     if pos.legal_moves().len() < 2 {
         return None;
     }
-    let is_best = line.multipv == best.multipv;
+    let is_best = line.multipv == best.multipv || cp >= best.cp() - BEST_MARGIN;
     let mate = matches!(line.score.value, ScoreValue::Mate(m) if m > 0);
 
     let sacrifice = sacrifice_value(pos, &mv);
 
-    let gap = if is_best {
+    let gap = if line.multipv == best.multipv {
         deep.get(1).map(|second| cp - second.cp())
     } else {
         None
@@ -607,14 +622,14 @@ async fn run(
             o.club_replies.max(1) + 1
         };
         let deep = searcher
-            .search(&o.fen, &all_moves, lines, &o.go_mode, Some(cache))
+            .search(&o.fen, &all_moves, lines, &o.go_mode, Some(cache), false)
             .await?;
         if deep.is_empty() {
             continue;
         }
         let club = if o.club_depth > 0 {
             searcher
-                .search(&o.fen, &all_moves, lines, &club_mode, None)
+                .search(&o.fen, &all_moves, lines, &club_mode, None, true)
                 .await?
         } else {
             vec![]
@@ -789,6 +804,26 @@ mod tests {
     }
 
     #[test]
+    fn sacrifice_level_with_the_best_move_gets_double_exclam() {
+        // Italian: Bxf7+ is rated a few centipawns below castling. That is
+        // engine noise, the sacrifice is as good as the best move.
+        let p = pos("r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4");
+        let deep = vec![line(1, 21, "e1g1"), line(2, 15, "c4f7")];
+        let c = judge(&p, &deep[1], &deep, &[], 200).unwrap();
+        assert_eq!(c.annotation, "!!");
+        assert_eq!(c.gap, None);
+    }
+
+    #[test]
+    fn clearly_worse_sacrifice_stays_single_exclam() {
+        let p = pos("r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4");
+        let deep = vec![line(1, 50, "e1g1"), line(2, 20, "c4f7")];
+        let club = vec![line(1, 40, "c4f7"), line(2, 30, "e1g1")];
+        let c = judge(&p, &deep[1], &deep, &club, 200).unwrap();
+        assert_eq!(c.annotation, "!");
+    }
+
+    #[test]
     fn unsound_sacrifice_is_ignored() {
         let p = pos("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 2");
         let deep = vec![line(1, 50, "b1c3"), line(2, -250, "f3g5")];
@@ -886,6 +921,13 @@ mod tests {
         let first = &result.finds[0];
         assert_eq!(first.move_san, "Nxe5");
         assert_eq!(first.annotation, "!!");
+        // The club search runs on a cleared hash table, so it must not
+        // "know" Nxe5 from the deep search just before it.
+        assert!(
+            first.tags.contains(&"hidden".to_string()),
+            "{:?}",
+            first.tags
+        );
         assert!(first.path_san.is_empty());
     }
 }
