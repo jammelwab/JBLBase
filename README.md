@@ -36,6 +36,7 @@ nicht neu gerechnet werden.
 - Neu in 1.1.3: Papierkorb mit Rückgängig, automatische Sicherung, Tutorials, „Lücken finden“ und Hinweise beim Repertoire-Aufbau, brillante Züge in einer Variante suchen, Repertoire mit einem anderen Konto teilen
 - Neu in 1.1.4: „Öffnen“ funktioniert wieder bei großen Repertoires
 - Neu in 1.1.5: dünne graue Pfeile am Brett für alle Varianten ab der aktuellen Stellung
+- Neu in 1.1.6: Ordner im Repertoire-Bereich auf ein Repertoire ziehen (z. B. „Ich Weiß“), um alle seine Varianten dort zu übernehmen
 
 **Später**
 

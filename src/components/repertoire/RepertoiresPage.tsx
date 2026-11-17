@@ -78,6 +78,12 @@ import {
   useStoredFolders,
   useRepertoires,
 } from "@/utils/repertoires";
+import {
+  FolderDragProvider,
+  type FolderMergeRequest,
+  FolderMergeModal,
+  useFolderDrag,
+} from "./FolderMerge";
 import ImportCourseModal from "./ImportCourseModal";
 import ImportHistoryModal from "./ImportHistoryModal";
 import TacticSearchModal from "./TacticSearchModal";
@@ -145,6 +151,9 @@ function RepertoireCard({
   const [copying, setCopying] = useState(false);
   const { documentDir } = useLoaderData({ from: "/repertoires" });
   const { shared } = repertoire;
+  // Highlighted while a folder is dragged over it
+  const folderDrag = useFolderDrag();
+  const dropOver = folderDrag?.drag?.over === repertoire.file.path;
 
   async function copyShared() {
     setCopying(true);
@@ -171,7 +180,21 @@ function RepertoireCard({
   }
 
   return (
-    <Card withBorder padding="md" data-tour="rep-card">
+    <Card
+      withBorder
+      padding="md"
+      data-tour="rep-card"
+      data-rep-drop={shared ? undefined : repertoire.file.path}
+      style={
+        dropOver
+          ? {
+              borderColor: "var(--mantine-color-blue-filled)",
+              boxShadow: "0 0 0 2px var(--mantine-color-blue-filled)",
+              backgroundColor: "var(--mantine-color-blue-light)",
+            }
+          : undefined
+      }
+    >
       {confirmDelete && (
         <DeleteRepertoireModal
           repertoire={repertoire}
@@ -626,6 +649,8 @@ type FolderActions = {
   onMove: (repertoire: Repertoire) => void;
   onEditFolder: (edit: FolderEdit) => void;
   onDeleteFolder: (path: string) => void;
+  // All lines of a folder into one repertoire (also by dragging the folder onto it)
+  onMergeFolder: (request: FolderMergeRequest) => void;
 };
 
 function FolderButtons({
@@ -797,8 +822,14 @@ function FolderSection({
   const [open, toggle] = useOpen(`${actions.owner}|${actions.color}|${node.path}`);
   const count = folderItems(node).length;
   const pretty = prettyFolderName(node.name);
+  const folderDrag = useFolderDrag();
+  const source = { owner: actions.owner, color: actions.color, path: node.path };
+  const dragged =
+    folderDrag?.drag?.source.path === node.path &&
+    folderDrag.drag.source.owner === actions.owner &&
+    folderDrag.drag.source.color === actions.color;
   return (
-    <Paper withBorder p="xs" radius="md">
+    <Paper withBorder p="xs" radius="md" style={dragged ? { opacity: 0.5 } : undefined}>
       <Group justify="space-between" wrap="nowrap" className={classes.folderRow}>
         <Group
           gap={6}
@@ -806,6 +837,7 @@ function FolderSection({
           className={classes.toggle}
           style={{ flex: 1, minWidth: 0 }}
           onClick={toggle}
+          onPointerDown={(e) => folderDrag?.begin(e, source)}
         >
           {open ? (
             <IconChevronDown size="1rem" style={{ flexShrink: 0 }} />
@@ -841,6 +873,18 @@ function FolderSection({
         </Group>
         <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }} className={classes.folderActions}>
           <FolderButtons folder={node.path} count={count} actions={actions} compact />
+          {count > 0 && (
+            <Tooltip label={t("Repertoire.FolderMerge.Action")}>
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                aria-label={t("Repertoire.FolderMerge.Action")}
+                onClick={() => actions.onMergeFolder({ source })}
+              >
+                <IconArrowMerge size="0.9rem" />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <Tooltip label={t("Repertoire.Folder.Rename")}>
             <ActionIcon
               size="sm"
@@ -971,6 +1015,7 @@ export default function RepertoiresPage() {
   const [importing, setImporting] = useState(false);
   const [importingFolder, setImportingFolder] = useState(false);
   const [editingFolder, setEditingFolder] = useState<FolderEdit | null>(null);
+  const [mergingFolder, setMergingFolder] = useState<FolderMergeRequest | null>(null);
   const { data: storedFolders } = useStoredFolders(documentDir);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useAtom(repertoireViewAtom);
@@ -1081,128 +1126,139 @@ export default function RepertoiresPage() {
   }
 
   return (
-    <ScrollArea h="100%">
-      {creating && (
-        <NewRepertoireModal
-          onClose={() => setCreating(null)}
-          owners={owners}
-          folders={folders}
-          preset={creating}
-        />
-      )}
-      {moving && (
-        <MoveFolderModal repertoire={moving} folders={folders} onClose={() => setMoving(null)} />
-      )}
-      {editingFolder && (
-        <FolderNameModal
-          edit={editingFolder}
-          documentDir={documentDir}
-          repertoires={repertoires ?? []}
-          onClose={() => setEditingFolder(null)}
-        />
-      )}
-      {importingFolder && (
-        <ImportFolderModal
-          documentDir={documentDir}
-          owners={owners}
-          folders={folders}
-          onClose={() => setImportingFolder(false)}
-        />
-      )}
-      {importing && (
-        <ImportCourseModal
-          opened
-          onClose={() => setImporting(false)}
-          repertoires={repertoires ?? []}
-        />
-      )}
-      <Stack p="md" gap="lg" maw={1100}>
-        <Group justify="space-between">
-          <Group gap="sm">
-            <IconBooks size="1.75rem" />
-            <Title order={2}>{t("Repertoire.Page.Title")}</Title>
-          </Group>
-          <Group>
-            {!isLoading && missing.length > 0 && (
-              <Button
-                variant="default"
-                data-tour="rep-defaults"
-                loading={busy}
-                onClick={createDefaults}
-              >
-                {t("Repertoire.Page.CreateDefaults", {
-                  names: missing.map((d) => `${d.owner} ${colorName(d.color)}`).join(", "),
-                })}
-              </Button>
-            )}
-            <Button
-              variant="light"
-              leftSection={<IconFileImport size="1rem" />}
-              disabled={!repertoires?.length}
-              onClick={() => setImporting(true)}
-            >
-              {t("Repertoire.Course.Button")}
-            </Button>
-            <Button
-              variant="light"
-              leftSection={<IconFolderDown size="1rem" />}
-              onClick={() => setImportingFolder(true)}
-            >
-              {t("Repertoire.FolderImport.Button")}
-            </Button>
-            <Button
-              data-tour="rep-new"
-              leftSection={<IconPlus size="1rem" />}
-              onClick={() => setCreating({})}
-            >
-              {t("Repertoire.Page.New")}
-            </Button>
-          </Group>
-        </Group>
-        <Text c="dimmed" size="sm">
-          {t("Repertoire.Page.Help")}
-        </Text>
-        <SharedWithMe />
-        {view && !viewRepertoire && !isLoading && (
-          <Alert color="blue" withCloseButton onClose={() => setView(null)}>
-            {t("Repertoire.Compare.NoRepertoire", {
-              name: `${viewOwner} ${colorName(view.color ?? "white")}`,
-            })}
-          </Alert>
+    <FolderDragProvider repertoires={repertoires ?? []} onDrop={setMergingFolder}>
+      <ScrollArea h="100%">
+        {mergingFolder && (
+          <FolderMergeModal
+            request={mergingFolder}
+            repertoires={repertoires ?? []}
+            documentDir={documentDir}
+            onClose={() => setMergingFolder(null)}
+          />
         )}
-        {[...byOwner.entries()].map(([owner, list]) => (
-          <Stack key={owner} gap="sm">
-            <Title order={4}>{owner}</Title>
-            {(["white", "black"] as const)
-              .map((color) => ({
-                color,
-                items: list.filter((r) => r.color === color),
-                empty: emptyFoldersOf(owner, color),
-              }))
-              .filter((g) => g.items.length > 0 || g.empty.length > 0)
-              .map((g) => (
-                <ColorGroup
-                  key={g.color}
-                  list={g.items}
-                  emptyFolders={g.empty}
-                  actions={{
-                    owner,
-                    color: g.color,
-                    onView: setView,
-                    onNew: setCreating,
-                    onMove: setMoving,
-                    onEditFolder: setEditingFolder,
-                    onDeleteFolder: (path) =>
-                      deleteFolder(documentDir, owner, g.color, path).catch((e) =>
-                        notifications.show({ color: "red", title: path, message: String(e) }),
-                      ),
-                  }}
-                />
-              ))}
-          </Stack>
-        ))}
-        <RepertoireTrash documentDir={documentDir} repertoires={repertoires ?? []} />
-      </Stack>
-    </ScrollArea>
+        {creating && (
+          <NewRepertoireModal
+            onClose={() => setCreating(null)}
+            owners={owners}
+            folders={folders}
+            preset={creating}
+          />
+        )}
+        {moving && (
+          <MoveFolderModal repertoire={moving} folders={folders} onClose={() => setMoving(null)} />
+        )}
+        {editingFolder && (
+          <FolderNameModal
+            edit={editingFolder}
+            documentDir={documentDir}
+            repertoires={repertoires ?? []}
+            onClose={() => setEditingFolder(null)}
+          />
+        )}
+        {importingFolder && (
+          <ImportFolderModal
+            documentDir={documentDir}
+            owners={owners}
+            folders={folders}
+            onClose={() => setImportingFolder(false)}
+          />
+        )}
+        {importing && (
+          <ImportCourseModal
+            opened
+            onClose={() => setImporting(false)}
+            repertoires={repertoires ?? []}
+          />
+        )}
+        <Stack p="md" gap="lg" maw={1100}>
+          <Group justify="space-between">
+            <Group gap="sm">
+              <IconBooks size="1.75rem" />
+              <Title order={2}>{t("Repertoire.Page.Title")}</Title>
+            </Group>
+            <Group>
+              {!isLoading && missing.length > 0 && (
+                <Button
+                  variant="default"
+                  data-tour="rep-defaults"
+                  loading={busy}
+                  onClick={createDefaults}
+                >
+                  {t("Repertoire.Page.CreateDefaults", {
+                    names: missing.map((d) => `${d.owner} ${colorName(d.color)}`).join(", "),
+                  })}
+                </Button>
+              )}
+              <Button
+                variant="light"
+                leftSection={<IconFileImport size="1rem" />}
+                disabled={!repertoires?.length}
+                onClick={() => setImporting(true)}
+              >
+                {t("Repertoire.Course.Button")}
+              </Button>
+              <Button
+                variant="light"
+                leftSection={<IconFolderDown size="1rem" />}
+                onClick={() => setImportingFolder(true)}
+              >
+                {t("Repertoire.FolderImport.Button")}
+              </Button>
+              <Button
+                data-tour="rep-new"
+                leftSection={<IconPlus size="1rem" />}
+                onClick={() => setCreating({})}
+              >
+                {t("Repertoire.Page.New")}
+              </Button>
+            </Group>
+          </Group>
+          <Text c="dimmed" size="sm">
+            {t("Repertoire.Page.Help")}
+          </Text>
+          <SharedWithMe />
+          {view && !viewRepertoire && !isLoading && (
+            <Alert color="blue" withCloseButton onClose={() => setView(null)}>
+              {t("Repertoire.Compare.NoRepertoire", {
+                name: `${viewOwner} ${colorName(view.color ?? "white")}`,
+              })}
+            </Alert>
+          )}
+          {[...byOwner.entries()].map(([owner, list]) => (
+            <Stack key={owner} gap="sm">
+              <Title order={4}>{owner}</Title>
+              {(["white", "black"] as const)
+                .map((color) => ({
+                  color,
+                  items: list.filter((r) => r.color === color),
+                  empty: emptyFoldersOf(owner, color),
+                }))
+                .filter((g) => g.items.length > 0 || g.empty.length > 0)
+                .map((g) => (
+                  <ColorGroup
+                    key={g.color}
+                    list={g.items}
+                    emptyFolders={g.empty}
+                    actions={{
+                      owner,
+                      color: g.color,
+                      onView: setView,
+                      onNew: setCreating,
+                      onMove: setMoving,
+                      onEditFolder: setEditingFolder,
+                      onMergeFolder: setMergingFolder,
+                      onDeleteFolder: (path) =>
+                        deleteFolder(documentDir, owner, g.color, path).catch((e) =>
+                          notifications.show({ color: "red", title: path, message: String(e) }),
+                        ),
+                    }}
+                  />
+                ))}
+            </Stack>
+          ))}
+          <RepertoireTrash documentDir={documentDir} repertoires={repertoires ?? []} />
+        </Stack>
+      </ScrollArea>
+    </FolderDragProvider>
   );
 }

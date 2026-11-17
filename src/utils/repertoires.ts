@@ -31,11 +31,14 @@ import {
     addStoredFolder,
     combineTrees,
     findMainRepertoire,
+    type FolderGroup,
     inFolder,
     isSameGroup,
+    moveStoredFolders,
     normalizeFolder,
     parseStoredFolders,
     planFolderImport,
+    planFolderMerge,
     removeStoredFolder,
     renamedFolder,
     renameStoredFolders,
@@ -509,6 +512,75 @@ export async function syncMainRepertoire(
     }
     bumpRepertoires();
     return { main, added };
+}
+
+// A folder dragged onto a repertoire (e.g. "Ich Weiß"): every line of the repertoires in the
+// folder and its subfolders goes into that repertoire. Moves it already has stay as they are;
+// recorded in its import history, so it can be undone there. If the folder belongs to another
+// player or color, it moves over to the target's, so its repertoires count for that color from
+// now on. The repertoires in the folder stay where they are otherwise. `skipped` counts the
+// repertoires that start from a position the target doesn't have.
+export async function mergeFolderIntoRepertoire(
+    documentDir: string,
+    repertoires: Repertoire[],
+    source: FolderGroup,
+    target: Repertoire,
+    label: string,
+): Promise<{ added: number; merged: number; skipped: number; moved: boolean }> {
+    const { parts, move } = planFolderMerge(
+        repertoires.filter((r) => !r.parts),
+        source,
+        target,
+    );
+    const fresh = await loadRepertoire(target.file);
+    const before = await readRaw(target.file);
+    let added = 0;
+    let skipped = 0;
+    for (const part of parts) {
+        const result = mergeTree(fresh.root, part.root);
+        if (result === null) skipped++;
+        else added += result;
+    }
+    if (added > 0) {
+        await recordImport(target.file.path, { kind: "course", source: label, added, before });
+        unwrap(await commands.writeGame(target.file.path, 0, serialize(fresh.root, fresh.headers)));
+        const store = getDefaultStore();
+        for (const tab of store.get(tabsAtom)) {
+            const origin = tab.gameOrigin;
+            if (
+                (origin.kind === "file" || origin.kind === "temp_file") &&
+                origin.file.path === target.file.path
+            ) {
+                updatePersistedState<TreeState>(tab.value, (state) => {
+                    for (const part of parts) mergeTree(state.root, part.root);
+                    return state;
+                });
+            }
+        }
+    }
+
+    if (move) {
+        for (const part of parts) {
+            const info = await readInfo(part.file);
+            await writeTextFile(
+                part.file.path.replace(/\.pgn$/, ".info"),
+                JSON.stringify({ ...info, owner: target.owner, color: target.color }),
+            );
+        }
+        const stored = await readStoredFolders(documentDir);
+        await writeStoredFolders(
+            documentDir,
+            addStoredFolder(moveStoredFolders(stored, source, target, source.path), {
+                owner: target.owner,
+                color: target.color,
+                path: source.path,
+            }),
+        );
+    }
+
+    if (added > 0 && !fresh.main) await syncAfterImport(fresh, label);
+    bumpRepertoires();
+    return { added, merged: parts.length - skipped, skipped, moved: move };
 }
 
 // After an import into a repertoire that isn't the main one. A failure here must not look

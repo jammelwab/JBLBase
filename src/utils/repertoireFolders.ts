@@ -276,3 +276,39 @@ export function folderLabel(path: string): string {
         .map((part) => prettyFolderName(part).label)
         .join(" › ");
 }
+
+// A folder dragged onto a repertoire: the repertoires whose lines go into it (everything in the
+// folder and its subfolders, of the folder's player and color, but not the target itself),
+// and whether the folder changes to the target's player or color.
+export type FolderGroup = { owner: string; color: "white" | "black"; path: string };
+
+export function planFolderMerge<
+    T extends { owner: string; color: "white" | "black"; folder: string; shared?: unknown },
+>(items: T[], source: FolderGroup, target: T): { parts: T[]; move: boolean } {
+    const parts = items.filter(
+        (r) =>
+            r !== target &&
+            !r.shared &&
+            isSameGroup({ ...r, name: "" }, source.owner, source.color) &&
+            normalizeFolder(source.path) !== "" &&
+            inFolder(r.folder, source.path),
+    );
+    const move = !isSameGroup({ ...target, name: "" }, source.owner, source.color);
+    return { parts, move };
+}
+
+// The folder `path` with its subfolders moves from one player and color to another; the path
+// stays the same. Folders already there are kept once.
+export function moveStoredFolders(
+    list: StoredFolder[],
+    from: { owner: string; color: "white" | "black" },
+    to: { owner: string; color: "white" | "black" },
+    path: string,
+): StoredFolder[] {
+    let out: StoredFolder[] = [];
+    for (const f of list) {
+        const moves = sameGroup(f, from.owner, from.color) && inFolder(f.path, path);
+        out = addStoredFolder(out, moves ? { ...f, owner: to.owner, color: to.color } : f);
+    }
+    return out;
+}
