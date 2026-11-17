@@ -439,7 +439,12 @@ export default function RepertoireTreeView({
     <Stack gap="sm" h="100%">
       <Group justify="space-between">
         <Group gap="sm">
-          <ActionIcon variant="subtle" onClick={onBack}>
+          <ActionIcon
+            variant="subtle"
+            data-tour="rep-view-back"
+            aria-label={t("Common.Back")}
+            onClick={onBack}
+          >
             <IconArrowLeft size="1.2rem" />
           </ActionIcon>
           <ColorDot color={repertoire.color} />
@@ -514,7 +519,13 @@ export default function RepertoireTreeView({
         </Alert>
       )}
 
-      <Paper withBorder flex={1} pos="relative" style={{ minHeight: 0, overflow: "hidden" }}>
+      <Paper
+        withBorder
+        flex={1}
+        pos="relative"
+        style={{ minHeight: 0, overflow: "hidden" }}
+        data-tour="rep-tree-diagram"
+      >
         {repertoire.root.children.length === 0 ? (
           <Text c="dimmed" size="sm" p="sm">
             {t("Repertoire.Tree.Empty")}

@@ -164,7 +164,9 @@ function PersonalPlayerCard({
         <Tabs.List>
           <Tabs.Tab value="overview">{t("Home.Personal.Overview")}</Tabs.Tab>
           <Tabs.Tab value="ratings">{t("Home.Personal.Ratings")}</Tabs.Tab>
-          <Tabs.Tab value="openings">{t("Home.Personal.Openings")}</Tabs.Tab>
+          <Tabs.Tab value="openings" data-tour="acc-openings">
+            {t("Home.Personal.Openings")}
+          </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="overview" className={classes.panel}>
           <ScrollArea

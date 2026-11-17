@@ -154,6 +154,33 @@ deinen Repertoires steht und was du dort spielst bzw. gegen welche Züge du
 vorbereitet bist. Zugumstellungen werden erkannt. Ein Klick auf einen Zug
 spielt ihn auf dem Brett.
 
+### Lücken finden (Hilfe beim Aufbau)
+
+**Lücken finden** auf der Repertoire-Karte sagt dir Schritt für Schritt, was deinem
+Repertoire als Nächstes fehlt, das Wichtigste zuerst:
+
+- **Gegnerzug offen:** Ein Zug, den der Gegner auf Lichess oft spielt (ab 5 %, oben
+  einstellbar), hat noch keine Linie.
+- **Dein Zug fehlt:** Eine Linie endet nach einem Gegnerzug, du hast dort keinen Zug.
+- **Weiterführen:** Eine Linie endet nach deinem Zug; gezeigt wird, was der Gegner dort
+  oft spielt. Das ist keine Lücke, nur ein Hinweis, und zählt halb so viel.
+
+Sortiert wird danach, in wie vielen Partien eine Lücke vorkommt: die Lichess-Anteile der
+Gegnerzüge auf dem Weg dorthin, multipliziert (deine eigenen Züge zählen voll). Oben steht
+der **nächste Schritt** mit **Auf dem Brett öffnen** (öffnet das Repertoire genau an der
+Stelle, was du dort ziehst, landet direkt darin) und **Vorschlag übernehmen** (nimmt den
+Gegnerzug und die auf Lichess meistgespielte Antwort auf, mit Eintrag in der
+Import-Historie). Häufig ist nicht immer am besten, prüfe Vorschläge mit der Engine. Die
+**geschätzte Abdeckung** ist der Anteil der Partien, die bis zum eingestellten Zug bzw. bis
+zum Ende deiner Linien im Repertoire bleiben. Für die Lichess-Zahlen musst du unter
+**Benutzer** bei Lichess angemeldet sein; ohne Anmeldung findet die Suche nur Linien, die
+nach einem Gegnerzug enden. Geprüft werden bis zu 150 Stellungen, die häufigsten zuerst.
+
+Auch auf dem Brett hilft die App beim Aufbau: Im Tab **Repertoire** stehen in jeder
+Stellung deines Repertoires die häufigen Gegnerzüge ohne Antwort (ab 5 %) und, wo dir ein
+Zug fehlt, die drei meistgespielten Züge, jeweils mit Anteil. Ein Klick spielt den Zug. Ist
+gerade ein Repertoire geöffnet, zählen seine Züge so, wie sie auf dem Brett stehen.
+
 ### Ordner anlegen und Ordner importieren
 
 Ordner legst du mit dem Ordner-Plus-Symbol an, unter Weiß/Schwarz oder in einem
@@ -298,6 +325,24 @@ Linie, ähnlich wie bei Chessable:
   anders ist.
 - **Fällig** übt nur Linien mit neuen oder fälligen Stellungen,
   **Alle Linien** das ganze Repertoire.
+
+## Tutorials
+
+Beim ersten Öffnen der Repertoire-Seite startet das Tutorial **Repertoire aufbauen**: Es
+hebt nacheinander die echten Knöpfe hervor (Repertoire anlegen, Züge eintragen, Lücken
+finden, Baum, Vergleich mit deinen Partien) und erklärt sie. Wo ein Schritt einen Klick
+verlangt, macht **Weiter** den Klick für dich, oder du klickst selbst. Klicks gehen auch
+während des Tutorials an die App, du kannst also alles gleich ausprobieren.
+**Überspringen**, das Kreuz oder Esc beenden es; es kommt dann nicht von selbst wieder.
+
+Unter **Einstellungen → Tutorials** startest du jedes Tutorial neu: **Repertoire
+aufbauen**, **Am Brett arbeiten** (Tab Repertoire mit den Hinweisen, Linien aufnehmen,
+Training, Engine und Brillant, Datenbank) und **Eigene Partien laden** (Konto hinzufügen,
+Partien herunterladen, Eröffnungen vergleichen).
+
+Für Entwickler: Ein Tutorial ist ein Eintrag in `src/components/tutorial/tutorials.ts`
+(Schritte mit dem `data-tour`-Namen des Elements), seine Texte stehen unter
+`Tutorial.<Tutorial>.<Schritt>.Title`/`.Body` in `en-US.json` und `de-DE.json`.
 
 ## Meine Spieler: Konten und Datenbanken zusammenfassen
 

@@ -253,7 +253,10 @@ function BoardControls({
       {currentTab?.type === "analysis" && (
         <>
           <Tooltip position="right" label={t("Repertoire.Add.Title")}>
-            <ActionIcon onClick={() => setAddingToRepertoire("line")}>
+            <ActionIcon
+              data-tour="board-add-repertoire"
+              onClick={() => setAddingToRepertoire("line")}
+            >
               <IconBookmarkPlus size="1.2rem" />
             </ActionIcon>
           </Tooltip>

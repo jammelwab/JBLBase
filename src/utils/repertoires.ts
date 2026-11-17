@@ -107,7 +107,7 @@ export const repertoireVersionAtom = atom(0);
 // Which view the repertoire page shows. `color` without `path` picks your own repertoire
 // for that color (used by "Compare with my repertoire" on the player card).
 export type RepertoireView = {
-    mode: "tree" | "compare";
+    mode: "tree" | "compare" | "check";
     path?: string;
     color?: RepertoireColor;
     // Whose repertoire `color` picks (a player card passes its player); the main user if unset

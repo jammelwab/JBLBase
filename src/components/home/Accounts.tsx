@@ -116,6 +116,7 @@ function Accounts() {
       {sessions.length > 0 && (
         <Group>
           <Button
+            data-tour="acc-add"
             fullWidth
             variant="light"
             rightSection={<IconPlus size="1rem" />}

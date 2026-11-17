@@ -252,6 +252,7 @@ export default function BoardPreview({
 
   return (
     <Paper
+      data-tour="rep-tree-preview"
       ref={paperRef}
       withBorder
       shadow="md"

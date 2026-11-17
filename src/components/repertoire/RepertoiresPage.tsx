@@ -36,6 +36,7 @@ import {
   IconHistory,
   IconTargetArrow,
   IconGitCompare,
+  IconListSearch,
   IconPlus,
 } from "@tabler/icons-react";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
@@ -78,10 +79,13 @@ import ImportCourseModal from "./ImportCourseModal";
 import ImportHistoryModal from "./ImportHistoryModal";
 import TacticSearchModal from "./TacticSearchModal";
 import { type FolderEdit, FolderNameModal, ImportFolderModal } from "./RepertoireFolderModals";
+import RepertoireCheckView from "./RepertoireCheckView";
 import RepertoireCompareView from "./RepertoireCompareView";
 import { ColorDot } from "./RepertoireLabel";
 import RepertoireTrash, { showDeletedNotification } from "./RepertoireTrash";
 import RepertoireTreeView from "./RepertoireTreeView";
+import { useFirstTimeTutorial } from "@/components/tutorial/tutorialState";
+import { FIRST_TIME_TUTORIAL } from "@/components/tutorial/tutorials";
 import classes from "./RepertoiresPage.module.css";
 
 // Open or closed state of a part of the page, kept across restarts. Starts closed.
@@ -110,12 +114,14 @@ function RepertoireCard({
   repertoire,
   onShowTree,
   onCompare,
+  onCheck,
   onMove,
   main,
 }: {
   repertoire: Repertoire;
   onShowTree: () => void;
   onCompare: () => void;
+  onCheck: () => void;
   onMove: () => void;
   // Set on the main repertoire of its player and color
   main?: MainInfo;
@@ -132,7 +138,7 @@ function RepertoireCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <Card withBorder padding="md">
+    <Card withBorder padding="md" data-tour="rep-card">
       {confirmDelete && (
         <DeleteRepertoireModal
           repertoire={repertoire}
@@ -213,11 +219,17 @@ function RepertoireCard({
           </Stack>
         </Group>
         <Group grow gap="xs">
-          <Button variant="light" leftSection={<IconBinaryTree size="1rem" />} onClick={onShowTree}>
+          <Button
+            variant="light"
+            data-tour="rep-tree"
+            leftSection={<IconBinaryTree size="1rem" />}
+            onClick={onShowTree}
+          >
             {t("Repertoire.Tree.Button")}
           </Button>
           <Button
             variant="default"
+            data-tour="rep-open"
             onClick={async () => {
               await openFile(repertoire.file, setTabs, setActiveTab);
               navigate({ to: "/" });
@@ -227,9 +239,20 @@ function RepertoireCard({
           </Button>
         </Group>
         <Button
+          variant="light"
+          color="yellow"
+          size="xs"
+          leftSection={<IconListSearch size="1rem" />}
+          data-tour="rep-check"
+          onClick={onCheck}
+        >
+          {t("Repertoire.Check.Button")}
+        </Button>
+        <Button
           variant="subtle"
           size="xs"
           leftSection={<IconGitCompare size="1rem" />}
+          data-tour="rep-compare"
           onClick={onCompare}
         >
           {t("Repertoire.Compare.Button")}
@@ -614,6 +637,7 @@ function FolderContents({
               repertoire={r}
               onShowTree={() => actions.onView({ mode: "tree", path: r.file.path })}
               onCompare={() => actions.onView({ mode: "compare", path: r.file.path })}
+              onCheck={() => actions.onView({ mode: "check", path: r.file.path })}
               onMove={() => actions.onMove(r)}
               main={actions.main?.path === r.file.path ? actions.main : undefined}
             />
@@ -860,6 +884,7 @@ export default function RepertoiresPage() {
   const { data: storedFolders } = useStoredFolders(documentDir);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useAtom(repertoireViewAtom);
+  useFirstTimeTutorial(FIRST_TIME_TUTORIAL, !isLoading && !view);
   // A player card asks for its player's repertoire, matched by name like the owner field
   const viewOwner = view?.owner ? repertoireOwner(view.owner, mainOwner) : mainOwner;
   // A single repertoire, or everything of a player and color (optionally one folder) as one
@@ -940,7 +965,13 @@ export default function RepertoiresPage() {
     const viewKey = `${viewRepertoire.file.path} ${view.folder ?? ""} ${viewRepertoire.parts?.length ?? 0}`;
     return (
       <Box p="md" h="100%">
-        {view.mode === "compare" ? (
+        {view.mode === "check" ? (
+          <RepertoireCheckView
+            key={viewKey}
+            repertoire={viewRepertoire}
+            onBack={() => setView(null)}
+          />
+        ) : view.mode === "compare" ? (
           <RepertoireCompareView
             key={viewKey}
             repertoire={viewRepertoire}
@@ -1001,7 +1032,12 @@ export default function RepertoiresPage() {
           </Group>
           <Group>
             {!isLoading && missing.length > 0 && (
-              <Button variant="default" loading={busy} onClick={createDefaults}>
+              <Button
+                variant="default"
+                data-tour="rep-defaults"
+                loading={busy}
+                onClick={createDefaults}
+              >
                 {t("Repertoire.Page.CreateDefaults", {
                   names: missing.map((d) => `${d.owner} ${colorName(d.color)}`).join(", "),
                 })}
@@ -1022,7 +1058,11 @@ export default function RepertoiresPage() {
             >
               {t("Repertoire.FolderImport.Button")}
             </Button>
-            <Button leftSection={<IconPlus size="1rem" />} onClick={() => setCreating({})}>
+            <Button
+              data-tour="rep-new"
+              leftSection={<IconPlus size="1rem" />}
+              onClick={() => setCreating({})}
+            >
               {t("Repertoire.Page.New")}
             </Button>
           </Group>
