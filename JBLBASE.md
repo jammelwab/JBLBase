@@ -845,7 +845,26 @@ Datenbank liegen, ohne verbundenes Konto.
   Lichess): ab 10 Punkten Ungenauigkeit, ab 20 Fehler, ab 30 Patzer (auf der
   Skala von -100 bis 100).
 - Statistiken: Genauigkeit gesamt und pro Monat, nach Partiephase, Farbe,
-  Bedenkzeit, Ergebnis und Eröffnung, dazu die größten Patzer.
+  Bedenkzeit und Ergebnis, dazu die größten Patzer und die brillanten Züge.
+- **Eröffnungen:** Getrennt nach Weiß und Schwarz, und nur die Eröffnungen,
+  die du selbst gewählt hast: Den Namen gibt die tiefste bekannte Stellung,
+  die durch einen deiner eigenen Züge entstand. Was der Gegner danach daraus
+  macht, ändert den Namen nicht mehr.
+- **Brillante Züge (!!):** Dein Zug ist der beste Zug der Engine, opfert
+  mindestens eine Qualität (gemessen wie bei „Brillante Züge suchen“), du
+  stehst danach nicht schlechter als −0,8, und vor dem letzten Zug des
+  Gegners standest du nicht schon über +4. Ein Opfer, das nur dank eines
+  gegnerischen Fehlers geht, zählt also.
+- **Zur Partie springen:** Ein Klick auf einen Patzer oder brillanten Zug
+  öffnet die Partie auf einem neuen Brett, direkt nach diesem Zug. Deine
+  Züge tragen die Markierungen von Insight (?!, ?, ??, !!), nach jedem
+  Fehler steht die bessere Fortsetzung als Variante, und jede Stellung hat
+  die Bewertung aus dem Positionsspeicher (Bewertungskurve), ohne neu zu
+  rechnen.
+- Partien, die eine ältere Insight-Version analysiert hat, gelten als nicht
+  analysiert, bis du die Analyse erneut startest. Das geht schnell, weil die
+  Bewertungen schon im Positionsspeicher liegen; bis dahin bleiben ihre alten
+  Zahlen sichtbar, nur ohne !! und eigene Eröffnungen.
 - Übersehene Taktiken (du hattest einen einzigen Gewinnzug und hast ihn nicht
   gespielt) werden zu Aufgaben in `Partien-Taktiken.duckdb` und erscheinen im
   Puzzle-Tab, mit Motiv und geschätzter Elo wie bei der Repertoire-Suche.

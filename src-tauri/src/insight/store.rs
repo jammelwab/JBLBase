@@ -14,7 +14,7 @@ use specta::Type;
 
 use crate::error::Error;
 
-use super::{GameInfo, GameReport};
+use super::{GameInfo, GameReport, ANALYSIS_VERSION, BRILLIANT};
 
 pub const INSIGHT_FILE_NAME: &str = "insight.sqlite3";
 
@@ -66,6 +66,27 @@ pub struct InsightError {
     /// Winning chances given away, in percent points (0 to 100).
     pub loss: f64,
     pub phase: String,
+    /// 1 inaccuracy, 2 mistake, 3 blunder, 4 brilliant.
+    pub class: u8,
+}
+
+/// A move Insight marked in a game.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MarkedMove {
+    pub ply: u32,
+    pub class: u8,
+    pub best: String,
+    pub loss: f64,
+}
+
+/// One analysed game as the store knows it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnalysedGame {
+    pub source: String,
+    pub player: String,
+    pub white_side: bool,
+    pub engine: String,
+    pub moves: Vec<MarkedMove>,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type, Default)]
@@ -77,16 +98,25 @@ pub struct InsightSummary {
     /// Average centipawn loss per move.
     pub acpl: f64,
     pub missed_tactics: u32,
+    /// Brilliant moves ("!!") of the player.
+    pub brilliants: u32,
     pub by_color: Vec<InsightGroup>,
     pub by_speed: Vec<InsightGroup>,
     pub by_result: Vec<InsightGroup>,
-    /// The openings played most, by family ("Sicilian Defense").
-    pub by_opening: Vec<InsightGroup>,
+    /// The openings the player chose most with White and with Black, by
+    /// family ("Sicilian Defense"). Only the player's own moves name it.
+    pub by_opening_white: Vec<InsightGroup>,
+    pub by_opening_black: Vec<InsightGroup>,
     /// By month ("2026-03"), oldest first.
     pub by_month: Vec<InsightGroup>,
     pub phases: Vec<InsightPhase>,
     /// The biggest errors, worst first.
     pub worst: Vec<InsightError>,
+    /// The brilliant moves, newest first.
+    pub brilliant: Vec<InsightError>,
+    /// Games analysed by an older version of Insight; analysing again adds
+    /// what is new.
+    pub outdated: u32,
     /// Everyone games were analysed for.
     pub players: Vec<String>,
 }
@@ -145,6 +175,23 @@ fn open_connection(path: &Path) -> Result<Connection, rusqlite::Error> {
              PRIMARY KEY (game_key, ply)
          );",
     )?;
+    // Columns added later.
+    let columns: Vec<String> = conn
+        .prepare("SELECT name FROM pragma_table_info('games')")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<_, _>>()?;
+    for (column, definition) in [
+        ("version", "INTEGER NOT NULL DEFAULT 1"),
+        ("own_opening", "TEXT NOT NULL DEFAULT ''"),
+        ("own_family", "TEXT NOT NULL DEFAULT ''"),
+        ("brilliants", "INTEGER NOT NULL DEFAULT 0"),
+    ] {
+        if !columns.iter().any(|c| c == column) {
+            conn.execute_batch(&format!(
+                "ALTER TABLE games ADD COLUMN {column} {definition}"
+            ))?;
+        }
+    }
     Ok(conn)
 }
 
@@ -185,8 +232,9 @@ impl InsightStore {
     /// Depth a game was analysed to, `None` when it never was.
     pub fn analysed_depth(&self, key: &str) -> Result<Option<u32>, Error> {
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare_cached("SELECT depth FROM games WHERE key = ?1")?;
-            let mut rows = stmt.query(params![key])?;
+            let mut stmt =
+                conn.prepare_cached("SELECT depth FROM games WHERE key = ?1 AND version >= ?2")?;
+            let mut rows = stmt.query(params![key, ANALYSIS_VERSION])?;
             match rows.next()? {
                 Some(row) => Ok(Some(row.get(0)?)),
                 None => Ok(None),
@@ -199,8 +247,9 @@ impl InsightStore {
         self.with_conn(|conn| {
             conn.query_row(
                 "SELECT COUNT(*) FROM games
-                 WHERE source = ?1 AND lower(player) = lower(?2) AND depth >= ?3",
-                params![source, player, depth],
+                 WHERE source = ?1 AND lower(player) = lower(?2) AND depth >= ?3
+                   AND version >= ?4",
+                params![source, player, depth, ANALYSIS_VERSION],
                 |row| row.get(0),
             )
         })
@@ -227,9 +276,10 @@ impl InsightStore {
                     key, source, player, color, white, black, outcome, date, time_control,
                     speed, player_rating, opponent_rating, opening, family, plies, depth,
                     engine, accuracy, opponent_accuracy, acpl, inaccuracies, mistakes,
-                    blunders, missed_tactics, analysed_at
+                    blunders, missed_tactics, analysed_at, version, own_opening, own_family,
+                    brilliants
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                           ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
+                           ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
                 params![
                     game.key,
                     game.source,
@@ -255,7 +305,11 @@ impl InsightStore {
                     report.mistakes,
                     report.blunders,
                     report.tactics.len() as u32,
-                    now
+                    now,
+                    ANALYSIS_VERSION,
+                    report.own_opening,
+                    super::opening_family(&report.own_opening),
+                    report.brilliants
                 ],
             )?;
             for (phase, stats) in &report.phases {
@@ -297,12 +351,12 @@ impl InsightStore {
     pub fn summary(&self, player: Option<&str>) -> Result<InsightSummary, Error> {
         self.with_conn(|conn| {
             const FILTER: &str = "(?1 IS NULL OR lower(player) = lower(?1))";
-            let groups = |column: &str, order: &str, limit: u32| -> Result<Vec<InsightGroup>, rusqlite::Error> {
+            let groups_where = |column: &str, filter: &str, order: &str, limit: u32| -> Result<Vec<InsightGroup>, rusqlite::Error> {
                 let sql = format!(
                     "SELECT {column}, COUNT(*), AVG(accuracy),
                             AVG(CASE outcome WHEN 'win' THEN 100.0 WHEN 'draw' THEN 50.0 ELSE 0.0 END),
                             AVG(inaccuracies), AVG(mistakes), AVG(blunders)
-                     FROM games WHERE {FILTER} AND {column} <> ''
+                     FROM games WHERE {FILTER} AND {column} <> '' AND {filter}
                      GROUP BY {column} ORDER BY {order} LIMIT {limit}"
                 );
                 let mut stmt = conn.prepare(&sql)?;
@@ -319,15 +373,28 @@ impl InsightStore {
                 })?;
                 rows.collect()
             };
+            let groups = |column: &str, order: &str, limit: u32| groups_where(column, "1", order, limit);
 
-            let (games, accuracy, opponent_accuracy, acpl, missed_tactics) = conn.query_row(
+            let (games, accuracy, opponent_accuracy, acpl, missed_tactics, brilliants, outdated) = conn.query_row(
                 &format!(
                     "SELECT COUNT(*), COALESCE(AVG(accuracy), 0), COALESCE(AVG(opponent_accuracy), 0),
-                            COALESCE(AVG(acpl), 0), COALESCE(SUM(missed_tactics), 0)
+                            COALESCE(AVG(acpl), 0), COALESCE(SUM(missed_tactics), 0),
+                            COALESCE(SUM(brilliants), 0),
+                            COALESCE(SUM(CASE WHEN version < ?2 THEN 1 ELSE 0 END), 0)
                      FROM games WHERE {FILTER}"
                 ),
-                params![player],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+                params![player, ANALYSIS_VERSION],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                    ))
+                },
             )?;
 
             let phases = {
@@ -354,15 +421,15 @@ impl InsightStore {
                 rows.collect::<Result<Vec<_>, _>>()?
             };
 
-            let worst = {
+            let moves = |filter: &str, order: &str| -> Result<Vec<InsightError>, rusqlite::Error> {
                 let mut stmt = conn.prepare(&format!(
                     "SELECT e.game_key, g.white, g.black, g.date, e.ply, e.fen, e.played, e.best,
-                            e.loss, e.phase
+                            e.loss, e.phase, e.class
                      FROM errors e JOIN games g ON g.key = e.game_key
-                     WHERE {FILTER}
-                     ORDER BY e.loss DESC, g.date DESC LIMIT 30"
+                     WHERE {FILTER} AND {filter}
+                     ORDER BY {order} LIMIT 30"
                 ))?;
-                let rows = stmt.query_map(params![player], |row| {
+                let rows = stmt.query_map(params![player, BRILLIANT], |row| {
                     Ok(InsightError {
                         game: row.get(0)?,
                         white: row.get(1)?,
@@ -374,10 +441,13 @@ impl InsightStore {
                         best: row.get(7)?,
                         loss: row.get(8)?,
                         phase: row.get(9)?,
+                        class: row.get(10)?,
                     })
                 })?;
-                rows.collect::<Result<Vec<_>, _>>()?
+                rows.collect()
             };
+            let worst = moves("e.class < ?2", "e.loss DESC, g.date DESC")?;
+            let brilliant = moves("e.class = ?2", "g.date DESC, e.ply")?;
 
             let players = {
                 let mut stmt =
@@ -395,16 +465,70 @@ impl InsightStore {
                 opponent_accuracy,
                 acpl,
                 missed_tactics,
+                brilliants,
                 by_color: groups("color", "1 DESC", 2)?,
                 by_speed: groups("speed", "2 DESC", 10)?,
                 by_result: groups("outcome", "2 DESC", 3)?,
-                by_opening: groups("family", "2 DESC", 20)?,
+                by_opening_white: groups_where("own_family", "color = 'white'", "2 DESC", 15)?,
+                by_opening_black: groups_where("own_family", "color = 'black'", "2 DESC", 15)?,
                 by_month,
                 phases,
                 worst,
+                brilliant,
+                outdated,
                 players,
             })
         })
+    }
+
+    /// What Insight found in one game: where it came from and the player's
+    /// errors and brilliant moves. `None` when the game is not analysed.
+    pub fn game(&self, key: &str) -> Result<Option<AnalysedGame>, Error> {
+        self.with_conn(|conn| {
+            let game = conn.query_row(
+                "SELECT source, player, color, engine FROM games WHERE key = ?1",
+                params![key],
+                |row| {
+                    Ok(AnalysedGame {
+                        source: row.get(0)?,
+                        player: row.get(1)?,
+                        white_side: row.get::<_, String>(2)? == "white",
+                        engine: row.get(3)?,
+                        moves: Vec::new(),
+                    })
+                },
+            );
+            let mut game = match game {
+                Ok(game) => game,
+                Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+                Err(e) => return Err(e),
+            };
+            let mut stmt = conn.prepare(
+                "SELECT ply, class, best, loss FROM errors WHERE game_key = ?1 ORDER BY ply",
+            )?;
+            game.moves = stmt
+                .query_map(params![key], |row| {
+                    Ok(MarkedMove {
+                        ply: row.get(0)?,
+                        class: row.get(1)?,
+                        best: row.get(2)?,
+                        loss: row.get(3)?,
+                    })
+                })?
+                .collect::<Result<_, _>>()?;
+            Ok(Some(game))
+        })
+    }
+
+    #[cfg(test)]
+    pub fn set_version_for_test(&self, key: &str, version: u32) {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE games SET version = ?2 WHERE key = ?1",
+                params![key, version],
+            )
+        })
+        .unwrap();
     }
 
     /// Forgets every analysis. The evaluations stay in the position store,
