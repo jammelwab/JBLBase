@@ -1561,7 +1561,7 @@
     "Settings.Tutorials": "Tutorials",
     "Settings.Tutorials.Desc": "Step-by-step guides through the app. Start any of them again at any time.",
     "Settings.VariationArrows": "Variation Arrows",
-    "Settings.VariationArrows.Desc": "Show arrows for alternative moves in the current position",
+    "Settings.VariationArrows.Desc": "Show thin grey arrows for the next move of every variation in the current position",
     "SideBar.Board": "Board",
     "SideBar.Databases": "Databases",
     "SideBar.Engines": "Engines",

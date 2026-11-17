@@ -71,6 +71,8 @@ import PromotionModal from "./PromotionModal";
 const LARGE_BRUSH = 11;
 const MEDIUM_BRUSH = 7.5;
 const SMALL_BRUSH = 4;
+const VARIATION_BRUSH = 3;
+const VARIATION_MAIN_BRUSH = 4.5;
 const BAR_HEIGHT = "1.9rem";
 
 interface ChessboardProps {
@@ -306,32 +308,6 @@ function Board({
     }
   }
 
-  // Variation arrows: show all children moves when there are alternatives
-  if (
-    showVariationArrows &&
-    !practicing &&
-    !lineTrainer.active &&
-    currentNode.children.length > 1
-  ) {
-    for (const child of currentNode.children) {
-      if (child.move) {
-        const m = child.move as NormalMove;
-        const from = makeSquare(m.from);
-        const to = makeSquare(m.to);
-        if (from && to && !shapes.find((s) => s.orig === from && s.dest === to)) {
-          shapes.push({
-            orig: from,
-            dest: to,
-            brush: "variation",
-            modifiers: {
-              lineWidth: MEDIUM_BRUSH,
-            },
-          });
-        }
-      }
-    }
-  }
-
   if (extraShapes?.length && !practicing && !lineTrainer.active && !editingMode) {
     shapes = shapes.concat(extraShapes);
   }
@@ -340,6 +316,41 @@ function Board({
   }
   if (lineTrainer.active) {
     shapes = shapes.concat(lineTrainer.shapes);
+  }
+
+  // Variation arrows: when the current position has side lines, a thin grey
+  // arrow for the next move of every variation (the main line slightly
+  // stronger). Moves already shown by engine, explorer or own arrows are
+  // skipped, and the grey arrows sit underneath all others.
+  if (
+    showVariationArrows &&
+    !practicing &&
+    !lineTrainer.active &&
+    !editingMode &&
+    currentNode.children.length > 1
+  ) {
+    const variationShapes: DrawShape[] = [];
+    for (const [i, child] of currentNode.children.entries()) {
+      if (!child.move || !("from" in child.move)) continue;
+      const from = makeSquare(child.move.from);
+      const to = makeSquare(child.move.to);
+      if (
+        from &&
+        to &&
+        !shapes.some((s) => s.orig === from && s.dest === to) &&
+        !variationShapes.some((s) => s.orig === from && s.dest === to)
+      ) {
+        variationShapes.push({
+          orig: from,
+          dest: to,
+          brush: i === 0 ? "variationMain" : "variation",
+          modifiers: {
+            lineWidth: i === 0 ? VARIATION_MAIN_BRUSH : VARIATION_BRUSH,
+          },
+        });
+      }
+    }
+    shapes = variationShapes.concat(shapes);
   }
 
   const hasClock =
@@ -629,9 +640,15 @@ function Board({
                   brushes: {
                     variation: {
                       key: "v",
-                      color: "#9b59b6",
+                      color: "#7a7a7a",
+                      opacity: 0.6,
+                      lineWidth: VARIATION_BRUSH,
+                    },
+                    variationMain: {
+                      key: "vm",
+                      color: "#5c5c5c",
                       opacity: 0.8,
-                      lineWidth: 10,
+                      lineWidth: VARIATION_MAIN_BRUSH,
                     },
                   } as unknown as DrawBrushes,
                   onChange: (shapes) => {
