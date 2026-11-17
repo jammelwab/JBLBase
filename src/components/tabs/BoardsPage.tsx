@@ -25,6 +25,8 @@ import "react-mosaic-component/react-mosaic-component.css";
 import "@/styles/react-mosaic.css";
 import { platform } from "@tauri-apps/plugin-os";
 import { atomWithStorage } from "jotai/utils";
+import { forgetPersistedState } from "@/state/store/debouncedStorage";
+import { readTabState, writeTabState } from "@/state/store/tabStorage";
 import classes from "./BoardsPage.module.css";
 
 export default function BoardsPage() {
@@ -48,7 +50,7 @@ export default function BoardsPage() {
     async (value: string | null, forced?: boolean) => {
       if (value !== null) {
         const closedTab = tabs.find((tab) => tab.value === value);
-        const tabState = JSON.parse(sessionStorage.getItem(value) || "{}");
+        const tabState = JSON.parse(readTabState(value) || "{}");
         if (tabState && isPersistentGameOrigin(closedTab) && tabState.state.dirty && !forced) {
           toggleSaveModal();
           return;
@@ -68,6 +70,7 @@ export default function BoardsPage() {
         startTransition(() => setTabs((prev) => prev.filter((tab) => tab.value !== value)));
         unwrap(await commands.killEngines(value));
         await commands.abortGame(`${value}-game`);
+        forgetPersistedState(value);
       }
     },
     [tabs, activeTab, setTabs, toggleSaveModal, setActiveTab],
@@ -112,8 +115,9 @@ export default function BoardsPage() {
     (value: string) => {
       const id = genID();
       const tab = tabs.find((tab) => tab.value === value);
-      if (sessionStorage.getItem(value)) {
-        sessionStorage.setItem(id, sessionStorage.getItem(value) || "");
+      const state = readTabState(value);
+      if (state) {
+        writeTabState(id, state);
       }
 
       if (tab) {
