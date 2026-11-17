@@ -314,6 +314,31 @@ describe("syncRepertoires", () => {
         expect(mac.files.has("a")).toBe(false);
     });
 
+    it("brings a repertoire restored from the trash back everywhere (#113)", async () => {
+        const cloud = new FakeCloud();
+        const mac = new FakeDevice(cloud, "mac");
+        const win = new FakeDevice(cloud, "win");
+        mac.file("a", "1. d4");
+        await syncRepertoires(mac, "u");
+        await syncRepertoires(win, "u");
+
+        // Deleted on the Mac, gone on Windows too.
+        const trashed = mac.files.get("a")!;
+        mac.files.delete("a");
+        await syncRepertoires(mac, "u");
+        await syncRepertoires(win, "u");
+        expect(win.files.has("a")).toBe(false);
+
+        // Restored on the Mac with its id: uploaded again, back on Windows.
+        mac.files.set("a", trashed);
+        const result = await syncRepertoires(mac, "u");
+        expect(result.uploaded).toBe(1);
+        expect([...cloud.docs.values()][0].deleted).toBe(false);
+        await syncRepertoires(win, "u");
+        expect(win.pgn("a")).toBe("1. d4");
+        expect(win.files.get("a")!.info.id).toBe(trashed.info.id);
+    });
+
     it("holds deletions when most files are suddenly missing", async () => {
         const cloud = new FakeCloud();
         const mac = new FakeDevice(cloud, "mac");

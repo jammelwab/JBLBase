@@ -220,6 +220,13 @@ impl TrainingStore {
         Ok(f(conn)?)
     }
 
+    /// Writes a consistent copy of the whole store to `path` (which must not
+    /// exist yet), for the daily backup (see backup.rs).
+    pub fn backup_to(&self, path: &Path) -> Result<(), Error> {
+        let target = path.to_string_lossy().into_owned();
+        self.with_conn(|conn| conn.execute("VACUUM INTO ?1", [target]).map(|_| ()))
+    }
+
     /// The deck's cards in their saved order and its whole review log.
     /// `None` when nothing was ever saved for the deck.
     pub fn load(&self, deck: &str) -> Result<Option<TrainingDeck>, Error> {

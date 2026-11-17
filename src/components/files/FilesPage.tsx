@@ -42,6 +42,8 @@ import {
 } from "./file";
 import { CreateDirectoryModal, CreateModal, EditModal } from "./Modals";
 import { removeHistory } from "@/utils/repertoireHistory";
+import { deleteRepertoire } from "@/utils/repertoires";
+import { showDeletedNotification } from "@/components/repertoire/RepertoireTrash";
 
 const FILE_TYPES: FileType[] = ["game", "repertoire", "tournament", "puzzle", "other"];
 type Entry = FileMetadata | Directory;
@@ -204,6 +206,18 @@ function FilesPage() {
 
     if (selected.type === "directory") {
       await remove(selected.path, { recursive: true });
+    } else if (selected.metadata.type === "repertoire") {
+      // Repertoires go to the trash, like on the repertoire page (#113).
+      const deleted = await deleteRepertoire(selected);
+      showDeletedNotification(
+        {
+          done: t("Repertoire.Delete.Done"),
+          undo: t("Repertoire.Trash.Undo"),
+          restored: t("Repertoire.Trash.Restored"),
+        },
+        selected.name,
+        deleted,
+      );
     } else {
       await remove(selected.path);
       await remove(selected.path.replace(".pgn", ".info")).catch(() => {});
@@ -214,7 +228,7 @@ function FilesPage() {
     await mutate();
     toggleDeleteModal();
     setSelected(null);
-  }, [selected, mutate, toggleDeleteModal]);
+  }, [selected, mutate, toggleDeleteModal, t]);
 
   const dragContextValue = useMemo(
     () => ({

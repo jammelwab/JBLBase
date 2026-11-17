@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+mod backup;
 mod brilliance;
 mod chess;
 mod db;
@@ -239,7 +240,12 @@ fn main() {
             training::training_apply_remote,
             training::training_rename_repertoire,
             training::sync_meta_get,
-            training::sync_meta_set
+            training::sync_meta_set,
+            backup::backup_create,
+            backup::backup_list,
+            backup::backup_repertoires,
+            backup::backup_restore,
+            backup::backup_folder
         ))
         .events(tauri_specta::collect_events!(
             BestMovesPayload,

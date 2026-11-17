@@ -2,6 +2,7 @@ import { notifications } from "@mantine/notifications";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { startDailyBackup } from "@/utils/backup";
 import { getDefaultStore } from "jotai";
 import { cloudErrorKey, saveProfile, signInWithLichessToken } from "@/utils/cloud/auth";
 import { cloudAccountAtom, signedInBefore, startCloudSync } from "@/utils/cloud/sync";
@@ -18,6 +19,8 @@ export default function CloudRoot() {
   const { t } = useTranslation();
 
   useEffect(() => startCloudSync(), []);
+  // Not a cloud matter, but started here once for the whole app (#119).
+  useEffect(() => startDailyBackup(), []);
 
   useEffect(() => {
     if (!signedInBefore() && !loginSkipped()) {

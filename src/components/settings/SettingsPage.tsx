@@ -33,6 +33,8 @@ import { useLoaderData } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAtom } from "jotai";
 import { RESET } from "jotai/utils";
+import { TRASH_RETENTION_CHOICES, trashRetentionDaysAtom } from "@/utils/trash";
+import BackupSetting from "./BackupSetting";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -170,6 +172,7 @@ export default function Page() {
   const [materialDisplay, setMaterialDisplay] = useAtom(materialDisplayAtom);
   const [defaultPanelTab, setDefaultPanelTab] = useAtom(defaultPanelTabAtom);
   const [practiceAutoDifficulty, setPracticeAutoDifficulty] = useAtom(practiceAutoDifficultyAtom);
+  const [trashRetentionDays, setTrashRetentionDays] = useAtom(trashRetentionDaysAtom);
 
   const settings: SettingItem[] = useMemo(
     () => [
@@ -567,6 +570,35 @@ export default function Page() {
           />
         ),
       },
+      {
+        id: "repertoire-backup",
+        category: "repertoire",
+        title: t("Settings.Backup"),
+        description: t("Settings.Backup.Desc"),
+        keywords: ["backup", "sicherung", "restore", "zip", "repertoire"],
+        render: () => <BackupSetting />,
+      },
+      {
+        id: "repertoire-trash",
+        category: "repertoire",
+        title: t("Settings.Repertoire.Trash"),
+        description: t("Settings.Repertoire.Trash.Desc"),
+        keywords: ["repertoire", "trash", "delete", "restore", "papierkorb"],
+        render: () => (
+          <Select
+            allowDeselect={false}
+            data={TRASH_RETENTION_CHOICES.map((days) => ({
+              value: String(days),
+              label:
+                days === 0
+                  ? t("Settings.Repertoire.Trash.Forever")
+                  : t("Settings.Repertoire.Trash.Days", { count: days }),
+            }))}
+            value={String(trashRetentionDays)}
+            onChange={(val) => setTrashRetentionDays(Number(val))}
+          />
+        ),
+      },
       // Sound settings
       {
         id: "volume",
@@ -714,6 +746,8 @@ export default function Page() {
       setDefaultPanelTab,
       practiceAutoDifficulty,
       setPracticeAutoDifficulty,
+      trashRetentionDays,
+      setTrashRetentionDays,
     ],
   );
 
