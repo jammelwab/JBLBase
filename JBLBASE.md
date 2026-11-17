@@ -433,6 +433,19 @@ Jeder Fund zeigt Zug, Bewertung, die Variante dorthin und die Fortsetzung.
 **Aufs Brett** fügt die Variante mit „!!“ bzw. „!“ in die Partie ein und
 springt zum Zug.
 
+**In dieser Variante** (oben unter „Wo suchen“) baut keine eigenen Varianten, sondern
+prüft jede Stellung der Varianten, die ab der aktuellen Stellung schon in der Partie bzw.
+im Repertoire stehen: Gibt es dort für deine Seite einen brillanten Zug? „Seite am Zug“
+heißt hier die Seite unten auf dem Brett, also die Seite des Repertoires. Funde, deren Zug
+schon in der Variante steht (dein eigener Repertoire-Zug ist brillant), tragen „In deiner
+Variante“; **Markieren** bzw. **N Funde in der Variante markieren** setzt dort nur das
+„!!“/„!“, ohne Engine-Fortsetzung, damit das Repertoire seine Linien behält. Andere Funde
+fügst du wie gewohnt mit **Aufs Brett** als Nebenvariante ein. Im Repertoire-Baum öffnet
+**Brillante Züge in dieser Variante** unter dem kleinen Brett das Repertoire an dieser
+Stelle mit dem Tab Brillant und dieser Einstellung. Gerechnet wird in der Reihenfolge der
+Tiefe (erst alle ersten Züge, dann die nächsten), höchstens **Stellungen** viele; schon
+bewertete Stellungen kommen aus dem Positionsspeicher.
+
 Die tiefen Rechnungen landen im Positionsspeicher (mit der Grenze Tiefe 28
 für normale Konten), die flachen Club-Rechnungen nicht.
 

@@ -13,7 +13,7 @@ import {
   Text,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconSparkles } from "@tabler/icons-react";
+import { IconHighlight, IconSparkles } from "@tabler/icons-react";
 import { atom, useAtom, useAtomValue } from "jotai";
 import { atomFamily, atomWithStorage } from "jotai/utils";
 import { memo, useCallback, useContext, useMemo } from "react";
@@ -24,7 +24,13 @@ import ProgressButton from "@/components/common/ProgressButton";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { activeTabAtom, enginesAtom, moveNotationTypeAtom } from "@/state/atoms";
 import { addPieceSymbol } from "@/utils/annotation";
-import { numberedLine, numberedMove, pickBrillianceEngine } from "@/utils/brilliance";
+import {
+  existingMove,
+  linesBelow,
+  numberedLine,
+  numberedMove,
+  pickBrillianceEngine,
+} from "@/utils/brilliance";
 import type { LocalEngine } from "@/utils/engines";
 import ScoreBubble from "./ScoreBubble";
 
@@ -39,6 +45,9 @@ export type BrillianceSettings = {
   clubReplies: number;
   clubTolerance: number;
   minSacrifice: number;
+  // "tree": the engine builds its own variations from here; "line": every position of the
+  // variations already in the game or repertoire below this position is looked at
+  scope: "tree" | "line";
 };
 
 export const DEFAULT_BRILLIANCE_SETTINGS: BrillianceSettings = {
@@ -52,9 +61,10 @@ export const DEFAULT_BRILLIANCE_SETTINGS: BrillianceSettings = {
   clubReplies: 3,
   clubTolerance: 150,
   minSacrifice: 200,
+  scope: "tree",
 };
 
-const brillianceSettingsAtom = atomWithStorage<BrillianceSettings>(
+export const brillianceSettingsAtom = atomWithStorage<BrillianceSettings>(
   "brilliance-settings",
   DEFAULT_BRILLIANCE_SETTINGS,
 );
@@ -98,6 +108,11 @@ function BrilliancePanel() {
     const state = store.getState();
     const startFen = state.currentNode().fen;
     const startPosition = [...state.position];
+    const along = s.scope === "line" ? linesBelow(state.currentNode()) : [];
+    // Along a repertoire's variations "side to move" means the side the board is turned to,
+    // the repertoire's side, for every position on them
+    const hero =
+      s.scope === "line" && s.hero === "turn" ? (state.headers.orientation ?? "white") : s.hero;
     setInProgress(true);
     setSearch({ startPosition, startFen, result: null, error: null });
     const uciOptions = (engine.settings ?? [])
@@ -110,7 +125,7 @@ function BrilliancePanel() {
         {
           fen: startFen,
           moves: [],
-          hero: s.hero,
+          hero,
           goMode: { t: "Depth", c: s.depth },
           clubDepth: s.clubDepth,
           maxPlies: s.maxPlies,
@@ -119,6 +134,7 @@ function BrilliancePanel() {
           clubTolerance: s.clubTolerance,
           minSacrifice: s.minSacrifice,
           maxPositions: s.maxPositions,
+          along,
         },
         uciOptions,
       )
@@ -151,6 +167,7 @@ function BrilliancePanel() {
         });
         return;
       }
+      const existed = !!existingMove(startNode, find);
       state.goToMove(search.startPosition);
       state.makeMoves({ payload: [...find.pathUci, find.moveUci] });
       const at = [...store.getState().position];
@@ -159,13 +176,48 @@ function BrilliancePanel() {
       if (!node.annotations.includes(annotation)) {
         store.getState().setAnnotation(annotation);
       }
-      if (find.continuationUci.length > 0) {
+      // A move already in the variation only gets its mark; the engine's continuation is
+      // not added, so a repertoire keeps its own lines
+      if (!existed && find.continuationUci.length > 0) {
         store.getState().makeMoves({ payload: find.continuationUci.slice(0, 12) });
       }
       store.getState().goToMove(at);
     },
     [search, store, t],
   );
+
+  // Finds whose move is already in the variation get the annotation right there
+  const startNode = useStore(store, (st) =>
+    search ? (st.getNode(search.startPosition) ?? null) : null,
+  );
+  const inLine = useCallback(
+    (find: BrillianceFind) =>
+      !!startNode && startNode.fen === search?.startFen && !!existingMove(startNode, find),
+    [startNode, search],
+  );
+  const markAll = useCallback(() => {
+    if (!search) return;
+    const state = store.getState();
+    const back = [...state.position];
+    let marked = 0;
+    for (const find of search.result?.finds ?? []) {
+      const start = store.getState().getNode(search.startPosition);
+      if (!start || start.fen !== search.startFen || !existingMove(start, find)) continue;
+      store.getState().goToMove(search.startPosition);
+      store.getState().makeMoves({ payload: [...find.pathUci, find.moveUci] });
+      const annotation = find.annotation === "!!" ? "!!" : "!";
+      if (!store.getState().currentNode().annotations.includes(annotation)) {
+        store.getState().setAnnotation(annotation);
+        marked++;
+      }
+    }
+    store.getState().goToMove(back);
+    notifications.show({
+      color: "green",
+      message: t("Board.Analysis.Brilliance.Marked", { count: marked }),
+    });
+  }, [search, store, t]);
+  const hasMoves = useStore(store, (st) => st.currentNode().children.length > 0);
 
   const engineOptions = localEngines.map((e) => ({ value: e.id, label: e.name }));
   const finds = search?.result?.finds ?? [];
@@ -177,6 +229,29 @@ function BrilliancePanel() {
         <Text size="sm" c="dimmed">
           {t("Board.Analysis.Brilliance.Desc")}
         </Text>
+        <div>
+          <Text size="sm" fw={500} mb={4}>
+            {t("Board.Analysis.Brilliance.Scope")}
+          </Text>
+          <SegmentedControl
+            fullWidth
+            size="xs"
+            value={s.scope}
+            disabled={inProgress}
+            onChange={(v) => update({ scope: v as BrillianceSettings["scope"] })}
+            data={[
+              { value: "tree", label: t("Board.Analysis.Brilliance.Scope.Tree") },
+              { value: "line", label: t("Board.Analysis.Brilliance.Scope.Line") },
+            ]}
+          />
+          <Text size="xs" c="dimmed" mt={4}>
+            {s.scope === "line"
+              ? hasMoves
+                ? t("Board.Analysis.Brilliance.Scope.Line.Desc")
+                : t("Board.Analysis.Brilliance.Scope.Line.Empty")
+              : t("Board.Analysis.Brilliance.Scope.Tree.Desc")}
+          </Text>
+        </div>
         <Select
           label={t("Common.Engine")}
           allowDeselect={false}
@@ -229,7 +304,7 @@ function BrilliancePanel() {
             min={1}
             max={20}
             value={s.maxPlies}
-            disabled={inProgress}
+            disabled={inProgress || s.scope === "line"}
             onChange={(v) => update({ maxPlies: Number(v) || 1 })}
           />
           <NumberInput
@@ -297,7 +372,7 @@ function BrilliancePanel() {
         <ProgressButton
           id={id}
           redoable
-          disabled={!engine}
+          disabled={!engine || (s.scope === "line" && !hasMoves)}
           leftIcon={<IconSparkles size="0.875rem" />}
           onClick={start}
           onCancel={cancel}
@@ -326,11 +401,22 @@ function BrilliancePanel() {
             {moved ? ` ${t("Board.Analysis.Brilliance.OtherStart")}` : ""}
           </Text>
         )}
+        {finds.some(inLine) && (
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconHighlight size="0.875rem" />}
+            onClick={markAll}
+          >
+            {t("Board.Analysis.Brilliance.MarkAll", { count: finds.filter(inLine).length })}
+          </Button>
+        )}
         {finds.map((find, i) => (
           <FindCard
             key={`${find.pathUci.join(" ")}:${find.moveUci}:${i}`}
             find={find}
             startFen={search!.startFen}
+            inLine={inLine(find)}
             onPut={() => putOnBoard(find)}
           />
         ))}
@@ -342,10 +428,13 @@ function BrilliancePanel() {
 function FindCard({
   find,
   startFen,
+  inLine,
   onPut,
 }: {
   find: BrillianceFind;
   startFen: string;
+  // The move is already in the variation (e.g. the repertoire's own move)
+  inLine: boolean;
   onPut: () => void;
 }) {
   const { t } = useTranslation();
@@ -372,7 +461,9 @@ function FindCard({
             <ScoreBubble size="sm" score={find.score} />
           </Group>
           <Button size="compact-xs" variant="light" onClick={onPut}>
-            {t("Board.Analysis.Brilliance.PutOnBoard")}
+            {inLine
+              ? t("Board.Analysis.Brilliance.Mark")
+              : t("Board.Analysis.Brilliance.PutOnBoard")}
           </Button>
         </Group>
         <Group gap={4}>
@@ -383,6 +474,11 @@ function FindCard({
                 : (tagLabel[tag] ?? tag)}
             </Badge>
           ))}
+          {inLine && (
+            <Badge size="xs" variant="filled" color="green">
+              {t("Board.Analysis.Brilliance.Tag.InLine")}
+            </Badge>
+          )}
           {find.clubMoves > 0 && (
             <Badge size="xs" variant="light" color="orange">
               {t("Board.Analysis.Brilliance.Tag.Club")}

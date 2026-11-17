@@ -596,7 +596,7 @@ export const repertoireDbSourceAtom = atomWithStorage<string>(
 const dbTabFamily = atomFamily((_tab: string) => atom("stats"));
 export const currentDbTabAtom = tabValue(dbTabFamily);
 
-const analysisTabFamily = atomFamily((_tab: string) => atom("engines"));
+export const analysisTabFamily = atomFamily((_tab: string) => atom("engines"));
 export const currentAnalysisTabAtom = tabValue(analysisTabFamily);
 
 const practiceTabFamily = atomFamily((_tab: string) => atom("train"));

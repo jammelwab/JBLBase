@@ -1,4 +1,7 @@
+import { makeUci } from "chessops";
+import type { BrillianceFind } from "@/bindings";
 import type { LocalEngine } from "@/utils/engines";
+import type { TreeNode } from "@/utils/treeReducer";
 
 /** Prefers Patricia, the engine that likes to attack. */
 export function pickBrillianceEngine(engines: LocalEngine[], saved: string): string {
@@ -28,4 +31,35 @@ export function numberedLine(startFen: string, sans: string[]): string {
         white = !white;
     });
     return out.join(" ");
+}
+
+// The variations below a node as UCI moves, at most `limit` of them
+export function linesBelow(node: TreeNode, limit = 2000): string[][] {
+    const lines: string[][] = [];
+    const walk = (n: TreeNode, path: string[]) => {
+        if (lines.length >= limit) return;
+        if (n.children.length === 0) {
+            if (path.length > 0) lines.push(path);
+            return;
+        }
+        for (const child of n.children) {
+            if (!child.move) continue;
+            walk(child, [...path, makeUci(child.move)]);
+        }
+    };
+    walk(node, []);
+    return lines;
+}
+
+// The node a find's move would be, if the variation already has that move
+export function existingMove(
+    start: TreeNode,
+    find: Pick<BrillianceFind, "pathUci" | "moveUci">,
+): TreeNode | null {
+    let node: TreeNode | undefined = start;
+    for (const uci of [...find.pathUci, find.moveUci]) {
+        node = node.children.find((c) => c.move && makeUci(c.move) === uci);
+        if (!node) return null;
+    }
+    return node;
 }

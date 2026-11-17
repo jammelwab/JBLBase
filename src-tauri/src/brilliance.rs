@@ -87,6 +87,11 @@ pub struct BrillianceOptions {
     pub min_sacrifice: i32,
     /// Upper bound for the number of positions searched.
     pub max_positions: u32,
+    /// Lines (UCI moves after `fen` + `moves`), e.g. the variations of a
+    /// repertoire. When set, the search looks at every position on these lines
+    /// instead of building its own tree: is there a brilliant move there?
+    #[serde(default)]
+    pub along: Vec<Vec<String>>,
 }
 
 #[derive(Serialize, Debug, Clone, Type)]
@@ -539,6 +544,25 @@ struct Node {
     club_moves: u32,
     /// Square of the hero's last move if it was a sacrifice.
     sacrificed_on: Option<shakmaty::Square>,
+    /// A position on one of the given lines: judged, but not followed further.
+    fixed: bool,
+}
+
+/// Every position on the given lines, once each, the start first and then by
+/// depth, so a limited search covers the first moves of all lines.
+fn line_positions(lines: &[Vec<String>]) -> Vec<Vec<String>> {
+    let mut seen: HashSet<Vec<String>> = HashSet::new();
+    let mut out: Vec<Vec<String>> = Vec::new();
+    for line in lines {
+        for i in 0..=line.len() {
+            let prefix = line[..i].to_vec();
+            if seen.insert(prefix.clone()) {
+                out.push(prefix);
+            }
+        }
+    }
+    out.sort_by_key(|p| p.len());
+    out
 }
 
 #[tauri::command]
@@ -585,11 +609,23 @@ async fn run(
     let max_positions = o.max_positions.max(1);
 
     let mut queue: VecDeque<Node> = VecDeque::new();
-    queue.push_back(Node {
-        path: vec![],
-        club_moves: 0,
-        sacrificed_on: None,
-    });
+    if o.along.is_empty() {
+        queue.push_back(Node {
+            path: vec![],
+            club_moves: 0,
+            sacrificed_on: None,
+            fixed: false,
+        });
+    } else {
+        for path in line_positions(&o.along) {
+            queue.push_back(Node {
+                path,
+                club_moves: 0,
+                sacrificed_on: None,
+                fixed: true,
+            });
+        }
+    }
     let mut seen: HashSet<PosKey> = HashSet::new();
     let mut found: HashSet<(PosKey, String)> = HashSet::new();
     let mut finds: Vec<BrillianceFind> = Vec::new();
@@ -635,7 +671,7 @@ async fn run(
             vec![]
         };
 
-        let expand = ply + 1 < o.max_plies;
+        let expand = !node.fixed && ply + 1 < o.max_plies;
         if hero {
             let mut children: Vec<(String, Option<shakmaty::Square>)> = Vec::new();
             for line in &deep {
@@ -661,7 +697,9 @@ async fn run(
                         gap: c.gap,
                         club_moves: node.club_moves,
                         depth: line.depth,
-                        rating: c.rating - 50 * ply as i32,
+                        // Deep finds of a self-built tree are less likely to happen;
+                        // on given lines every position is as real as the start.
+                        rating: c.rating - (if node.fixed { 0 } else { 50 * ply as i32 }),
                         fen: shakmaty::fen::Fen::from_position(
                             &pos,
                             shakmaty::EnPassantMode::Legal,
@@ -688,6 +726,7 @@ async fn run(
                         path,
                         club_moves: node.club_moves,
                         sacrificed_on: sq,
+                        fixed: false,
                     });
                 }
             }
@@ -724,6 +763,7 @@ async fn run(
                     path,
                     club_moves: node.club_moves + club_move as u32,
                     sacrificed_on: None,
+                    fixed: false,
                 });
             }
         }
@@ -767,6 +807,19 @@ mod tests {
             },
             uci: vec![uci.to_string()],
         }
+    }
+
+    #[test]
+    fn line_positions_covers_every_position_once_shallow_first() {
+        let lines = vec![
+            vec!["e2e4".to_string(), "e7e5".to_string(), "g1f3".to_string()],
+            vec!["e2e4".to_string(), "c7c5".to_string()],
+        ];
+        let got = line_positions(&lines);
+        let lens: Vec<usize> = got.iter().map(|p| p.len()).collect();
+        assert_eq!(lens, vec![0, 1, 2, 2, 3]);
+        assert_eq!(got[1], vec!["e2e4".to_string()]);
+        assert!(got.contains(&vec!["e2e4".to_string(), "c7c5".to_string()]));
     }
 
     #[test]
@@ -882,6 +935,7 @@ mod tests {
             club_tolerance: 150,
             min_sacrifice: 200,
             max_positions: 12,
+            along: vec![],
         };
         let custom = std::env::var("JBLBASE_TEST_FEN").ok();
         let options = match &custom {
