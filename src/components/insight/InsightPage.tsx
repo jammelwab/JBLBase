@@ -25,7 +25,8 @@ import {
   IconTargetArrow,
   IconUserPlus,
 } from "@tabler/icons-react";
-import { useAtom, useAtomValue } from "jotai";
+import { useNavigate } from "@tanstack/react-router";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -45,12 +46,13 @@ import EnginePowerControl from "@/components/common/EnginePowerControl";
 import {
   commands,
   type InsightAccount,
+  type InsightError,
   type InsightGroup,
   type InsightRunResult,
   type InsightSummary,
 } from "@/bindings";
 import { useProgress } from "@/hooks/useProgress";
-import { enginesAtom, sessionsAtom } from "@/state/atoms";
+import { activeTabAtom, enginesAtom, sessionsAtom, tabsAtom } from "@/state/atoms";
 import { getDatabases } from "@/utils/db";
 import { enginePowerAtom, engineOptions } from "@/utils/enginePower";
 import type { LocalEngine } from "@/utils/engines";
@@ -71,6 +73,8 @@ import {
   importLichessPuzzles,
   LICHESS_PUZZLE_PROGRESS,
 } from "@/utils/lichessPuzzles";
+import { createTab } from "@/utils/tabs";
+import { defaultTree } from "@/utils/treeReducer";
 import { unwrap } from "@/utils/unwrap";
 import {
   tooltipContentStyle,
@@ -152,7 +156,135 @@ function GroupTable({
   );
 }
 
-function Statistics({ summary }: { summary: InsightSummary }) {
+// Opens an analysed game on a new board, at the given move, with Insight's marks.
+function useOpenGame(accounts: InsightAccount[]) {
+  const setTabs = useSetAtom(tabsAtom);
+  const setActiveTab = useSetAtom(activeTabAtom);
+  const navigate = useNavigate();
+  return async (move: InsightError) => {
+    const game = unwrap(await commands.insightGame(move.game, accounts));
+    const base = defaultTree(game.fen ?? undefined).headers;
+    await createTab({
+      tab: { name: `${game.white} - ${game.black}`, type: "analysis" },
+      setTabs,
+      setActiveTab,
+      pgn: game.pgn,
+      headers: {
+        ...base,
+        white: game.white,
+        black: game.black,
+        date: game.date || null,
+        result: (game.result || "*") as typeof base.result,
+        site: game.site,
+        time_control: game.timeControl || null,
+        white_elo: game.whiteElo,
+        black_elo: game.blackElo,
+        orientation: game.whiteSide ? "white" : "black",
+      },
+      // The position after the marked move.
+      position: Array(move.ply + 1).fill(0),
+    });
+    void navigate({ to: "/" });
+  };
+}
+
+function MoveTable({
+  title,
+  hint,
+  moves,
+  brilliant,
+  onOpen,
+}: {
+  title: string;
+  hint: string;
+  moves: InsightError[];
+  brilliant?: boolean;
+  onOpen: (move: InsightError) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [error, setError] = useState<string | null>(null);
+  if (moves.length === 0) return null;
+  const open = (move: InsightError) => {
+    setError(null);
+    onOpen(move).catch((e) => setError(String(e)));
+  };
+  const mark = (move: InsightError) => ({ 1: "?!", 2: "?", 3: "??", 4: "!!" })[move.class] ?? "";
+  return (
+    <Paper withBorder p="md">
+      <Text fw={600}>{title}</Text>
+      <Text size="xs" c="dimmed" mb="xs">
+        {hint}
+      </Text>
+      <Table verticalSpacing={4} fz="sm" highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>{t("Insight.Game")}</Table.Th>
+            <Table.Th>{t("Insight.Move")}</Table.Th>
+            <Table.Th>{t("Insight.Played")}</Table.Th>
+            {!brilliant && <Table.Th>{t("Insight.Best")}</Table.Th>}
+            {brilliant ? (
+              <Table.Th>{t("Insight.GamePhase")}</Table.Th>
+            ) : (
+              <Table.Th ta="right">{t("Insight.Loss")}</Table.Th>
+            )}
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {moves.map((move) => (
+            <Table.Tr
+              key={`${move.game}-${move.ply}`}
+              style={{ cursor: "pointer" }}
+              title={t("Insight.OpenGame")}
+              aria-label={`${t("Insight.OpenGame")}: ${move.white} – ${move.black}, ${moveNumber(move.ply)} ${move.played}`}
+              tabIndex={0}
+              onClick={() => open(move)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  open(move);
+                }
+              }}
+            >
+              <Table.Td>
+                {move.white} – {move.black}
+                <Text span c="dimmed" size="xs" ml={6}>
+                  {move.date}
+                </Text>
+              </Table.Td>
+              <Table.Td>{moveNumber(move.ply)}</Table.Td>
+              <Table.Td>
+                {move.played}
+                <Text span fw={700} c={brilliant ? "cyan" : "red"}>
+                  {mark(move)}
+                </Text>
+              </Table.Td>
+              {!brilliant && <Table.Td>{move.best}</Table.Td>}
+              {brilliant ? (
+                <Table.Td>{t(`Insight.Phase.${move.phase}`, move.phase)}</Table.Td>
+              ) : (
+                <Table.Td ta="right">{percent(move.loss)}</Table.Td>
+              )}
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+      {error && (
+        <Alert icon={<IconAlertCircle size="1rem" />} color="red" mt="xs">
+          {error}
+        </Alert>
+      )}
+    </Paper>
+  );
+}
+
+function Statistics({
+  summary,
+  accounts,
+}: {
+  summary: InsightSummary;
+  accounts: InsightAccount[];
+}) {
+  const openGame = useOpenGame(accounts);
   const { t } = useTranslation();
   const months = useMemo(
     () =>
@@ -167,7 +299,7 @@ function Statistics({ summary }: { summary: InsightSummary }) {
 
   return (
     <Stack>
-      <SimpleGrid cols={{ base: 2, md: 5 }}>
+      <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }}>
         <Tile label={t("Insight.Games")} value={summary.games.toString()} />
         <Tile label={t("Insight.Accuracy")} value={percent(summary.accuracy)} />
         <Tile label={t("Insight.OpponentAccuracy")} value={percent(summary.opponentAccuracy)} />
@@ -180,6 +312,11 @@ function Statistics({ summary }: { summary: InsightSummary }) {
           label={t("Insight.MissedTactics")}
           value={summary.missedTactics.toString()}
           hint={t("Insight.MissedTacticsHint")}
+        />
+        <Tile
+          label={t("Insight.Brilliants")}
+          value={summary.brilliants.toString()}
+          hint={t("Insight.BrilliantsHint")}
         />
       </SimpleGrid>
 
@@ -285,42 +422,32 @@ function Statistics({ summary }: { summary: InsightSummary }) {
           label={named("Insight.Result")}
         />
       </SimpleGrid>
-      <GroupTable title={t("Insight.ByOpening")} groups={summary.byOpening} label={(key) => key} />
+      <SimpleGrid cols={{ base: 1, lg: 2 }}>
+        <GroupTable
+          title={t("Insight.OpeningsWhite")}
+          groups={summary.byOpeningWhite}
+          label={(key) => key}
+        />
+        <GroupTable
+          title={t("Insight.OpeningsBlack")}
+          groups={summary.byOpeningBlack}
+          label={(key) => key}
+        />
+      </SimpleGrid>
 
-      {summary.worst.length > 0 && (
-        <Paper withBorder p="md">
-          <Text fw={600} mb="xs">
-            {t("Insight.Worst")}
-          </Text>
-          <Table verticalSpacing={4} fz="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t("Insight.Game")}</Table.Th>
-                <Table.Th>{t("Insight.Move")}</Table.Th>
-                <Table.Th>{t("Insight.Played")}</Table.Th>
-                <Table.Th>{t("Insight.Best")}</Table.Th>
-                <Table.Th ta="right">{t("Insight.Loss")}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {summary.worst.map((error) => (
-                <Table.Tr key={`${error.game}-${error.ply}`}>
-                  <Table.Td>
-                    {error.white} – {error.black}
-                    <Text span c="dimmed" size="xs" ml={6}>
-                      {error.date}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>{moveNumber(error.ply)}</Table.Td>
-                  <Table.Td>{error.played}</Table.Td>
-                  <Table.Td>{error.best}</Table.Td>
-                  <Table.Td ta="right">{percent(error.loss)}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Paper>
-      )}
+      <MoveTable
+        title={t("Insight.Worst")}
+        hint={t("Insight.ClickToOpen")}
+        moves={summary.worst}
+        onOpen={openGame}
+      />
+      <MoveTable
+        title={t("Insight.BrilliantMoves")}
+        hint={t("Insight.ClickToOpen")}
+        moves={summary.brilliant}
+        brilliant
+        onOpen={openGame}
+      />
     </Stack>
   );
 }
@@ -723,7 +850,14 @@ export default function InsightPage() {
         </Paper>
 
         {summary && summary.games > 0 ? (
-          <Statistics summary={summary} />
+          <>
+            {summary.outdated > 0 && (
+              <Alert icon={<IconAlertCircle size="1rem" />} color="blue">
+                {t("Insight.Outdated", { count: summary.outdated })}
+              </Alert>
+            )}
+            <Statistics summary={summary} accounts={allAccounts} />
+          </>
         ) : (
           <Text c="dimmed" ta="center" py="xl">
             {t("Insight.Empty")}

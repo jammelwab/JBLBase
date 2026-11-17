@@ -205,6 +205,7 @@ fn main() {
             insight::insight_analyze,
             insight::insight_status,
             insight::insight_summary,
+            insight::insight_game,
             insight::insight_clear,
             tactics::calibration::calibrate_rating,
             tactics::calibration::get_rating_calibration,

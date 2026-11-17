@@ -51,6 +51,20 @@ const MISTAKE: f64 = 0.2;
 const BLUNDER: f64 = 0.3;
 /// Games shorter than this many plies were aborted and say nothing.
 pub(crate) const MIN_PLIES: usize = 8;
+/// "!!": the move gives up at least this much material (an exchange) ...
+const BRILLIANT_SACRIFICE: i32 = 200;
+/// ... is the engine's best move or at most this many centipawns worse ...
+const BRILLIANT_MARGIN: i32 = 10;
+/// ... leaves the player at least this well off ...
+const BRILLIANT_FLOOR: i32 = -80;
+/// ... and the player was not already winning by more than this before.
+const BRILLIANT_CEILING: i32 = 400;
+/// `MoveError::class` of a brilliant move.
+pub const BRILLIANT: u8 = 4;
+/// Version of the analysis. Games analysed by an older version count as not
+/// analysed, so the next run adds what is new (brilliant moves, the opening
+/// the player chose).
+pub const ANALYSIS_VERSION: u32 = 2;
 
 /// What we know about a game apart from its moves.
 #[derive(Debug, Clone)]
@@ -110,7 +124,7 @@ pub struct MoveError {
     pub best: String,
     /// Winning chances given away, in percent points (0 to 100).
     pub loss: f64,
-    /// 1 inaccuracy, 2 mistake, 3 blunder.
+    /// 1 inaccuracy, 2 mistake, 3 blunder, 4 brilliant (`BRILLIANT`).
     pub class: u8,
     pub phase: &'static str,
 }
@@ -120,13 +134,18 @@ pub struct MoveError {
 pub struct GameReport {
     pub plies: u32,
     pub opening: String,
+    /// The opening as far as the player's own moves named it: the deepest
+    /// known position reached by one of their moves.
+    pub own_opening: String,
     pub accuracy: f64,
     pub opponent_accuracy: f64,
     pub acpl: f64,
     pub inaccuracies: u32,
     pub mistakes: u32,
     pub blunders: u32,
+    pub brilliants: u32,
     pub phases: BTreeMap<&'static str, PhaseStats>,
+    /// Errors and brilliant moves (class `BRILLIANT`) of the player.
     pub errors: Vec<MoveError>,
     /// Tactics the player had and did not play, as puzzles.
     pub tactics: Vec<StoredTactic>,
@@ -252,13 +271,23 @@ pub async fn analyse_game(
     }
 
     // The deepest known opening position names the opening.
+    let opening_of =
+        |p: &Chess| get_opening_from_setup(p.clone().to_setup(shakmaty::EnPassantMode::Legal)).ok();
     let opening = positions
         .iter()
         .take(40)
         .rev()
-        .find_map(|p| {
-            get_opening_from_setup(p.clone().to_setup(shakmaty::EnPassantMode::Legal)).ok()
-        })
+        .find_map(opening_of)
+        .unwrap_or_default();
+    // The same, counting only positions the player's own moves led to.
+    let own_opening = positions
+        .iter()
+        .enumerate()
+        .take(40)
+        .skip(1)
+        .rev()
+        .filter(|(i, _)| positions[i - 1].turn() == color)
+        .find_map(|(_, p)| opening_of(p))
         .unwrap_or_default();
 
     let mut evals: Vec<Option<Vec<Line>>> = Vec::with_capacity(positions.len());
@@ -280,6 +309,7 @@ pub async fn analyse_game(
     let mut report = GameReport {
         plies: moves.len() as u32,
         opening,
+        own_opening,
         ..Default::default()
     };
     let (mut own_sum, mut own_moves) = (0.0, 0u32);
@@ -337,6 +367,33 @@ pub async fn analyse_game(
                     .unwrap_or_default(),
                 loss: loss * 50.0,
                 class,
+                phase,
+            });
+        } else if is_brilliant(
+            &positions[i],
+            &moves[i],
+            best_move == Some(moves[i]) || capped_cp(best) - after_cp <= BRILLIANT_MARGIN,
+            // How the player stood before the opponent's last move: a
+            // sacrifice that wins only because the opponent blundered still
+            // counts, one in a position won long ago does not.
+            match i
+                .checked_sub(1)
+                .and_then(|k| evals[k].as_ref())
+                .and_then(|l| l.first())
+            {
+                Some(line) => -capped_cp(line),
+                None => capped_cp(best),
+            },
+            after_cp,
+        ) {
+            report.brilliants += 1;
+            report.errors.push(MoveError {
+                ply: i as u32,
+                fen: fen_of(&positions[i]),
+                played: sans[i].clone(),
+                best: sans[i].clone(),
+                loss: 0.0,
+                class: BRILLIANT,
                 phase,
             });
         }
@@ -400,6 +457,24 @@ pub async fn analyse_game(
     };
     on_progress(1.0);
     Ok(report)
+}
+
+/// Whether the engine's best move, played, deserves "!!": it gives up at
+/// least an exchange, the player is still fine afterwards, and they were not
+/// already winning before the opponent's last move. `before_cp` (that
+/// position) and `after_cp` (after the move) are from the player's side.
+pub(crate) fn is_brilliant(
+    pos: &Chess,
+    played: &Move,
+    is_best: bool,
+    before_cp: i32,
+    after_cp: i32,
+) -> bool {
+    is_best
+        && after_cp >= BRILLIANT_FLOOR
+        && before_cp <= BRILLIANT_CEILING
+        && pos.legal_moves().len() >= 2
+        && crate::brilliance::sacrifice_value(pos, played) >= BRILLIANT_SACRIFICE
 }
 
 /// A game as read from an account's database.
@@ -735,6 +810,210 @@ pub async fn insight_summary(
     state.insight.summary(player.as_deref())
 }
 
+/// An analysed game, ready to open on a board.
+#[derive(Serialize, Debug, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct InsightGame {
+    /// The moves in PGN, with Insight's marks ("??", "!!" ...), the better
+    /// move as a variation after each error, and the evaluations it used.
+    pub pgn: String,
+    /// Start position when the game did not start from the usual one.
+    pub fen: Option<String>,
+    pub white: String,
+    pub black: String,
+    pub date: String,
+    pub result: String,
+    pub site: String,
+    pub time_control: String,
+    pub white_elo: Option<i32>,
+    pub black_elo: Option<i32>,
+    /// Whether the player had White (the board is turned to their side).
+    pub white_side: bool,
+}
+
+/// Engine evaluation of `pos` from the position store, preferring the engine
+/// Insight used. Lines are scored from White's point of view.
+fn stored_eval(
+    cache: &EvalCache,
+    pos: &Chess,
+    engine: &str,
+) -> Option<crate::eval_cache::CachedEval> {
+    let mut found = cache.lookup_all(&position_key(pos));
+    found.sort_by_key(|e| (!e.engine.starts_with(engine), std::cmp::Reverse(e.depth)));
+    found.into_iter().find(|e| !e.lines.is_empty())
+}
+
+/// "[%eval 0.35,18]" or "[%eval #-3,24]".
+fn eval_comment(eval: &crate::eval_cache::CachedEval) -> Option<String> {
+    let line = eval.lines.iter().min_by_key(|l| l.multipv)?;
+    let value = match (line.mate, line.cp) {
+        (Some(m), _) => format!("#{m}"),
+        (None, Some(cp)) => format!("{:.2}", cp as f64 / 100.0),
+        (None, None) => return None,
+    };
+    Some(format!("[%eval {value},{}]", eval.depth))
+}
+
+fn move_prefix(pos: &Chess, force: bool) -> String {
+    if pos.turn() == Color::White {
+        format!("{}. ", pos.fullmoves())
+    } else if force {
+        format!("{}... ", pos.fullmoves())
+    } else {
+        String::new()
+    }
+}
+
+/// Up to `max` plies of a stored line in SAN, starting at `pos`.
+fn line_san(pos: &Chess, uci: &[String], max: usize) -> Vec<String> {
+    let mut pos = pos.clone();
+    let mut out = Vec::new();
+    for u in uci.iter().take(max) {
+        let Some(m) = u
+            .parse::<shakmaty::uci::UciMove>()
+            .ok()
+            .and_then(|u| u.to_move(&pos).ok())
+        else {
+            break;
+        };
+        out.push(SanPlus::from_move_and_play_unchecked(&mut pos, m).to_string());
+    }
+    out
+}
+
+/// Writes the moves of a game as PGN with Insight's marks and evaluations.
+pub(crate) fn annotated_pgn(
+    start: &Chess,
+    moves: &[Move],
+    marks: &[store::MarkedMove],
+    cache: Option<&EvalCache>,
+    engine: &str,
+) -> String {
+    let mut out = String::new();
+    let mut pos = start.clone();
+    let mut after_comment = true;
+    for (ply, m) in moves.iter().enumerate() {
+        let before = pos.clone();
+        let san = SanPlus::from_move_and_play_unchecked(&mut pos, *m).to_string();
+        out.push_str(&move_prefix(&before, after_comment));
+        out.push_str(&san);
+        after_comment = false;
+        let mark = marks.iter().find(|mk| mk.ply == ply as u32);
+        if let Some(mark) = mark {
+            out.push_str(match mark.class {
+                1 => " $6",
+                2 => " $2",
+                3 => " $4",
+                BRILLIANT => " $3",
+                _ => "",
+            });
+        }
+        if let Some(comment) = cache
+            .filter(|_| !pos.is_game_over())
+            .and_then(|c| stored_eval(c, &pos, engine))
+            .and_then(|e| eval_comment(&e))
+        {
+            out.push_str(&format!(" {{ {comment} }}"));
+            after_comment = true;
+        }
+        // After an error, what was better.
+        if let Some(mark) = mark.filter(|mk| mk.class != BRILLIANT) {
+            let from_cache = cache
+                .and_then(|c| stored_eval(c, &before, engine))
+                .and_then(|e| e.lines.into_iter().min_by_key(|l| l.multipv))
+                .map(|l| line_san(&before, &l.uci, 8))
+                .filter(|line| line.first() == Some(&mark.best));
+            let line = from_cache.unwrap_or_else(|| vec![mark.best.clone()]);
+            if !mark.best.is_empty() {
+                let mut variation = before.clone();
+                let mut text = String::new();
+                for (k, san) in line.iter().enumerate() {
+                    text.push_str(&move_prefix(&variation, k == 0));
+                    text.push_str(san);
+                    text.push(' ');
+                    let Some(next) = san
+                        .parse::<SanPlus>()
+                        .ok()
+                        .and_then(|s| s.san.to_move(&variation).ok())
+                    else {
+                        break;
+                    };
+                    variation.play_unchecked(next);
+                }
+                out.push_str(&format!(" ({})", text.trim_end()));
+                after_comment = true;
+            }
+        }
+        out.push(' ');
+    }
+    out.trim_end().to_string()
+}
+
+/// One analysed game with Insight's marks, to open on a board. `accounts`
+/// are the databases the games may come from.
+#[tauri::command]
+#[specta::specta]
+pub async fn insight_game(
+    key: String,
+    accounts: Vec<InsightAccount>,
+    state: tauri::State<'_, AppState>,
+) -> Result<InsightGame, Error> {
+    let not_found = || Error::from(std::io::Error::other("Die Partie ist nicht mehr da."));
+    let analysed = state.insight.game(&key)?.ok_or_else(not_found)?;
+    let account = accounts
+        .iter()
+        .find(|a| {
+            source_name(&a.file) == analysed.source
+                && a.player.to_lowercase() == analysed.player.to_lowercase()
+        })
+        .or_else(|| {
+            accounts
+                .iter()
+                .find(|a| source_name(&a.file) == analysed.source)
+        })
+        .ok_or_else(not_found)?;
+    let pool = get_duckdb_pool(&state, &account.file)?;
+    let game = {
+        let db = pool.get()?;
+        load_games(&db, &analysed.source, &analysed.player)?
+            .into_iter()
+            .find(|g| g.info.key == key)
+            .ok_or_else(not_found)?
+    };
+    let (start, moves) =
+        decode_mainline(&game.movedata, game.fen.as_deref()).map_err(std::io::Error::other)?;
+    let pgn = annotated_pgn(
+        &start,
+        &moves,
+        &analysed.moves,
+        Some(&state.eval_cache),
+        &analysed.engine,
+    );
+    let info = game.info;
+    let (white_elo, black_elo) = if info.white_side {
+        (info.player_rating, info.opponent_rating)
+    } else {
+        (info.opponent_rating, info.player_rating)
+    };
+    Ok(InsightGame {
+        pgn,
+        fen: game.fen,
+        site: if key.contains("://") {
+            key.clone()
+        } else {
+            String::new()
+        },
+        white: info.white,
+        black: info.black,
+        date: info.date.replace('-', "."),
+        result: info.result,
+        time_control: info.time_control,
+        white_elo,
+        black_elo,
+        white_side: info.white_side,
+    })
+}
+
 /// Forgets every game analysis (the position store keeps its evaluations).
 #[tauri::command]
 #[specta::specta]
@@ -886,6 +1165,7 @@ mod tests {
         let mut report = GameReport {
             plies: 40,
             opening: "Sicilian Defense: Najdorf Variation".into(),
+            own_opening: "Sicilian Defense: Open".into(),
             accuracy: 90.0,
             opponent_accuracy: 80.0,
             acpl: 20.0,
@@ -910,11 +1190,22 @@ mod tests {
             class: 3,
             phase: "middlegame",
         });
+        report.errors.push(MoveError {
+            ply: 41,
+            fen: "fen".into(),
+            played: "Rxh7+".into(),
+            best: "Rxh7+".into(),
+            loss: 0.0,
+            class: BRILLIANT,
+            phase: "endgame",
+        });
+        report.brilliants = 1;
         store
             .save(&info(true, "1-0"), &report, 18, "Stockfish")
             .unwrap();
         report.accuracy = 70.0;
         report.opening = "Sicilian Defense".into();
+        report.own_opening = "French Defense".into();
         store
             .save(&info(false, "1-0"), &report, 18, "Stockfish")
             .unwrap();
@@ -927,16 +1218,38 @@ mod tests {
         assert_eq!(summary.games, 2);
         assert_eq!(summary.accuracy, 80.0);
         assert_eq!(summary.by_color.len(), 2);
-        assert_eq!(summary.by_opening.len(), 1);
-        assert_eq!(summary.by_opening[0].key, "Sicilian Defense");
-        assert_eq!(summary.by_opening[0].score, 50.0);
+        // Only the openings named by the player's own moves, per color.
+        assert_eq!(summary.by_opening_white.len(), 1);
+        assert_eq!(summary.by_opening_white[0].key, "Sicilian Defense");
+        assert_eq!(summary.by_opening_white[0].score, 100.0);
+        assert_eq!(summary.by_opening_black.len(), 1);
+        assert_eq!(summary.by_opening_black[0].key, "French Defense");
+        assert_eq!(summary.by_opening_black[0].score, 0.0);
+        assert_eq!(summary.brilliants, 2);
+        assert_eq!(summary.brilliant.len(), 2);
+        assert_eq!(summary.brilliant[0].class, BRILLIANT);
+        assert_eq!(summary.outdated, 0);
         assert_eq!(summary.by_speed[0].key, "blitz");
         assert_eq!(summary.by_month[0].key, "2026-03");
         assert_eq!(summary.phases[0].accuracy, 90.0);
         assert_eq!(summary.phases[0].blunders, 2);
         assert_eq!(summary.worst.len(), 2);
         assert_eq!(summary.worst[0].best, "Nxe5");
+        assert!(summary.worst.iter().all(|e| e.class == 3));
         assert_eq!(summary.players, vec!["ich"]);
+
+        let game = store.game(&info(true, "1-0").key).unwrap().unwrap();
+        assert_eq!(game.source, "ich_lichess.duckdb");
+        assert!(game.white_side);
+        assert_eq!(game.engine, "Stockfish");
+        assert_eq!(
+            game.moves
+                .iter()
+                .map(|m| (m.ply, m.class))
+                .collect::<Vec<_>>(),
+            vec![(31, 3), (41, BRILLIANT)]
+        );
+        assert_eq!(store.game("gibt es nicht").unwrap(), None);
 
         assert_eq!(store.summary(Some("jemand")).unwrap().games, 0);
         assert_eq!(
@@ -957,6 +1270,78 @@ mod tests {
         );
         store.clear().unwrap();
         assert_eq!(store.summary(None).unwrap().games, 0);
+    }
+
+    /// Games analysed before brilliant moves and the own opening existed
+    /// count as not analysed, so the next run updates them.
+    #[test]
+    fn older_analyses_are_done_again() {
+        let store = InsightStore::open_in_memory();
+        let game = info(true, "1-0");
+        store
+            .save(&game, &GameReport::default(), 18, "Stockfish")
+            .unwrap();
+        assert_eq!(store.analysed_depth(&game.key).unwrap(), Some(18));
+        store.set_version_for_test(&game.key, 1);
+        assert_eq!(store.analysed_depth(&game.key).unwrap(), None);
+        assert_eq!(
+            store
+                .count_analysed("ich_lichess.duckdb", "ich", 18)
+                .unwrap(),
+            0
+        );
+        assert_eq!(store.summary(None).unwrap().outdated, 1);
+    }
+
+    #[test]
+    fn brilliant_means_a_sound_sacrifice() {
+        // 1.e4 e5 2.Nf3 Nc6 3.Bc4 Nf6: 4.Bxf7+ gives up a bishop for a pawn.
+        let (_, moves) = play("e2e4 e7e5 g1f3 b8c6 f1c4 g8f6");
+        let mut pos = Chess::default();
+        for m in &moves {
+            pos.play_unchecked(*m);
+        }
+        let mv = |u: &str| u.parse::<UciMove>().unwrap().to_move(&pos).unwrap();
+        // 4.Bxf7+ Kxf7: a bishop for a pawn.
+        let sac = mv("c4f7");
+        assert!(is_brilliant(&pos, &sac, true, 30, 25));
+        // Not when it loses, not when it is not the best move, and not when
+        // the player was winning anyway.
+        assert!(!is_brilliant(&pos, &sac, true, 30, -150));
+        assert!(!is_brilliant(&pos, &sac, false, 30, 0));
+        assert!(!is_brilliant(&pos, &sac, true, 600, 600));
+        // A quiet move is no sacrifice.
+        assert!(!is_brilliant(&pos, &mv("d2d3"), true, 30, 30));
+    }
+
+    #[test]
+    fn annotated_game_has_marks_and_better_moves() {
+        let (start, moves) = play("e2e4 e7e5 g1f3 b8c6 f1c4 d7d6 f3g5 c8g4");
+        let marks = vec![
+            store::MarkedMove {
+                ply: 5,
+                class: 1,
+                best: "Nf6".into(),
+                loss: 12.0,
+            },
+            store::MarkedMove {
+                ply: 7,
+                class: 3,
+                best: "Nh6".into(),
+                loss: 40.0,
+            },
+            store::MarkedMove {
+                ply: 4,
+                class: BRILLIANT,
+                best: "Bc4".into(),
+                loss: 0.0,
+            },
+        ];
+        let pgn = annotated_pgn(&start, &moves, &marks, None, "Stockfish");
+        assert_eq!(
+            pgn,
+            "1. e4 e5 2. Nf3 Nc6 3. Bc4 $3 d6 $6 (3... Nf6) 4. Ng5 Bg4 $4 (4... Nh6)"
+        );
     }
 
     /// Needs an engine: `JBLBASE_TEST_ENGINE=/path/to/stockfish cargo test -- --ignored insight`
@@ -999,8 +1384,51 @@ mod tests {
             .expect("6...Bb4 was missed");
         assert_eq!(missed.moves[1], "f8b4");
         assert_eq!(missed.line, "gegner – ich (2026-03-14), 6...");
+        // Black's own moves led to the Englund Gambit.
+        assert!(
+            report.own_opening.contains("Englund"),
+            "{}",
+            report.own_opening
+        );
         let error = report.errors.iter().find(|e| e.ply == 11).unwrap();
         assert_eq!(error.played, "Nf6");
         assert_eq!(error.best, "Bb4");
+    }
+
+    /// Needs an engine, see above.
+    #[tokio::test]
+    #[ignore]
+    async fn finds_a_brilliant_sacrifice() {
+        let engine = PathBuf::from(std::env::var("JBLBASE_TEST_ENGINE").unwrap());
+        let cache = EvalCache::open_in_memory();
+        let mut analyzer = Analyzer::new(engine.clone(), &[]).await.unwrap();
+        let mut prober = Prober::new(engine);
+        let cancel = AtomicBool::new(false);
+        // French Defense, 7...O-O? 8.Bxh7+! Kxh7 9.Ng5+: the Greek gift.
+        let (start, moves) = play(
+            "e2e4 e7e6 d2d4 d7d5 b1c3 g8f6 e4e5 f6d7 g1f3 c7c5 d4c5 f8c5 f1d3 e8g8 d3h7 g8h7 f3g5 h7g8",
+        );
+        let report = analyse_game(
+            &mut analyzer,
+            &mut prober,
+            Some(&cache),
+            &RatingModel::default(),
+            16,
+            &info(true, "1-0"),
+            &start,
+            &moves,
+            &cancel,
+            |_| {},
+        )
+        .await
+        .unwrap();
+        println!("{:#?}", report.errors);
+        assert!(
+            report.own_opening.contains("French"),
+            "{}",
+            report.own_opening
+        );
+        let brilliant = report.errors.iter().find(|e| e.class == BRILLIANT);
+        assert_eq!(brilliant.map(|e| e.played.as_str()), Some("Bxh7+"));
     }
 }
