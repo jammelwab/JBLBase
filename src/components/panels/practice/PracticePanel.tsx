@@ -65,6 +65,7 @@ import { getTabFile, getTabGameNumber } from "@/utils/tabs";
 import { findFen, getNodeAtPath } from "@/utils/treeReducer";
 import LineTrainer from "./LineTrainer";
 import RepertoireInfo from "./RepertoireInfo";
+import { autoGrade } from "@/utils/practiceGrade";
 
 function PracticePanel() {
   const { t } = useTranslation();
@@ -202,9 +203,10 @@ function PracticePanel() {
         return () => clearTimeout(timer);
       } else if (practiceAutoDifficulty !== "none" && practiceState.positionIndex !== undefined) {
         const positionIndex = practiceState.positionIndex;
+        const grade =
+          autoGrade(practiceAutoDifficulty, practiceState.timeTaken, practiceState.wrongTries) ?? 3;
         const timer = setTimeout(() => {
           const card = deck.positions[positionIndex].card;
-          const grade = Number(practiceAutoDifficulty) as 1 | 2 | 3 | 4;
 
           updateCardPerformance(setDeck, positionIndex, card, grade);
           setSessionStats((prev) => ({
@@ -221,6 +223,8 @@ function PracticePanel() {
   }, [
     practiceState.phase,
     practiceState.positionIndex,
+    practiceState.timeTaken,
+    practiceState.wrongTries,
     sessionStats.mode,
     sessionStats.remainingPositions,
     newPractice,
@@ -544,9 +548,19 @@ function PracticePanel() {
                       </Stack>
                     ) : (
                       <Group gap="xs" justify="center">
-                        <Text ta="center" fz="sm" c="dimmed">
-                          {t("Board.Practice.MakeYourMove")}
-                        </Text>
+                        {practiceState.wrongTries ? (
+                          <Text ta="center" fz="sm" c="orange" fw={500}>
+                            {practiceState.hintSquare
+                              ? t("Board.Practice.HintPiece", {
+                                  square: practiceState.hintSquare,
+                                })
+                              : t("Board.Practice.WrongTryAgain")}
+                          </Text>
+                        ) : (
+                          <Text ta="center" fz="sm" c="dimmed">
+                            {t("Board.Practice.MakeYourMove")}
+                          </Text>
+                        )}
                         <Button
                           variant="light"
                           size="compact-xs"
