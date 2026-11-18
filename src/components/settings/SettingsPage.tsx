@@ -90,6 +90,7 @@ import SettingsSwitch from "./SettingsSwitch";
 import SoundSelect from "./SoundSelect";
 import ThemeButton from "./ThemeButton";
 import VolumeSlider from "./VolumeSlider";
+import type { PracticeAutoDifficulty } from "@/utils/practiceGrade";
 
 type SettingCategory =
   | "board"
@@ -562,6 +563,7 @@ export default function Page() {
           <Select
             allowDeselect={false}
             data={[
+              { label: t("Settings.Repertoire.AutoDifficulty.Time"), value: "time" },
               { label: t("Settings.Repertoire.AutoDifficulty.None"), value: "none" },
               { label: t("Board.Practice.Again"), value: "1" },
               { label: t("Board.Practice.Hard"), value: "2" },
@@ -569,7 +571,7 @@ export default function Page() {
               { label: t("Board.Practice.Easy"), value: "4" },
             ]}
             value={practiceAutoDifficulty}
-            onChange={(val) => setPracticeAutoDifficulty(val as "none" | "1" | "2" | "3" | "4")}
+            onChange={(val) => setPracticeAutoDifficulty(val as PracticeAutoDifficulty)}
           />
         ),
       },

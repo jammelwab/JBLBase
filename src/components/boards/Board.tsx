@@ -1,4 +1,5 @@
 import type { DrawBrushes, DrawShape } from "@lichess-org/chessground/draw";
+import type { Key } from "@lichess-org/chessground/types";
 import { ActionIcon, Box, Center, Group, Text, useMantineTheme } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -14,7 +15,7 @@ import {
 } from "chessops";
 import { chessgroundDests, chessgroundMove } from "chessops/compat";
 import { makeFen, parseFen } from "chessops/fen";
-import { makeSan } from "chessops/san";
+import { makeSan, parseSan } from "chessops/san";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { memo, useCallback, useContext, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -182,7 +183,7 @@ function Board({
     }),
   );
 
-  const setPracticeState = useSetAtom(practiceStateAtom);
+  const [practiceState, setPracticeState] = useAtom(practiceStateAtom);
   const lineTrainer = useAtomValue(currentLineTrainerBoardAtom);
   const [sessionStats, setSessionStats] = useAtom(practiceSessionStatsAtom);
   const cardStartTime = useAtomValue(practiceCardStartTimeAtom);
@@ -205,6 +206,30 @@ function Board({
       const timeTaken = Date.now() - cardStartTime;
 
       if (san !== c.answer) {
+        const sameCard = practiceState.currentFen === c.fen;
+        const wrongTries = (sameCard ? (practiceState.wrongTries ?? 0) : 0) + 1;
+        if (wrongTries < 2) {
+          // First wrong try: orange, with a hint, and a second try.
+          const hintMove = parseSan(pos, c.answer);
+          const hintSquare = hintMove && "from" in hintMove ? makeSquare(hintMove.from) : undefined;
+          setPracticeState({
+            phase: "waiting",
+            currentFen: c.fen,
+            positionIndex: i,
+            wrongTries,
+            hintSquare,
+          });
+          setSessionStats((prev) => ({ ...prev, streak: 0 }));
+          setPendingMove(null);
+          notifications.show({
+            title: t("Board.Practice.WrongTryAgain"),
+            message: hintSquare
+              ? t("Board.Practice.HintPiece", { square: hintSquare })
+              : t("Board.Practice.HintNone"),
+            color: "orange",
+          });
+          return;
+        }
         if (sessionStats.mode !== "full") {
           updateCardPerformance(setDeck, i, c.card, 1);
         }
@@ -239,6 +264,7 @@ function Board({
           answer: c.answer,
           positionIndex: i,
           timeTaken,
+          wrongTries: practiceState.currentFen === c.fen ? practiceState.wrongTries : undefined,
         });
       }
     } else {
@@ -387,6 +413,17 @@ function Board({
   const [snapArrows] = useAtom(snapArrowsAtom);
   const showComments = useAtomValue(currentShowCommentsAtom);
   const visualAnnotation = showComments ? currentNode.annotations[0] : "";
+
+  // Hint after the first wrong try in repertoire practice
+  if (
+    practicing &&
+    practiceState.phase === "waiting" &&
+    practiceState.hintSquare &&
+    practiceState.currentFen &&
+    samePosition(practiceState.currentFen, currentNode.fen)
+  ) {
+    shapes.push({ orig: practiceState.hintSquare as Key, brush: "hint" });
+  }
 
   // Chess.com-style rating badge on the square the last move went to
   if (showComments && currentNode.classification && currentNode.move) {
@@ -643,6 +680,12 @@ function Board({
                       color: "#7a7a7a",
                       opacity: 0.6,
                       lineWidth: VARIATION_BRUSH,
+                    },
+                    hint: {
+                      key: "h",
+                      color: "#fd7e14",
+                      opacity: 0.9,
+                      lineWidth: 12,
                     },
                     variationMain: {
                       key: "vm",

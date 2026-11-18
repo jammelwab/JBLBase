@@ -37,6 +37,7 @@ nicht neu gerechnet werden.
 - Neu in 1.1.4: „Öffnen“ funktioniert wieder bei großen Repertoires
 - Neu in 1.1.5: dünne graue Pfeile am Brett für alle Varianten ab der aktuellen Stellung
 - Neu in 1.1.6: Ordner im Repertoire-Bereich auf ein Repertoire ziehen (z. B. „Ich Weiß“), um alle seine Varianten dort zu übernehmen
+- Neu in 1.1.7: Repertoire-Wiederholung bewertet automatisch (unter 30 s „Leicht“, sonst „Gut“, im zweiten Versuch „Schwer“, zweimal falsch „Erneut“) und geht nach einem richtigen Zug ohne Klick weiter; nach dem ersten Fehler gibt es einen Tipp und einen zweiten Versuch
 
 **Später**
 

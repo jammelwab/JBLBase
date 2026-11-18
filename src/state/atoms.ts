@@ -36,6 +36,7 @@ import { deckId, loadDeck, repertoireId, saveDeck, tauriTrainingBackend } from "
 import { genID, type Tab, tabSchema } from "@/utils/tabs";
 import { getEnginesDir } from "../utils/directories";
 import type { PlayerDatabase } from "@/utils/playerDatabases";
+import type { PracticeAutoDifficulty } from "@/utils/practiceGrade";
 import type { Session } from "../utils/session";
 import { createAsyncZodStorage, createZodStorage } from "./utils";
 
@@ -777,6 +778,10 @@ export type PracticeState = {
     playedMove?: string;
     timeTaken?: number;
     positionIndex?: number;
+    /** Wrong tries on the current card (a second wrong try shows the solution). */
+    wrongTries?: number;
+    /** Square of the piece to move, shown after the first wrong try. */
+    hintSquare?: string;
 };
 
 export const practiceStateFamily = atomFamily((_tab: string) =>
@@ -805,9 +810,10 @@ const practiceSessionStatsFamily = atomFamily((_tab: string) =>
 );
 export const practiceSessionStatsAtom = tabValue(practiceSessionStatsFamily);
 
-export const practiceAutoDifficultyAtom = atomWithStorage<"none" | "1" | "2" | "3" | "4">(
-    "practice-auto-difficulty",
-    "none",
+// New key so the time-based grading is on for everyone after the update.
+export const practiceAutoDifficultyAtom = atomWithStorage<PracticeAutoDifficulty>(
+    "practice-auto-difficulty-v2",
+    "time",
 );
 
 const practiceCardStartTimeFamily = atomFamily((_tab: string) => atom<number>(0));
