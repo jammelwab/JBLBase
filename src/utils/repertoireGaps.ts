@@ -1,17 +1,20 @@
 import type { MoveCount } from "./repertoireTree";
 import type { TreeNode } from "./treeReducer";
 
-// Finds the gaps of a repertoire while it is being built:
+// Finds the gaps of a repertoire while it is being built. A gap is always an opponent move
+// the repertoire has no answer for: in a white repertoire black moves, in a black one white
+// moves. The user's own moves are their choice and never a gap.
 // - "reply": a move the opponent often plays (by the Lichess database) that the repertoire
 //   has no line for,
-// - "answer": a line that ends after an opponent move, so the user has no move prepared,
 // - "extend": a line that ends after the user's move; the opponent's common answers there
 //   show how it could go on. Lines have to end somewhere, so this is no hole, only a hint.
+// Move 1 is left out: which first moves a repertoire covers (1.e4 only, or only 1...e5) is
+// the user's choice, not something overlooked.
 // Each gap gets an estimate how often a game gets there (`reach`): the share of the
 // opponent's moves on the way, by Lichess; the user's own moves count fully.
 
 export type RepertoireGap = {
-    kind: "reply" | "answer" | "extend";
+    kind: "reply" | "extend";
     // Moves from the repertoire's start to the position of the gap
     line: string[];
     // Path of that position in the repertoire tree
@@ -47,6 +50,11 @@ function sideToMove(fen: string): "white" | "black" {
     return fen.split(" ")[1] === "b" ? "black" : "white";
 }
 
+// The move number of the FEN ("1" before 1.e4 and before 1...e5)
+function moveNumber(fen: string): number {
+    return Number(fen.split(" ")[5]) || 1;
+}
+
 export function findGaps(
     root: TreeNode,
     counts: Map<string, MoveCount[]>,
@@ -64,20 +72,10 @@ export function findGaps(
         if (line.length > options.maxDepth) return;
         const mine = sideToMove(node.fen) === options.color;
         const known = counts.get(node.fen);
-        if (!known && (!mine || node.children.length === 0)) wanted.push({ fen: node.fen, reach });
+        // The opponent's numbers are needed for the gaps and for how often a line is reached
+        if (!known && !mine) wanted.push({ fen: node.fen, reach });
 
         if (mine) {
-            if (node.children.length === 0) {
-                gaps.push({
-                    kind: "answer",
-                    line,
-                    path,
-                    fen: node.fen,
-                    halfMoves: node.halfMoves,
-                    reach,
-                    exact,
-                });
-            }
             node.children.forEach((child, i) =>
                 walk(child, [...line, child.san ?? ""], [...path, i], reach, exact),
             );
@@ -90,7 +88,7 @@ export function findGaps(
             if (!known || total === 0) return undefined;
             return (known.find((c) => c.san === san)?.games ?? 0) / total;
         };
-        if (known && total > 0) {
+        if (known && total > 0 && moveNumber(node.fen) > 1) {
             for (const c of known) {
                 const share = c.games / total;
                 if (share < options.minShare) continue;

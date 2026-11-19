@@ -350,13 +350,15 @@ function LichessOrChessCom({
   if (session.lichess?.account) {
     const account = session.lichess.account;
     const lichessSession = session.lichess;
-    const totalGames =
+    // `count.all` also has casual games, which the rating categories leave out
+    const ratedGames =
       (account.perfs?.ultraBullet?.games ?? 0) +
       (account.perfs?.bullet?.games ?? 0) +
       (account.perfs?.blitz?.games ?? 0) +
       (account.perfs?.rapid?.games ?? 0) +
       (account.perfs?.classical?.games ?? 0) +
       (account.perfs?.correspondence?.games ?? 0);
+    const totalGames = Math.max(ratedGames, account.count?.all ?? 0);
 
     const stats = [];
     const speeds = ["bullet", "blitz", "rapid", "classical"] as const;

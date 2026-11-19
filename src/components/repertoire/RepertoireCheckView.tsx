@@ -15,7 +15,14 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconBulb, IconChessKnight, IconPlus } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconBulb,
+  IconChessKnight,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconPlus,
+} from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -59,7 +66,7 @@ const gapId = (gap: RepertoireGap) => `${gap.line.join(" ")}|${gap.move ?? ""}`;
 
 // Help while building a repertoire: where it has gaps, ordered by how often a game gets there,
 // with the next step on top. Gaps are opponent moves that are often played (Lichess) but have
-// no line yet, and lines that stop after an opponent move.
+// no answer in the repertoire yet; the user's own moves and move 1 are left out.
 export default function RepertoireCheckView({
   repertoire,
   onBack,
@@ -78,6 +85,8 @@ export default function RepertoireCheckView({
   const showLichess = hasLichessToken();
 
   const [requested, setRequested] = useState<string[]>([]);
+  // The user stopped the search: no more positions are asked for, the list stays as it is
+  const [stopped, setStopped] = useState(false);
   const counts = usePositionData<MoveCount[]>(requested, lichessMoveCounts, showLichess);
   const scan = useMemo(
     () =>
@@ -89,18 +98,19 @@ export default function RepertoireCheckView({
     [root, counts, color, minShare, maxMoves],
   );
   const pending = requested.filter((fen) => !counts.has(fen)).length;
+  const searching = showLichess && !stopped && pending > 0;
 
   // Asks for the next positions once the last ones are in: the most reached first, so the
   // numbers that matter most come first and the list gets more exact step by step
   useEffect(() => {
-    if (!showLichess || pending >= 3 || requested.length >= REQUEST_LIMIT) return;
+    if (!showLichess || stopped || pending >= 3 || requested.length >= REQUEST_LIMIT) return;
     const have = new Set(requested);
     const more = scan.wanted
       .filter((w) => !have.has(w.fen) && w.reach >= 0.003)
       .slice(0, BATCH)
       .map((w) => w.fen);
     if (more.length > 0) setRequested((prev) => [...prev, ...more].slice(0, REQUEST_LIMIT));
-  }, [showLichess, pending, requested, scan]);
+  }, [showLichess, stopped, pending, requested, scan]);
 
   const openLine = useOpenLine(root.fen, root.halfMoves, color);
   // Opens the repertoire itself at the gap, so the moves played there go right into it
@@ -118,14 +128,14 @@ export default function RepertoireCheckView({
   );
 
   // Takes the gap into the repertoire: the missing opponent move and the move played most
-  // often after it, or the most played answer where the user has no move yet
+  // often after it
   async function addGap(gap: RepertoireGap) {
     setAdding(gapId(gap));
     try {
       let line = gap.move ? [...gap.line, gap.move] : gap.line;
-      const after = gap.move
-        ? await lichessMoveCounts(lastFen(root.fen, root.halfMoves, line)).catch(() => undefined)
-        : counts.get(gap.fen);
+      const after = await lichessMoveCounts(lastFen(root.fen, root.halfMoves, line)).catch(
+        () => undefined,
+      );
       const best = mostPlayed(after);
       if (best) line = [...line, best.san];
       if (line.length === 0) return;
@@ -157,15 +167,10 @@ export default function RepertoireCheckView({
       const move = numbered(root.halfMoves + gap.line.length, gap.move!);
       return t("Repertoire.Check.ExtendText", { where: lineText(gap.line, root.halfMoves), move });
     }
-    if (gap.kind === "reply") {
-      const move = numbered(root.halfMoves + gap.line.length, gap.move!);
-      return gap.line.length === 0
-        ? t("Repertoire.Check.ReplyAtStart", { move })
-        : t("Repertoire.Check.ReplyText", { where: lineText(gap.line, root.halfMoves), move });
-    }
+    const move = numbered(root.halfMoves + gap.line.length, gap.move!);
     return gap.line.length === 0
-      ? t("Repertoire.Check.FirstMove")
-      : t("Repertoire.Check.AnswerText", { where: lineText(gap.line, root.halfMoves) });
+      ? t("Repertoire.Check.ReplyAtStart", { move })
+      : t("Repertoire.Check.ReplyText", { where: lineText(gap.line, root.halfMoves), move });
   };
   const reachText = (gap: RepertoireGap) =>
     gap.exact && gap.line.length + (gap.move ? 1 : 0) > 0
@@ -175,7 +180,6 @@ export default function RepertoireCheckView({
         });
 
   const top = scan.gaps[0];
-  const topSuggestion = top?.kind === "answer" ? mostPlayed(counts.get(top.fen)) : null;
   const coverage = 1 - scan.leaking;
 
   return (
@@ -237,12 +241,35 @@ export default function RepertoireCheckView({
               <Text size="sm" fw={600}>
                 {t("Repertoire.Check.Coverage", { share: percent(coverage) })}
               </Text>
-              {pending > 0 && (
+              {searching && (
                 <Group gap={6}>
                   <Loader size="xs" />
                   <Text size="xs" c="dimmed">
                     {t("Repertoire.Check.Loading", { count: counts.size })}
                   </Text>
+                  <Button
+                    size="compact-xs"
+                    variant="default"
+                    leftSection={<IconPlayerStop size="0.9rem" />}
+                    onClick={() => setStopped(true)}
+                  >
+                    {t("Repertoire.Check.Stop")}
+                  </Button>
+                </Group>
+              )}
+              {stopped && (
+                <Group gap={6}>
+                  <Text size="xs" c="dimmed">
+                    {t("Repertoire.Check.Stopped", { count: counts.size })}
+                  </Text>
+                  <Button
+                    size="compact-xs"
+                    variant="default"
+                    leftSection={<IconPlayerPlay size="0.9rem" />}
+                    onClick={() => setStopped(false)}
+                  >
+                    {t("Repertoire.Check.Resume")}
+                  </Button>
                 </Group>
               )}
             </Group>
@@ -262,16 +289,9 @@ export default function RepertoireCheckView({
             <Text size="sm">{describe(top)}</Text>
             <Text size="xs" c="dimmed" mb="sm">
               {reachText(top)}
-              {topSuggestion &&
-                ` · ${t("Repertoire.Check.Popular", {
-                  move: topSuggestion.san,
-                  share: percent(topSuggestion.share),
-                })}`}
             </Text>
             <Text size="sm" mb="sm">
-              {t(
-                top.kind === "answer" ? "Repertoire.Check.AnswerHow" : "Repertoire.Check.ReplyHow",
-              )}
+              {t("Repertoire.Check.ReplyHow")}
             </Text>
             <Group gap="xs">
               <Button
@@ -297,7 +317,9 @@ export default function RepertoireCheckView({
             </Group>
           </Paper>
         ) : (
-          pending === 0 && (
+          showLichess &&
+          !searching &&
+          !stopped && (
             <Alert color="green" variant="light">
               {t("Repertoire.Check.NoGaps")}
             </Alert>
@@ -310,7 +332,6 @@ export default function RepertoireCheckView({
               {t("Repertoire.Check.AllGaps", { count: scan.gaps.length })}
             </Text>
             {scan.gaps.slice(1, SHOWN).map((gap) => {
-              const suggestion = gap.kind === "answer" ? mostPlayed(counts.get(gap.fen)) : null;
               return (
                 <Paper key={gapId(gap)} withBorder p="xs">
                   <Group justify="space-between" wrap="nowrap">
@@ -319,21 +340,13 @@ export default function RepertoireCheckView({
                         <Badge
                           size="sm"
                           variant="light"
-                          color={
-                            gap.kind === "reply"
-                              ? "orange"
-                              : gap.kind === "answer"
-                                ? "yellow"
-                                : "blue"
-                          }
+                          color={gap.kind === "reply" ? "orange" : "blue"}
                           style={{ flexShrink: 0 }}
                         >
                           {t(
                             gap.kind === "reply"
                               ? "Repertoire.Check.KindReply"
-                              : gap.kind === "answer"
-                                ? "Repertoire.Check.KindAnswer"
-                                : "Repertoire.Check.KindExtend",
+                              : "Repertoire.Check.KindExtend",
                           )}
                         </Badge>
                         <Text size="sm" truncate="end">
@@ -342,11 +355,6 @@ export default function RepertoireCheckView({
                       </Group>
                       <Text size="xs" c="dimmed">
                         {reachText(gap)}
-                        {suggestion &&
-                          ` · ${t("Repertoire.Check.Popular", {
-                            move: suggestion.san,
-                            share: percent(suggestion.share),
-                          })}`}
                       </Text>
                     </Stack>
                     <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
