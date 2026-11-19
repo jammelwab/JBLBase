@@ -816,6 +816,9 @@ export const practiceAutoDifficultyAtom = atomWithStorage<PracticeAutoDifficulty
     "time",
 );
 
+/** Pause after a correct move before the next position comes, in ms. */
+export const practiceAdvanceDelayAtom = atomWithStorage<number>("practice-advance-delay", 2000);
+
 const practiceCardStartTimeFamily = atomFamily((_tab: string) => atom<number>(0));
 export const practiceCardStartTimeAtom = tabValue(practiceCardStartTimeFamily);
 
