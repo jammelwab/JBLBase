@@ -201,14 +201,20 @@ export function AccountCard({
     const p = await resolve(databaseDir, `${title}_${type}.pgn`);
     const dbPath = database?.file ?? p.replace(".pgn", ".duckdb");
     await commands.deleteEmptyGames(dbPath);
+    return dbPath;
   }
 
-  async function syncGames() {
-    if (syncing.current) return;
+  // Loads the new games and the ratings from the website. Returns how many games were new,
+  // or null when it was already running.
+  async function syncGames(): Promise<number | null> {
+    if (syncing.current) return null;
     syncing.current = true;
     setLoading(true);
+    const before = downloadedGames;
+    let dbPath: string | null = null;
+    let newGames = 0;
     try {
-      await downloadGames();
+      dbPath = await downloadGames();
       // The game counts and ratings on the card come from the website.
       await reload();
     } catch (e) {
@@ -232,18 +238,43 @@ export function AccountCard({
       }));
       // A failed download must not leave the button spinning forever
       setLoading(false);
-      setDatabases(await getDatabases());
+      const databases = await getDatabases();
+      setDatabases(databases);
+      const updated = databases.find((d) => d.file === dbPath);
+      if (updated?.type === "success") newGames = Math.max(0, updated.game_count - before);
       // Refresh the player overview, open databases and the repertoire pages,
       // which cache the downloaded games.
       refreshOwnGames();
       await refreshDatabaseCaches();
     }
+    return newGames;
+  }
+
+  // "Aktualisieren": new games and ratings at once, with a message what happened, so the
+  // button never looks like it did nothing
+  async function update() {
+    const newGames = await syncGames().catch(() => null);
+    if (newGames === null) return;
+    notifications.show({
+      color: "green",
+      title: title,
+      message:
+        newGames > 0
+          ? t("Home.Accounts.UpdatedGames", { count: newGames })
+          : t("Home.Accounts.UpdatedNoGames"),
+    });
   }
 
   const syncing = useRef(false);
   const latestSync = useRef(syncGames);
   latestSync.current = syncGames;
-  useEffect(() => registerAccountSync(syncKey, () => latestSync.current()), [syncKey]);
+  useEffect(
+    () =>
+      registerAccountSync(syncKey, async () => {
+        await latestSync.current();
+      }),
+    [syncKey],
+  );
 
   const openDatabase =
     database?.type === "success"
@@ -285,7 +316,13 @@ export function AccountCard({
           </Group>
           <Group gap={4}>
             <Tooltip label={t("Home.Accounts.UpdateStats")}>
-              <ActionIcon variant="subtle" color="gray" onClick={() => reload()}>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                loading={loading}
+                disabled={loading}
+                onClick={() => void update()}
+              >
                 <IconRefresh size="1rem" />
               </ActionIcon>
             </Tooltip>
@@ -296,7 +333,7 @@ export function AccountCard({
                 color="gray"
                 loading={loading}
                 disabled={loading}
-                onClick={() => void syncGames().catch(() => {})}
+                onClick={() => void update()}
               >
                 <IconDownload size="1rem" />
               </ActionIcon>
@@ -337,7 +374,10 @@ export function AccountCard({
           <Group justify="space-between" mt={4}>
             <Text size="xs" c="dimmed">
               {t("Home.Accounts.LastUpdate", {
-                date: new Date(updatedAt).toLocaleDateString(),
+                date: new Date(updatedAt).toLocaleString(undefined, {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }),
                 interpolation: { escapeValue: false },
               })}
             </Text>
