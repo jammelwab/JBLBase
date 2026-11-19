@@ -98,6 +98,17 @@ export function getCardForReview(
     return filtered.length > 0 ? filtered[0] : null;
 }
 
+/**
+ * Next due card, leaving out the one just answered: its new due date is not
+ * in `positions` yet, so it would otherwise come again right away.
+ */
+export function getNextCardForReview(
+    positions: Position[],
+    justReviewed: number | undefined,
+): Position | null {
+    return getCardForReview(positions.filter((_, i) => i !== justReviewed));
+}
+
 export function updateCardPerformance(
     setPositions: React.Dispatch<SetStateAction<PracticeData>>,
     i: number,

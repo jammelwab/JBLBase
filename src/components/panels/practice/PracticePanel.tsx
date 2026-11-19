@@ -40,7 +40,7 @@ import { TreeStateContext } from "@/components/common/TreeStateContext";
 import {
   buildFromTree,
   formatReviewInterval,
-  getCardForReview,
+  getNextCardForReview,
   getNextReviewTimes,
   getStats,
   syncDeck,
@@ -59,6 +59,7 @@ import {
   practiceCardStartTimeAtom,
   practiceSessionStatsAtom,
   practiceStateAtom,
+  practiceAdvanceDelayAtom,
   practiceAutoDifficultyAtom,
 } from "@/state/atoms";
 import { getTabFile, getTabGameNumber } from "@/utils/tabs";
@@ -134,9 +135,13 @@ function PracticePanel() {
   const [sessionStats, setSessionStats] = useAtom(practiceSessionStatsAtom);
   const setCardStartTime = useSetAtom(practiceCardStartTimeAtom);
   const practiceAutoDifficulty = useAtomValue(practiceAutoDifficultyAtom);
+  const practiceAdvanceDelay = useAtomValue(practiceAdvanceDelayAtom);
 
   const newPractice = useCallback(
-    (stats?: Partial<PracticeSessionStats>) => {
+    // `justReviewed` is the card that was just answered. Its new due date is
+    // not in `deck` yet (the update is still pending), so it is left out here;
+    // otherwise the same position would come twice in a row.
+    (stats?: Partial<PracticeSessionStats>, justReviewed?: number) => {
       if (deck.positions.length === 0) return;
 
       const currentMode = stats?.mode ?? sessionStats.mode;
@@ -151,7 +156,7 @@ function PracticePanel() {
           c = null;
         }
       } else {
-        c = getCardForReview(deck.positions);
+        c = getNextCardForReview(deck.positions, justReviewed);
       }
 
       if (!c) {
@@ -199,7 +204,7 @@ function PracticePanel() {
             bestStreak: Math.max(prev.bestStreak, prev.streak + 1),
           }));
           newPractice({ remainingPositions, mode: "full" });
-        }, 300);
+        }, practiceAdvanceDelay);
         return () => clearTimeout(timer);
       } else if (practiceAutoDifficulty !== "none" && practiceState.positionIndex !== undefined) {
         const positionIndex = practiceState.positionIndex;
@@ -215,8 +220,8 @@ function PracticePanel() {
             streak: prev.streak + 1,
             bestStreak: Math.max(prev.bestStreak, prev.streak + 1),
           }));
-          newPractice();
-        }, 300);
+          newPractice(undefined, positionIndex);
+        }, practiceAdvanceDelay);
         return () => clearTimeout(timer);
       }
     }
@@ -230,6 +235,7 @@ function PracticePanel() {
     newPractice,
     setSessionStats,
     practiceAutoDifficulty,
+    practiceAdvanceDelay,
     deck.positions,
     setDeck,
   ]);
@@ -247,7 +253,7 @@ function PracticePanel() {
       streak: prev.streak + 1,
       bestStreak: Math.max(prev.bestStreak, prev.streak + 1),
     }));
-    newPractice();
+    newPractice(undefined, positionIndex);
   }
 
   function startPractice() {
@@ -283,7 +289,7 @@ function PracticePanel() {
       setSessionStats((prev) => ({ ...prev, remainingPositions }));
       newPractice({ remainingPositions });
     } else {
-      newPractice();
+      newPractice(undefined, practiceState.positionIndex);
     }
   }
 

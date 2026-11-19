@@ -52,6 +52,7 @@ import {
   moveNotationTypeAtom,
   nativeBarAtom,
   pieceAnimationAtom,
+  practiceAdvanceDelayAtom,
   practiceAutoDifficultyAtom,
   previewBoardOnHoverAtom,
   flipBoardAfterMoveAtom,
@@ -176,6 +177,7 @@ export default function Page() {
   const [materialDisplay, setMaterialDisplay] = useAtom(materialDisplayAtom);
   const [defaultPanelTab, setDefaultPanelTab] = useAtom(defaultPanelTabAtom);
   const [practiceAutoDifficulty, setPracticeAutoDifficulty] = useAtom(practiceAutoDifficultyAtom);
+  const [practiceAdvanceDelay, setPracticeAdvanceDelay] = useAtom(practiceAdvanceDelayAtom);
   const [trashRetentionDays, setTrashRetentionDays] = useAtom(trashRetentionDaysAtom);
 
   const settings: SettingItem[] = useMemo(
@@ -576,6 +578,26 @@ export default function Page() {
         ),
       },
       {
+        id: "repertoire-advance-delay",
+        category: "repertoire",
+        title: t("Settings.Repertoire.AdvanceDelay"),
+        description: t("Settings.Repertoire.AdvanceDelay.Desc"),
+        keywords: ["repertoire", "pause", "delay", "weiter", "zeit", "anki"],
+        render: () => (
+          <Select
+            allowDeselect={false}
+            data={[1000, 1500, 2000, 3000, 4000, 5000].map((ms) => ({
+              label: t("Settings.Repertoire.AdvanceDelay.Seconds", {
+                seconds: (ms / 1000).toLocaleString(),
+              }),
+              value: String(ms),
+            }))}
+            value={String(practiceAdvanceDelay)}
+            onChange={(val) => setPracticeAdvanceDelay(Number(val))}
+          />
+        ),
+      },
+      {
         id: "repertoire-backup",
         category: "repertoire",
         title: t("Settings.Backup"),
@@ -759,6 +781,8 @@ export default function Page() {
       setDefaultPanelTab,
       practiceAutoDifficulty,
       setPracticeAutoDifficulty,
+      practiceAdvanceDelay,
+      setPracticeAdvanceDelay,
       trashRetentionDays,
       setTrashRetentionDays,
     ],
