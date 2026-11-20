@@ -29,12 +29,13 @@ export function useCoach(tabId: string) {
     const openRecentFile = useOpenRecentFile();
 
     const turnTabInto = useCallback(
-        (type: Tab["type"], name: string) =>
+        (type: Tab["type"], name: string, coach = false) =>
             setTabs((prev: Tab[]) => {
                 const tab = prev.find((x) => x.value === tabId);
                 if (!tab) return prev;
                 tab.name = name;
                 tab.type = type;
+                tab.coach = coach || undefined;
                 return [...prev];
             }),
         [setTabs, tabId],
@@ -55,7 +56,7 @@ export function useCoach(tabId: string) {
             openCoach: () => turnTabInto("coach", t("Coach.Card.Title")),
             play: () => {
                 mark("played");
-                turnTabInto("play", t("Home.NewGame"));
+                turnTabInto("play", t("Coach.Game.TabName"), true);
             },
             puzzles: () => {
                 mark("puzzles");
