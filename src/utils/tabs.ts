@@ -63,6 +63,8 @@ export const tabSchema = z.object({
     value: z.string(),
     type: z.enum(["new", "play", "analysis", "puzzles", "coach"]),
     gameOrigin: gameOriginSchema,
+    // Partie gegen JBL (Coach)
+    coach: z.boolean().optional(),
 });
 
 export type GameOrigin = z.infer<typeof gameOriginSchema>;

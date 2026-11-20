@@ -4,7 +4,17 @@ import classes from "./CoachFigure.module.css";
 // Die JBL-Figur: Bohnenkörper, Kopf ist die JBL-Box aus dem Logo.
 // Gezeichnet mit den Füßen bei (0,0), Hüfte bei y -46, Hals bei y -130.
 
-export type CoachAnimation = "hello" | "think" | "good" | "win" | "loss";
+export type CoachAnimation =
+  | "hello"
+  | "think"
+  | "good"
+  | "win"
+  | "loss"
+  | "bril"
+  | "int"
+  | "dub"
+  | "mis"
+  | "blu";
 
 export type CoachFigureHandle = {
   play: (name: CoachAnimation) => Promise<void>;
@@ -15,6 +25,7 @@ type Key = [number, string | Keyframe, string?];
 const EASE = "cubic-bezier(.45,0,.25,1)";
 const OUT = "cubic-bezier(.22,1,.36,1)";
 const IN = "cubic-bezier(.55,0,1,.45)";
+const BACK = "cubic-bezier(.34,1.56,.64,1)";
 const INOUT = "cubic-bezier(.65,0,.35,1)";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -54,6 +65,8 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
     const jumpRef = useRef<SVGGElement>(null);
     const squashRef = useRef<SVGGElement>(null);
     const upperRef = useRef<SVGGElement>(null);
+    const legsRef = useRef<SVGGElement>(null);
+    const torsoRef = useRef<SVGGElement>(null);
     const headRef = useRef<SVGGElement>(null);
     const shadowRef = useRef<SVGEllipseElement>(null);
     const armLRef = useRef<SVGGElement>(null);
@@ -68,7 +81,16 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
     // Ein Bewertungs-Chip entsteht hinter der Figur und kommt erst nach vorn,
     // sobald er aufsteigt.
     const chip = useCallback(
-      (sym: string, color: string, x: number, y: number, T = 1300, delay = 0) => {
+      (
+        sym: string,
+        color: string,
+        x: number,
+        y: number,
+        T = 1300,
+        delay = 0,
+        keys?: Key[],
+        switchAt = 0.14,
+      ) => {
         const fx = fxRef.current;
         const back = fxBackRef.current;
         if (!fx || !back) return;
@@ -86,11 +108,11 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
           () => {
             if (g.isConnected) fx.appendChild(g);
           },
-          delay + T * 0.14,
+          delay + T * switchAt,
         );
         const anim = tl(
           g,
-          [
+          keys ?? [
             [0, `translate(${x - 44}px,${y + 58}px) scale(.45)`, OUT],
             [T * 0.24, `translate(${x}px,${y}px) scale(1.12)`, EASE],
             [T * 0.35, `translate(${x}px,${y}px) scale(1)`],
@@ -161,6 +183,272 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
         else c.remove();
       }
     }, []);
+
+    // Schwebende Musiknote
+    const note = useCallback((x: number, y: number, delay: number) => {
+      const fx = fxRef.current;
+      if (!fx) return;
+      const g = document.createElementNS(SVG_NS, "g");
+      g.setAttribute("class", classes.rig);
+      g.style.opacity = "0";
+      g.innerHTML =
+        '<g fill="#17181b"><ellipse cx="0" cy="0" rx="5.2" ry="3.9" transform="rotate(-22)"/><rect x="3.4" y="-19" width="2.2" height="19" rx="1"/><path d="M5.6 -19 c7 2 9 7 6 13 c-.5 -5 -2.5 -7 -6 -8z"/></g>';
+      fx.appendChild(g);
+      const dx = (x < 0 ? -1 : 1) * (14 + Math.random() * 40);
+      const sway = (Math.random() - 0.5) * 24;
+      const r = (Math.random() - 0.5) * 40;
+      const T = 1400;
+      const anim = tl(
+        g,
+        [
+          [0, { transform: `translate(${x}px,${y}px) scale(.3)`, opacity: 0 }, OUT],
+          [T * 0.2, { transform: `translate(${x + dx * 0.3}px,${y - 24}px) scale(1)`, opacity: 1 }],
+          [
+            T * 0.6,
+            {
+              transform: `translate(${x + dx * 0.7 + sway}px,${y - 66}px) rotate(${r / 2}deg) scale(1)`,
+              opacity: 1,
+            },
+          ],
+          [
+            T,
+            {
+              transform: `translate(${x + dx}px,${y - 104}px) rotate(${r}deg) scale(.9)`,
+              opacity: 0,
+            },
+          ],
+        ],
+        T,
+        delay,
+      );
+      if (anim)
+        anim.finished.then(
+          () => g.remove(),
+          () => g.remove(),
+        );
+      else g.remove();
+    }, []);
+
+    // Schallwellen-Ring um den Kopf
+    const ring = useCallback((delay = 0, color = "#f58220") => {
+      const fx = fxRef.current;
+      if (!fx) return;
+      const e = document.createElementNS(SVG_NS, "ellipse");
+      e.setAttribute("cx", "0");
+      e.setAttribute("cy", "-160");
+      e.setAttribute("rx", "96");
+      e.setAttribute("ry", "44");
+      e.setAttribute("fill", "none");
+      e.setAttribute("stroke", color);
+      e.setAttribute("stroke-width", "3");
+      e.setAttribute("class", classes.fbox);
+      e.style.opacity = "0";
+      fx.appendChild(e);
+      const anim = tl(
+        e,
+        [
+          [0, { transform: "scale(.9)", opacity: 0.7 }, OUT],
+          [700, { transform: "scale(1.4)", opacity: 0 }],
+        ],
+        700,
+        delay,
+      );
+      if (anim)
+        anim.finished.then(
+          () => e.remove(),
+          () => e.remove(),
+        );
+      else e.remove();
+    }, []);
+
+    // Der Kopf zieht sich in den Körper zurück und spuckt Fragezeichen aus.
+    const retract = useCallback(
+      async (marks: 1 | 2, color: string, shake: boolean) => {
+        const T = marks === 1 ? 2700 : 3500;
+        const R = T - 520;
+        const spits = marks === 1 ? [1150] : [1150, 1650];
+        const down: Key[] = [
+          [0, "scaleY(1)"],
+          [110, "scaleY(1.05)", IN],
+          [400, "scaleY(.03)"],
+          [R, "scaleY(.03)", BACK],
+          [T, "scaleY(1)"],
+        ];
+        tl(legsRef.current, down, T);
+        tl(torsoRef.current, down, T);
+        tl(
+          upperRef.current,
+          [
+            [0, "translateY(0px)"],
+            [110, "translateY(-3px)", IN],
+            [400, "translateY(46px)"],
+            [R, "translateY(46px)", BACK],
+            [T, "translateY(0px)"],
+          ],
+          T,
+        );
+        const wob = shake ? [-6, 6, -5, 5, -3, 0] : [-4, 4, -2, 0];
+        const hk: Key[] = [
+          [0, "translateY(0px) rotate(0deg)"],
+          [110, "translateY(-5px) rotate(0deg)", IN],
+          [400, "translateY(82px) rotate(0deg)"],
+          [520, "translateY(82px) rotate(0deg)"],
+        ];
+        wob.forEach((a, i) => hk.push([600 + i * 85, `translateY(82px) rotate(${a}deg)`]));
+        hk.push([R, "translateY(82px) rotate(0deg)", BACK], [T, "translateY(0px) rotate(0deg)"]);
+        tl(headRef.current, hk, T);
+        const sk: Key[] = [
+          [0, "scale(1,1)"],
+          [400, "scale(1,1)", OUT],
+          [460, "scale(1.12,.84)"],
+          [580, "scale(.96,1.04)"],
+          [680, "scale(1,1)"],
+        ];
+        spits.forEach((sp) =>
+          sk.push(
+            [sp - 120, "scale(1,1)", OUT],
+            [sp - 40, "scale(1.08,.88)", OUT],
+            [sp + 60, "scale(.95,1.07)"],
+            [sp + 180, "scale(1,1)"],
+          ),
+        );
+        sk.push(
+          [R, "scale(1,1)"],
+          [R + 150, "scale(.94,1.08)"],
+          [R + 320, "scale(1.04,.97)"],
+          [T, "scale(1,1)"],
+        );
+        tl(squashRef.current, sk, T);
+        tl(
+          shadowRef.current,
+          [
+            [0, "scale(1)"],
+            [400, "scale(1.12)"],
+            [R, "scale(1.12)"],
+            [T, "scale(1)"],
+          ],
+          T,
+        );
+        [eyeLRef.current, eyeRRef.current].forEach((e) =>
+          tl(
+            e,
+            [
+              [0, "scaleY(1)"],
+              [400, "scaleY(.55)"],
+              [R, "scaleY(.55)", BACK],
+              [T, "scaleY(1)"],
+            ],
+            T,
+          ),
+        );
+        all("[data-wave]").forEach((w) =>
+          tl(
+            w,
+            [
+              [0, { opacity: 1 }],
+              [300, { opacity: 0 }],
+              [R, { opacity: 0 }],
+              [T, { opacity: 1 }],
+            ],
+            T,
+          ),
+        );
+        spits.forEach((sp, i) => {
+          const side = i % 2 ? -1 : 1;
+          const D = 1500;
+          chip(
+            "?",
+            color,
+            0,
+            -60,
+            D,
+            sp - 40,
+            [
+              [0, "translate(0px,-56px) scale(.25) rotate(0deg)", OUT],
+              [
+                D * 0.26,
+                `translate(${side * 26}px,-150px) scale(1.15) rotate(${side * -12}deg)`,
+                IN,
+              ],
+              [D * 0.5, `translate(${side * 52}px,-118px) scale(1) rotate(${side * 10}deg)`, BACK],
+              [D * 0.58, `translate(${side * 54}px,-124px) scale(1) rotate(${side * 6}deg)`],
+              [
+                D * 0.85,
+                {
+                  transform: `translate(${side * 54}px,-124px) scale(1) rotate(${side * 6}deg)`,
+                  opacity: 1,
+                },
+                IN,
+              ],
+              [
+                D,
+                {
+                  transform: `translate(${side * 56}px,-132px) scale(.85) rotate(${side * 6}deg)`,
+                  opacity: 0,
+                },
+              ],
+            ],
+            0.1,
+          );
+        });
+        await wait(T);
+      },
+      [chip],
+    );
+
+    // Musikbox: Tanz im Takt bei !!
+    const dance = useCallback(async () => {
+      const o = 120;
+      const beat = 280;
+      const beats = 6;
+      const T = o + beats * beat + 220;
+      const jk: Key[] = [
+        [0, "translateY(0px)"],
+        [o, "translateY(0px)", OUT],
+      ];
+      const sk: Key[] = [
+        [0, "scale(1,1)", OUT],
+        [o, "scale(1.08,.92)"],
+      ];
+      const hk: Key[] = [[0, "rotate(0deg)"]];
+      const ek: Key[] = [[0, "scale(1)"]];
+      const shk: Key[] = [
+        [0, "scale(1)"],
+        [o, "scale(1)", OUT],
+      ];
+      const al: Key[] = [[0, "rotate(0deg)", OUT]];
+      const ar: Key[] = [[0, "rotate(0deg)", OUT]];
+      for (let i = 0; i < beats; i++) {
+        const t0 = o + i * beat;
+        const ap = t0 + beat / 2;
+        const g = o + (i + 1) * beat;
+        jk.push([ap, "translateY(-15px)", IN], [g, "translateY(0px)", OUT]);
+        sk.push([t0 + 70, "scale(.96,1.05)"], [ap, "scale(1,1)"], [g, "scale(1.08,.92)", OUT]);
+        hk.push([ap, `rotate(${i % 2 ? 6 : -6}deg)`]);
+        ek.push([ap, "scale(1.22)"], [g, "scale(1)"]);
+        shk.push([ap, "scale(.8)", IN], [g, "scale(1)", OUT]);
+        al.push([ap, `rotate(${i % 2 ? 115 : 150}deg)`]);
+        ar.push([ap, `rotate(${i % 2 ? -150 : -115}deg)`]);
+        ring(ap);
+      }
+      jk.push([T, "translateY(0px)"]);
+      sk.push([T, "scale(1,1)"]);
+      hk.push([T, "rotate(0deg)"]);
+      ek.push([T, "scale(1)"]);
+      shk.push([T, "scale(1)"]);
+      al.push([T - 160, "rotate(130deg)", INOUT], [T, "rotate(0deg)"]);
+      ar.push([T - 160, "rotate(-130deg)", INOUT], [T, "rotate(0deg)"]);
+      tl(jumpRef.current, jk, T);
+      tl(squashRef.current, sk, T);
+      tl(headRef.current, hk, T);
+      tl(shadowRef.current, shk, T);
+      [eyeLRef.current, eyeRRef.current].forEach((e) => tl(e, ek, T));
+      tl(armLRef.current, al, T);
+      tl(armRRef.current, ar, T);
+      for (let i = 0; i < 10; i++) note(i % 2 ? -72 : 72, -165, 150 + i * 160);
+      chip("!!", "#1baca6", 100, -222, 1700, 60);
+      await wait(T);
+    }, [chip, note, ring]);
 
     const play = useCallback(
       async (name: CoachAnimation) => {
@@ -334,6 +622,82 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
             confetti(-72, -160, 16, -1, 420);
             confetti(72, -160, 16, 1, 420);
             await wait(T);
+          } else if (name === "bril") {
+            await dance();
+          } else if (name === "mis") {
+            await retract(1, "#e07b24", false);
+          } else if (name === "blu") {
+            await retract(2, "#cf3a33", true);
+          } else if (name === "int") {
+            const T = 1300;
+            tl(
+              head,
+              [
+                [0, "translateY(0px)", BACK],
+                [260, "translateY(-10px)"],
+                [950, "translateY(-10px)", INOUT],
+                [T, "translateY(0px)"],
+              ],
+              T,
+            );
+            [eyeLRef.current, eyeRRef.current].forEach((e) =>
+              tl(
+                e,
+                [
+                  [0, "scale(1)", BACK],
+                  [240, "scale(1.32)"],
+                  [950, "scale(1.32)", INOUT],
+                  [T, "scale(1)"],
+                ],
+                T,
+              ),
+            );
+            tl(
+              squash,
+              [
+                [0, "scale(1,1)", OUT],
+                [120, "scale(.97,1.04)"],
+                [300, "scale(1,1)"],
+                [T, "scale(1,1)"],
+              ],
+              T,
+            );
+            chip("!?", "#b45fc9", 100, -222, 1300, 120);
+            await wait(T);
+          } else if (name === "dub") {
+            const T = 1500;
+            tl(
+              head,
+              [
+                [0, "rotate(0deg)", BACK],
+                [320, "rotate(11deg)"],
+                [1100, "rotate(11deg)", INOUT],
+                [T, "rotate(0deg)"],
+              ],
+              T,
+            );
+            tl(
+              eyeRRef.current,
+              [
+                [0, "scaleY(1)", OUT],
+                [300, "scaleY(.55)"],
+                [1100, "scaleY(.55)", INOUT],
+                [T, "scaleY(1)"],
+              ],
+              T,
+            );
+            tl(
+              armL,
+              [
+                [0, "rotate(0deg)", OUT],
+                [350, "rotate(95deg)"],
+                [1100, "rotate(95deg)", INOUT],
+                [T, "rotate(0deg)"],
+              ],
+              T,
+            );
+            chip("?!", "#d9a514", 100, -222, 1400, 200);
+            await wait(T);
           } else if (name === "loss") {
             const T = 2300;
             tl(
@@ -408,7 +772,7 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
           busy.current = false;
         }
       },
-      [chip, confetti],
+      [chip, confetti, dance, retract],
     );
 
     useImperativeHandle(ref, () => ({ play }), [play]);
@@ -478,8 +842,8 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
           <g ref={jumpRef} className={rig}>
             <g className={`${rig} ${classes.breath}`}>
               <g ref={squashRef} className={rig}>
-                {/* Beine */}
-                <g stroke="#17181b" strokeLinecap="round">
+                {/* Beine, Gelenk an den Füßen */}
+                <g ref={legsRef} className={rig} stroke="#17181b" strokeLinecap="round">
                   <path d="M-9 -46 L-11 -8 M9 -46 L11 -8" strokeWidth="8" fill="none" />
                   <rect
                     x="-25"
@@ -505,44 +869,63 @@ const CoachFigure = forwardRef<CoachFigureHandle, { size?: number; title?: strin
                 <g transform="translate(0 -46)">
                   <g ref={upperRef} className={rig}>
                     <g transform="translate(0 46)">
-                      <rect x="-6" y="-136" width="12" height="26" rx="4" fill="#17181b" />
-                      <g stroke="#17181b" strokeWidth="7" strokeLinecap="round" fill="none">
-                        <g transform="translate(-15 -102)">
-                          <g ref={armLRef} className={rig}>
-                            <g transform="translate(15 102)">
-                              <path d="M-15 -102 L-29 -74" />
-                              <circle cx="-30" cy="-71.5" r="5.5" fill="#17181b" stroke="none" />
+                      {/* Rumpf mit Armen, Gelenk an der Hüfte */}
+                      <g transform="translate(0 -46)">
+                        <g ref={torsoRef} className={rig}>
+                          <g transform="translate(0 46)">
+                            <rect x="-6" y="-136" width="12" height="26" rx="4" fill="#17181b" />
+                            <g stroke="#17181b" strokeWidth="7" strokeLinecap="round" fill="none">
+                              <g transform="translate(-15 -102)">
+                                <g ref={armLRef} className={rig}>
+                                  <g transform="translate(15 102)">
+                                    <path d="M-15 -102 L-29 -74" />
+                                    <circle
+                                      cx="-30"
+                                      cy="-71.5"
+                                      r="5.5"
+                                      fill="#17181b"
+                                      stroke="none"
+                                    />
+                                  </g>
+                                </g>
+                              </g>
+                              <g transform="translate(15 -102)">
+                                <g ref={armRRef} className={rig}>
+                                  <g transform="translate(-15 102)">
+                                    <path d="M15 -102 L29 -74" />
+                                    <circle
+                                      cx="30"
+                                      cy="-71.5"
+                                      r="5.5"
+                                      fill="#17181b"
+                                      stroke="none"
+                                    />
+                                  </g>
+                                </g>
+                              </g>
                             </g>
-                          </g>
-                        </g>
-                        <g transform="translate(15 -102)">
-                          <g ref={armRRef} className={rig}>
-                            <g transform="translate(-15 102)">
-                              <path d="M15 -102 L29 -74" />
-                              <circle cx="30" cy="-71.5" r="5.5" fill="#17181b" stroke="none" />
-                            </g>
+                            <rect
+                              x="-21"
+                              y="-118"
+                              width="42"
+                              height="76"
+                              rx="21"
+                              fill={`url(#${id("torso")})`}
+                              stroke="#111"
+                              strokeWidth="3.5"
+                            />
+                            <path
+                              d="M-11 -106 Q-13 -82 -11 -60"
+                              stroke="#fff"
+                              strokeWidth="3"
+                              opacity=".12"
+                              fill="none"
+                              strokeLinecap="round"
+                            />
+                            <circle cx="0" cy="-96" r="3.2" fill="#f58220" />
                           </g>
                         </g>
                       </g>
-                      <rect
-                        x="-21"
-                        y="-118"
-                        width="42"
-                        height="76"
-                        rx="21"
-                        fill={`url(#${id("torso")})`}
-                        stroke="#111"
-                        strokeWidth="3.5"
-                      />
-                      <path
-                        d="M-11 -106 Q-13 -82 -11 -60"
-                        stroke="#fff"
-                        strokeWidth="3"
-                        opacity=".12"
-                        fill="none"
-                        strokeLinecap="round"
-                      />
-                      <circle cx="0" cy="-96" r="3.2" fill="#f58220" />
 
                       {/* Kopf: JBL-Box, Gelenk am Hals */}
                       <g transform="translate(0 -130)">

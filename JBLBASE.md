@@ -500,6 +500,14 @@ Ein Klick auf die Figur oder „Coach öffnen“ macht den Tab zur **Coach-Seite
 
 „Partie importieren“ ist jetzt der Knopf oben rechts in der Karte „Zuletzt geöffnet“. Das Tutorial „Startseite“ zeigt beide Stellen.
 
+### Gegen JBL spielen
+
+Seit 1.2.1 ist „Gegen JBL spielen“ eine echte Partie. Der Tab zeigt vor dem Start JBL, die Wahl der Farbe (Weiß, Zufall, Schwarz) und der Stärke. JBL ist Stockfish mit begrenzter Stärke: ab „Mittel“ über `UCI_LimitStrength` und `UCI_Elo` (1 bis 1,5 s pro Zug), darunter mit `Skill Level` 0 und Suchtiefe 1, 3 oder 5. Diese unteren Stufen sind eine erste Schätzung und werden noch an echten Partien geeicht. Coach-Partien laufen ohne Uhr und ohne Eröffnungsbuch; ohne eingerichteten Stockfish lässt sich die Partie nicht starten.
+
+Nach jedem deiner Züge prüft JBL im Hintergrund mit Stockfish (Tiefe 12, zwei Linien) die Stellung davor und danach und bewertet den Zug wie die Analyse (`getAnnotation`). Bei !!, !, !?, ?!, ? und ?? reagiert die Figur neben dem Brett mit ihrer Animation, die Sprechblase kommt 300 ms später und bleibt je nach Länge 1,5 bis 6 s stehen (länger, solange die Maus darauf ist). Bei ?!, ? und ?? steht dabei, welcher Zug besser war. Jeder Spruch hat mehrere Fassungen, die zuletzt gezeigten kommen nicht gleich wieder. Nach ? und ?? bietet JBL „Zug zurücknehmen“ an; das setzt die Partie vor deinen Zug zurück. Hast du ein Matt in 1 zugelassen, gibt es kein Zurücknehmen, auch nicht über den normalen Knopf.
+
+Der Code: `coachGame.ts` (Stärke, Reaktionen, Sprüche), `useCoachCommentary.ts` (Bewertung), `CoachGameSetup.tsx` und `CoachGamePanel.tsx`; in `BoardGame.tsx` erkennt die Partie über `tab.coach`, dass sie gegen JBL läuft.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten

@@ -42,6 +42,7 @@ import {
 import type { ChessgroundRef } from "@/chessground/Chessground";
 import {
   activeTabAtom,
+  enginesAtom,
   flipBoardAfterMoveAtom,
   currentGameIdAtom,
   currentGameStateAtom,
@@ -68,6 +69,11 @@ import Board from "./Board";
 import BoardControls from "./BoardControls";
 import EditingCard from "./EditingCard";
 import { OpponentForm, type OpponentSettings } from "./OpponentForm";
+import CoachGameSetup from "@/components/coach/CoachGameSetup";
+import CoachGamePanel from "@/components/coach/CoachGamePanel";
+import { findStockfish, jblEngineSetup, jblEngineSettings } from "@/components/coach/coachGame";
+import { COACH_STRENGTHS, coachStrengthAtom } from "@/components/coach/coachState";
+import { useCoachCommentary } from "@/components/coach/useCoachCommentary";
 
 function gameResultToOutcome(result: GameResult): Outcome {
   if (result.type === "whiteWins") return "1-0";
@@ -105,11 +111,32 @@ function BoardGame() {
   const [player1Settings, setPlayer1Settings] = useAtom(gamePlayer1SettingsAtom);
   const [player2Settings, setPlayer2Settings] = useAtom(gamePlayer2SettingsAtom);
 
+  // Partie gegen JBL: Gegner und Stärke kommen vom Coach, nicht aus dem Formular.
+  const allTabs = useAtomValue(tabsAtom);
+  const isCoachGame = allTabs.find((x) => x.value === activeTab)?.coach === true;
+  const coachStrength = useAtomValue(coachStrengthAtom);
+  const stockfish = findStockfish(useAtomValue(enginesAtom));
+
   function getPlayers() {
     let isPlayer1White = inputColor === "white";
 
     if (inputColor === "random") {
       isPlayer1White = Math.random() > 0.5;
+    }
+
+    if (isCoachGame && stockfish) {
+      const human: OpponentSettings = { type: "human", name: t("Coach.Game.You") };
+      const jbl: OpponentSettings = {
+        type: "engine",
+        engine: {
+          ...stockfish,
+          name: "JBL",
+          elo: COACH_STRENGTHS.find((s) => s.id === coachStrength)?.elo ?? null,
+        },
+        go: jblEngineSetup(coachStrength).go,
+        engineSettings: jblEngineSettings(stockfish, coachStrength),
+      };
+      return isPlayer1White ? { white: human, black: jbl } : { white: jbl, black: human };
     }
 
     return {
@@ -153,6 +180,27 @@ function BoardGame() {
     (players.black.type === "human" && players.white.type === "engine");
 
   const isHumanVsHuman = players.white.type === "human" && players.black.type === "human";
+
+  const coachHumanColor = isCoachGame
+    ? players.white.type === "human"
+      ? ("white" as const)
+      : players.black.type === "human"
+        ? ("black" as const)
+        : null
+    : null;
+  const coachComment = useCoachCommentary(
+    root,
+    coachHumanColor,
+    isCoachGame && gameState === "playing",
+  );
+  const lastPly = useMemo(() => {
+    let n = root;
+    while (n.children.length > 0) n = n.children[0];
+    return n.halfMoves;
+  }, [root]);
+  // Matt in 1 zugelassen: kein Zurücknehmen, JBL spielt es aus.
+  const takeBackBlocked =
+    isCoachGame && coachComment?.reaction === "missedMate" && lastPly - coachComment.ply <= 1;
 
   const fetchEngineLogs = useCallback(async () => {
     if (!gameId || !hasEngine) return;
@@ -314,7 +362,7 @@ function BoardGame() {
       initialFen: root.fen === INITIAL_FEN ? null : root.fen,
       initialMoves,
       openingBook:
-        openingBookEnabled && openingBookPath
+        !isCoachGame && openingBookEnabled && openingBookPath
           ? { path: openingBookPath, maxPly: Math.max(1, openingBookMaxPly) }
           : null,
     } as GameConfig;
@@ -457,14 +505,17 @@ function BoardGame() {
     }
   }, [applyPendingUpdates]);
 
-  const onTakeBack = useCallback(async () => {
-    if (!gameId || gameState !== "playing") return;
-    try {
-      unwrap(await commands.takeBackGameMove(gameId, null));
-    } catch {
-      // unwrap already logged the error and showed a notification
-    }
-  }, [gameId, gameState]);
+  const onTakeBack = useCallback(
+    async (keepPlies: number | null = null) => {
+      if (!gameId || gameState !== "playing") return;
+      try {
+        unwrap(await commands.takeBackGameMove(gameId, keepPlies));
+      } catch {
+        // unwrap already logged the error and showed a notification
+      }
+    },
+    [gameId, gameState],
+  );
 
   useEffect(() => {
     if (gameState !== "playing" || !gameId) return;
@@ -644,7 +695,14 @@ function BoardGame() {
             />
           ) : (
             <>
-              {gameState === "settingUp" && (
+              {gameState === "settingUp" && isCoachGame && (
+                <CoachGameSetup
+                  hasEngine={stockfish !== null}
+                  canStart={error === null}
+                  onStart={startGame}
+                />
+              )}
+              {gameState === "settingUp" && !isCoachGame && (
                 <Stack h="100%" gap={0}>
                   <ScrollArea style={{ flex: 1 }} offsetScrollbars>
                     <Stack>
@@ -748,6 +806,17 @@ function BoardGame() {
               )}
               {(gameState === "playing" || gameState === "gameOver") && (
                 <Stack h="100%">
+                  {isCoachGame && (
+                    <CoachGamePanel
+                      comment={coachComment}
+                      gameState={gameState}
+                      result={headers.result}
+                      humanColor={coachHumanColor}
+                      lastPly={lastPly}
+                      rootHalfMoves={root.halfMoves}
+                      onTakeBack={onTakeBack}
+                    />
+                  )}
                   <Box flex={1}>
                     <GameInfo headers={headers} />
                   </Box>
@@ -808,8 +877,8 @@ function BoardGame() {
                   editingMode={gameState === "settingUp" && editingMode}
                   toggleEditingMode={toggleEditingMode}
                   dirty={false}
-                  canTakeBack={onePlayerIsEngine}
-                  onTakeBack={onTakeBack}
+                  canTakeBack={onePlayerIsEngine && !takeBackBlocked}
+                  onTakeBack={() => onTakeBack()}
                   disableVariations
                   allowEditing={gameState === "settingUp"}
                 />
