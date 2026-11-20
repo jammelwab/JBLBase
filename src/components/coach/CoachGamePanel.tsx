@@ -7,12 +7,7 @@ import type { Outcome } from "@/bindings";
 import CoachFigure, { type CoachAnimation, type CoachFigureHandle } from "./CoachFigure";
 import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coachGame";
 import CoachReceipt from "./CoachReceipt";
-import {
-  type CoachMistake,
-  finishCoachGameAtom,
-  lockAfter,
-  type ReceiptLine,
-} from "./coachProgress";
+import { type CoachMistake, finishCoachGameAtom, type ReceiptLine } from "./coachProgress";
 import { coachBonusTrackAtom, DAILY_QUEST_XP } from "./coachRewards";
 import type { CoachStrengthId } from "./coachState";
 import type { CoachComment } from "./useCoachCommentary";
@@ -210,7 +205,7 @@ export default function CoachGamePanel({
         ...after,
       ]);
       timers.current.push(
-        setTimeout(() => setReceipt({ lines: done.lines, lock: lockAfter(outcome) }), 2400),
+        setTimeout(() => setReceipt({ lines: done.lines, lock: done.lock }), 2400),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

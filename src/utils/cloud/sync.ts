@@ -1,6 +1,7 @@
 // Runs the cloud sync while someone is signed in: at start, after sign-in,
 // every few minutes, shortly after local changes, and on demand.
 
+import { fetchCoachProfile, syncCoachState } from "./coachCloud";
 import { dirname, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readDir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import type * as Firestore from "firebase/firestore/lite";
@@ -627,6 +628,19 @@ async function runSync(uid: string) {
         if (training.changedDecks.length > 0) await reloadTrainingDecks(training.changedDecks);
         // Position store last: its first upload can take several runs.
         countSyncRun("training", training.uploaded + training.downloaded);
+        // JBL Coach: XP, Trophäen, Serie und Einstellungen; ein Fehler hier
+        // hält den Rest nicht auf.
+        area = "coach";
+        try {
+            const cf = await cloudFirestore();
+            const coach = await syncCoachState(cf, uid, deviceId(), store);
+            usageMeter.read("training", coach.reads);
+            if (coach.writes) usageMeter.write("training", coach.writes);
+            await fetchCoachProfile(cf, uid, store).catch(() => {});
+            usageMeter.read("training", 1);
+        } catch (e) {
+            console.warn("Coach not synced", e);
+        }
         area = "evals";
         const evalSettings = store.get(evalCloudSyncAtom);
         if (evalSettings.enabled && !allowed.evals) {

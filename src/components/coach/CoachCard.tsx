@@ -1,6 +1,7 @@
 import { Box, Button, Card, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import CoachBirthday from "./CoachBirthday";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { CoachLevel } from "./CoachPage";
 import { useCoach } from "./useCoach";
@@ -23,6 +24,7 @@ export default function CoachCard({ id }: { id: string }) {
 
   return (
     <Card shadow="sm" p="lg" radius="md" withBorder data-tour="home-coach">
+      <CoachBirthday />
       <Stack align="center" h="100%" justify="space-between" gap="xs">
         <UnstyledButton
           onClick={actions.openCoach}

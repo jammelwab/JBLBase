@@ -14,6 +14,9 @@ rules_version = '2';
 //   for one recipient (e-mail address or Lichess name). Only the owner and
 //   that recipient can read it; the owner can update or withdraw it, the
 //   recipient can accept or decline it. users/{uid} stays private.
+// - JBL Coach: users/{uid}/coach/state is the player's own coach state;
+//   coachProfiles/{uid} is written only by the admin (console) and read by
+//   the player.
 //
 // Keep USER_MAX_DEPTH in sync with USER_MAX_STORE_DEPTH in
 // src-tauri/src/eval_cache.rs.
@@ -215,6 +218,21 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time;
       }
 
+      // JBL Coach (1.2.4): one document with XP per device, collected
+      // rewards, streak and settings (see src/components/coach/coachSync.ts).
+      match /coach/{docId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && docId == 'state'
+          && request.resource.data.keys().hasOnly(
+            ['xpByDevice', 'sets', 'streak', 'best', 'bundle', 'bundleAt', 'updatedAt'])
+          && request.resource.data.xpByDevice is map
+          && request.resource.data.xpByDevice.size() <= 20
+          && request.resource.data.sets is map
+          && request.resource.data.bundle is map
+          && request.resource.data.updatedAt == request.time;
+      }
+
       // Own evaluations, limited to depth 28 for normal users.
       match /evals/{evalId} {
         allow read, delete: if isOwner(uid);
@@ -222,6 +240,14 @@ service cloud.firestore {
           && validEval(request.resource.data)
           && withinUserLimit(request.resource.data);
       }
+    }
+
+    // Coach profile (birthday, personal easter eggs, rival), entered by the
+    // admin in the Firebase console. The player can read it, nobody can
+    // write it through the app.
+    match /coachProfiles/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
     }
 
     // A shared repertoire is meant for the account with this e-mail address

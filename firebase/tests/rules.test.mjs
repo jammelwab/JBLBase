@@ -481,3 +481,46 @@ describe("shared repertoires (#120)", () => {
     await assertSucceeds(deleteDoc(doc(user("bob"), "shares/s2")));
   });
 });
+
+describe("JBL Coach (1.2.4)", () => {
+  const coachDoc = (over = {}) => ({
+    xpByDevice: { d1: 120 },
+    sets: { trophies: ["firstWin"], items: [], frames: [], titles: [] },
+    streak: { last: "2026-11-21", days: 3, bridgedWeek: null },
+    best: 1350,
+    bundle: { lock: 0, outfit: ["scarf"] },
+    bundleAt: 1,
+    updatedAt: serverTimestamp(),
+    ...over,
+  });
+
+  test("the coach state is the player's own", async () => {
+    const db = user("alice");
+    await assertSucceeds(setDoc(doc(db, "users/alice/coach/state"), coachDoc()));
+    await assertSucceeds(getDoc(doc(db, "users/alice/coach/state")));
+    await assertFails(getDoc(doc(user("bob"), "users/alice/coach/state")));
+    await assertFails(setDoc(doc(user("bob"), "users/alice/coach/state"), coachDoc()));
+  });
+
+  test("the coach state has a fixed shape", async () => {
+    const db = user("alice");
+    await assertFails(setDoc(doc(db, "users/alice/coach/other"), coachDoc()));
+    await assertFails(setDoc(doc(db, "users/alice/coach/state"), coachDoc({ role: "admin" })));
+    await assertFails(setDoc(doc(db, "users/alice/coach/state"), coachDoc({ updatedAt: 5 })));
+    await assertFails(setDoc(doc(db, "users/alice/coach/state"), coachDoc({ xpByDevice: 5 })));
+  });
+
+  test("the coach profile is read-only for the player", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "coachProfiles/alice"), {
+        birthday: "11-21",
+        eggs: ["aaron"],
+      });
+    });
+    await assertSucceeds(getDoc(doc(user("alice"), "coachProfiles/alice")));
+    await assertFails(getDoc(doc(user("bob"), "coachProfiles/alice")));
+    await assertFails(
+      setDoc(doc(user("alice"), "coachProfiles/alice"), { birthday: "01-01", eggs: [] }),
+    );
+  });
+});
