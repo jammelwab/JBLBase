@@ -490,6 +490,16 @@ bewertete Stellungen kommen aus dem Positionsspeicher.
 Die tiefen Rechnungen landen im Positionsspeicher (mit der Grenze Tiefe 28
 für normale Konten), die flachen Club-Rechnungen nicht.
 
+## JBL Coach
+
+Seit 1.2.0 steht auf dem Startbildschirm die Karte **JBL Coach** an der Stelle von „Partie importieren“. Die Figur hat einen Bohnenkörper und die JBL-Box als Kopf. Ein Klick auf die Figur lässt sie winken, nachdenken oder ein „!“ zeigen; beim ersten Start winkt sie einmal von selbst. Wer in den Systemeinstellungen reduzierte Bewegung eingestellt hat, sieht die Figur ohne Animationen.
+
+Auf der Karte stehen Level, Titel und XP-Balken (die Kurve: Level n braucht insgesamt 100 × (n − 1)^1,8 XP), darunter die Spielstärke in sieben Stufen von „Sehr leicht · ca. 600“ bis „Sehr schwer · ca. 2800+“. Die gewählte Stufe bleibt gespeichert. „Gegen JBL spielen“ öffnet in dieser Etappe noch die normale Partie gegen eine Engine; Züge kommentieren, XP sammeln und die Stärkestufen kommen in den nächsten Versionen.
+
+„Partie importieren“ ist jetzt der Knopf oben rechts in der Karte „Zuletzt geöffnet“. Das Tutorial „Startseite“ zeigt beide Stellen.
+
+Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel).
+
 ## Engines einrichten
 
 Seit 1.1.12 bringt der Installer **Stockfish 19** und **Patricia 5.1** mit

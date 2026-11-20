@@ -27,6 +27,7 @@ import { openFile, readInfoFile } from "@/utils/files";
 import { isInTempDir } from "@/utils/tabs";
 import { unwrap } from "@/utils/unwrap";
 import { notifications } from "@mantine/notifications";
+import CoachCard from "@/components/coach/CoachCard";
 import CreateRepertoireModal from "./CreateRepertoireModal";
 import ImportModal from "./ImportModal";
 import classes from "./NewTabHome.module.css";
@@ -186,21 +187,23 @@ export default function NewTabHome({ id }: { id: string }) {
     [setTabs, setActiveTab, store, navigate, t],
   );
 
+  const startGame = () => {
+    setTabs((prev: Tab[]) => {
+      const tab = prev.find((t) => t.value === id);
+      if (!tab) return prev;
+      tab.name = t("Home.NewGame");
+      tab.type = "play";
+      return [...prev];
+    });
+  };
+
   const cards = [
     {
       icon: <IconChess size={60} />,
       title: t("Home.Card.PlayChess.Title"),
       description: t("Home.Card.PlayChess.Desc"),
       label: t("Home.Card.PlayChess.Button"),
-      onClick: () => {
-        setTabs((prev: Tab[]) => {
-          const tab = prev.find((t) => t.value === id);
-          if (!tab) return prev;
-          tab.name = t("Home.NewGame");
-          tab.type = "play";
-          return [...prev];
-        });
-      },
+      onClick: startGame,
     },
     {
       icon: <Chessboard size={60} />,
@@ -224,16 +227,6 @@ export default function NewTabHome({ id }: { id: string }) {
       label: t("Home.Card.NewRepertoire.Button"),
       onClick: () => {
         setOpenRepertoireModal(true);
-      },
-    },
-    {
-      icon: <IconFileImport size={60} />,
-      title: t("Home.Card.ImportGame.Title"),
-      description: t("Home.Card.ImportGame.Desc"),
-      label: t("Home.Card.ImportGame.Button"),
-      tour: "home-import",
-      onClick: () => {
-        setOpenModal(true);
       },
     },
     {
@@ -265,7 +258,8 @@ export default function NewTabHome({ id }: { id: string }) {
       <CreateRepertoireModal opened={openRepertoireModal} setOpened={setOpenRepertoireModal} />
       <Stack gap="lg" pt="sm">
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} data-tour="home-cards">
-          {cards.map((card) => (
+          {cards.flatMap((card, i) => [
+            i === 3 && <CoachCard key="coach" onPlay={startGame} />,
             <Card shadow="sm" p="lg" radius="md" withBorder key={card.title}>
               <Stack align="center" h="100%" justify="space-between">
                 {card.icon}
@@ -288,14 +282,25 @@ export default function NewTabHome({ id }: { id: string }) {
                   {card.label}
                 </Button>
               </Stack>
-            </Card>
-          ))}
+            </Card>,
+          ])}
         </SimpleGrid>
 
         <Card shadow="sm" p="md" radius="md" withBorder data-tour="home-recent">
-          <Text fw={600} size="lg" mb="xs">
-            {t("Home.RecentFiles.Title")}
-          </Text>
+          <Group justify="space-between" mb="xs">
+            <Text fw={600} size="lg">
+              {t("Home.RecentFiles.Title")}
+            </Text>
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconFileImport size={16} />}
+              onClick={() => setOpenModal(true)}
+              data-tour="home-import"
+            >
+              {t("Home.Card.ImportGame.Title")}
+            </Button>
+          </Group>
           {recentFiles.length === 0 ? (
             <Stack align="center" justify="center" h={200} gap="xs">
               <IconClock size={48} style={{ opacity: 0.3 }} />
