@@ -69,6 +69,40 @@ export type RemoteEngine = z.output<typeof remoteEngineSchema>;
 export const engineSchema = z.union([localEngineSchema, remoteEngineSchema]);
 export type Engine = z.output<typeof engineSchema>;
 
+/** An engine edited as JSON: the engine, or why it cannot be used (fields as dotted paths). */
+export type EngineJsonResult =
+    | { ok: true; engine: Engine }
+    | { ok: false; reason: "syntax" }
+    | { ok: false; reason: "fields"; fields: string[] };
+
+export function parseEngineJson(text: string): EngineJsonResult {
+    let raw: unknown;
+    try {
+        raw = JSON.parse(text);
+    } catch {
+        return { ok: false, reason: "syntax" };
+    }
+    const parsed = engineSchema.safeParse(raw);
+    if (parsed.success) return { ok: true, engine: parsed.data };
+    // The union only says "no match": check against the kind of engine it claims to be
+    const type = raw && typeof raw === "object" ? (raw as Record<string, unknown>).type : undefined;
+    const schema =
+        type === "local"
+            ? localEngineSchema
+            : type === "chessdb" || type === "lichess"
+              ? remoteEngineSchema
+              : null;
+    if (!schema) return { ok: false, reason: "fields", fields: ["type"] };
+    const detail = schema.safeParse(raw);
+    if (detail.success) return { ok: false, reason: "fields", fields: [] };
+    const fields = [
+        ...new Set(
+            detail.error.issues.map((i) => i.path.map(String).join(".")).filter((p) => p !== ""),
+        ),
+    ];
+    return { ok: false, reason: "fields", fields };
+}
+
 export function stopEngine(engine: LocalEngine, tab: string): Promise<void> {
     return commands.stopEngine(engine.id, tab).then((r) => {
         unwrap(r);

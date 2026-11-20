@@ -1,15 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { analyticsConfig } from "./cloud/firebaseConfig";
 import {
+    bigBucket,
     bucket,
     buildPayload,
     cleanParams,
+    DAY_MS,
+    engineFamily,
+    errorKind,
+    HOUR_MS,
     flushUsageStats,
     forgetUsageStats,
     initUsageStats,
     pageName,
     resetUsageStatsForTest,
+    setUsageAccount,
+    shareBucket,
     trackUsage,
+    trackUsageThrottled,
     USAGE_CLIENT_KEY,
     USAGE_STATS_KEY,
     type UsagePayload,
@@ -80,6 +88,31 @@ describe("usage statistics helpers", () => {
         expect(payload.consent).toEqual({ ad_user_data: "DENIED", ad_personalization: "DENIED" });
         expect(payload.user_properties.app_version.value).toBe("1.2.3");
         expect(payload).not.toHaveProperty("user_id");
+        expect(payload.user_properties.account.value).toBe("none");
+    });
+
+    it("rounds large counts and shares (#115)", () => {
+        expect(bigBucket(12)).toBe("10-49");
+        expect(bigBucket(4_500)).toBe("1000-9999");
+        expect(bigBucket(48_213)).toBe("10000-99999");
+        expect(bigBucket(250_000)).toBe("100000-999999");
+        expect(bigBucket(3_000_000)).toBe("1000000+");
+        expect(shareBucket(0, 0)).toBe("0-24");
+        expect(shareBucket(10, 100)).toBe("0-24");
+        expect(shareBucket(25, 100)).toBe("25-49");
+        expect(shareBucket(60, 100)).toBe("50-74");
+        expect(shareBucket(100, 100)).toBe("75-100");
+    });
+
+    it("names engines and errors with fixed words only", () => {
+        expect(engineFamily("Stockfish 19")).toBe("stockfish");
+        expect(engineFamily("/opt/engines/patricia-windows-x64.exe")).toBe("patricia");
+        expect(engineFamily("Mein Testmotor")).toBe("other");
+        expect(engineFamily(undefined)).toBe("other");
+        expect(errorKind({ code: "permission-denied" })).toBe("permission");
+        expect(errorKind({ code: "resource-exhausted" })).toBe("quota");
+        expect(errorKind(new Error("Failed to fetch"))).toBe("network");
+        expect(errorKind(new Error("Repertoire 'Ich Weiß' kaputt"))).toBe("other");
     });
 });
 
@@ -170,6 +203,42 @@ describe("sending usage statistics", () => {
         trackUsage("app_open");
         await flushUsageStats();
         expect(sent[1].payload.client_id).not.toBe(first);
+    });
+
+    it("counts frequent events at most once per key and interval", async () => {
+        localStorage.setItem(USAGE_STATS_KEY, "true");
+        const t0 = 1_000_000;
+        trackUsageThrottled("sync_run", { area: "training" }, "training", HOUR_MS, t0);
+        trackUsageThrottled("sync_run", { area: "training" }, "training", HOUR_MS, t0 + 60_000);
+        trackUsageThrottled("sync_run", { area: "evals" }, "evals", HOUR_MS, t0 + 60_000);
+        trackUsageThrottled("sync_run", { area: "training" }, "training", HOUR_MS, t0 + HOUR_MS);
+        trackUsageThrottled("sync_paused", { limit: "total" }, "total", DAY_MS, t0);
+        await flushUsageStats();
+        expect(
+            sent[0].payload.events.map((e) => `${e.name}:${e.params.area ?? e.params.limit}`),
+        ).toEqual([
+            "sync_run:training",
+            "sync_run:evals",
+            "sync_run:training",
+            "sync_paused:total",
+        ]);
+    });
+
+    it("does not throttle while switched off, so the first event after switching on counts", async () => {
+        trackUsageThrottled("engine_start", { engine: "stockfish" }, "sf", HOUR_MS, 1000);
+        localStorage.setItem(USAGE_STATS_KEY, "true");
+        trackUsageThrottled("engine_start", { engine: "stockfish" }, "sf", HOUR_MS, 2000);
+        await flushUsageStats();
+        expect(sent[0].payload.events.map((e) => e.name)).toEqual(["engine_start"]);
+    });
+
+    it("sends the kind of account, never which one", async () => {
+        localStorage.setItem(USAGE_STATS_KEY, "true");
+        setUsageAccount("admin");
+        trackUsage("app_open");
+        await flushUsageStats();
+        expect(sent[0].payload.user_properties.account.value).toBe("admin");
+        expect(JSON.stringify(sent[0].payload)).not.toMatch(/uid|@/);
     });
 
     it("survives a failing request", async () => {

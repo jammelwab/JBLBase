@@ -28,7 +28,7 @@ import { useAtom } from "jotai";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { trackUsage } from "@/utils/usageStats";
+import { errorKind, trackUsage } from "@/utils/usageStats";
 import type { DatabaseInfo } from "@/bindings";
 import { commands, events } from "@/bindings";
 import { databaseConversionStateAtom, storedDatabasesDirAtom } from "@/state/atoms";
@@ -219,6 +219,7 @@ export function AccountCard({
       await reload();
     } catch (e) {
       error(`Downloading ${type} games of ${title} failed: ${e}`);
+      trackUsage("download_error", { source: type, kind: errorKind(e) });
       notifications.show({
         color: "red",
         title: t("Home.Accounts.DownloadFailed"),

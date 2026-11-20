@@ -16,6 +16,14 @@ import { evalCloudSyncAtom, reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
 import { DEFAULT_MAIN_OWNER, getMainOwner } from "@/utils/mainOwner";
 import { bumpRepertoires } from "@/utils/repertoires";
+import {
+    bigBucket,
+    bucket,
+    DAY_MS,
+    errorKind,
+    HOUR_MS,
+    trackUsageThrottled,
+} from "@/utils/usageStats";
 import { type CloudAccount, cloudFirestore, cloudFirestoreLive, watchCloudAccount } from "./auth";
 import {
     EVAL_PAGE,
@@ -571,6 +579,11 @@ function usageNow(others: UsageCounts) {
     };
 }
 
+/** One usage event per area and hour for a sync that worked (#115). */
+function countSyncRun(area: string, changes: number) {
+    trackUsageThrottled("sync_run", { area, changes: bucket(changes) }, area, HOUR_MS);
+}
+
 async function runSync(uid: string) {
     const store = getDefaultStore();
     store.set(cloudSyncStatusAtom, (s) => ({ ...s, state: "syncing" }));
@@ -578,10 +591,13 @@ async function runSync(uid: string) {
     usageMeter.roll(day);
     const admin = store.get(cloudAccountAtom)?.role === "admin";
     let others = emptyCounts();
+    // Which part of the sync was running when it failed (for the statistics)
+    let area = "meta";
     try {
         others = await otherDevicesUsage(uid, day);
         const allowed = decide(addCounts(others, usageMeter.counts), limits!, admin);
         if (!allowed.sync) {
+            trackUsageThrottled("sync_paused", { limit: "total" }, "total", DAY_MS);
             store.set(cloudSyncStatusAtom, (s) => ({
                 ...s,
                 state: "idle",
@@ -592,6 +608,7 @@ async function runSync(uid: string) {
             return;
         }
         // Repertoires first: they give local files the ids the training uses.
+        area = "repertoires";
         const repertoires = await syncRepertoires(await repertoireBackend(uid), uid);
         if (repertoires.downloaded > 0 || repertoires.conflicts > 0) bumpRepertoires();
         // Shared repertoires: a failure here must not stop the rest of the sync
@@ -604,10 +621,17 @@ async function runSync(uid: string) {
             });
             if (shares && shares.received + shares.ended > 0) bumpRepertoires();
         }
+        countSyncRun("repertoires", repertoires.uploaded + repertoires.downloaded);
+        area = "training";
         const training = await syncTraining(trainingBackend(uid), uid);
         if (training.changedDecks.length > 0) await reloadTrainingDecks(training.changedDecks);
         // Position store last: its first upload can take several runs.
+        countSyncRun("training", training.uploaded + training.downloaded);
+        area = "evals";
         const evalSettings = store.get(evalCloudSyncAtom);
+        if (evalSettings.enabled && !allowed.evals) {
+            trackUsageThrottled("sync_paused", { limit: "evals" }, "evals", DAY_MS);
+        }
         // Over the position store's daily limit it pauses silently until tomorrow.
         const evals =
             evalSettings.enabled && allowed.evals
@@ -619,6 +643,21 @@ async function runSync(uid: string) {
                       today: today(),
                   })
                 : undefined;
+        if (evals) {
+            countSyncRun("evals", evals.uploaded + evals.downloaded);
+            if (evals.uploaded + evals.downloaded > 0) {
+                trackUsageThrottled(
+                    "eval_cloud",
+                    {
+                        up: bigBucket(evals.uploaded),
+                        down: bigBucket(evals.downloaded),
+                        source: admin ? "shared" : "own",
+                    },
+                    "evals",
+                    HOUR_MS,
+                );
+            }
+        }
         store.set(cloudSyncStatusAtom, (s) => ({
             live: s.live,
             offline: s.offline,
@@ -636,6 +675,8 @@ async function runSync(uid: string) {
     } catch (e) {
         void saveUsage(uid, day);
         console.error("Cloud sync failed", e);
+        const kind = errorKind(e);
+        trackUsageThrottled("sync_error", { area, kind }, `${area}:${kind}`, HOUR_MS);
         store.set(cloudSyncStatusAtom, (s) => ({
             ...s,
             state: "error",

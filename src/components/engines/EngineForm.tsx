@@ -8,6 +8,7 @@ import { commands, type UciOptionConfig } from "@/bindings";
 import { type LocalEngine, requiredEngineSettings } from "@/utils/engines";
 import { usePlatform } from "@/utils/files";
 import FileInput from "../common/FileInput";
+import { trackUsage } from "@/utils/usageStats";
 
 export default function EngineForm({
   onSubmit,
@@ -54,6 +55,7 @@ export default function EngineForm({
           const result = await commands.getEngineConfig(selected as string);
           if (result.status === "error") {
             // E.g. a program that is not a UCI engine (#95).
+            trackUsage("engine_error", { engine: "other", kind: "no_uci" });
             form.setFieldValue("path", "");
             form.setFieldError("path", t("Engines.Add.NotAnEngine"));
             return;
