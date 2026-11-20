@@ -1,6 +1,6 @@
 # Datenschutzerklärung für JBLBase
 
-Stand: 12. November 2026 (Version 2026-11-12)
+Stand: 20. November 2026 (Version 2026-11-20)
 
 Hier steht, welche personenbezogenen Daten bei der Nutzung von JBLBase
 verarbeitet werden, wozu und welche Rechte du hast (Art. 13 DSGVO).
@@ -166,12 +166,22 @@ App-Versionen im Umlauf sind. Du kannst JBLBase ohne sie vollständig nutzen.
   ist nicht mit deinem Konto, deiner E-Mail-Adresse oder deinen
   Schach-Benutzernamen verbunden,
 - App-Version, Betriebssystem (z. B. „windows“) und Sprache der App,
+- ob du ohne Konto, mit normalem Konto oder als Admin angemeldet bist (nicht
+  welches Konto),
 - welche Seite der App geöffnet wird (z. B. „insight“ oder „repertoires“)
   und dass eine Funktion benutzt wurde: App-Start, neuer Tab, Download von
   Partien, Import einer Datenbank, Insight-Analyse, Taktiksuche, Start eines
-  Trainings, Anmeldung oder Registrierung. Dazu höchstens grobe Angaben wie
-  die Suchtiefe, die Quelle („lichess“ oder „chesscom“) oder eine
-  Größenordnung („10-49“).
+  Trainings, Anmeldung oder Registrierung, Partiebericht, „Lücken finden“,
+  Teilen eines Repertoires, Kurs-Import,
+- wie gut die Technik läuft: ob ein Abgleich mit der Cloud geklappt hat oder
+  an einer Verbrauchsgrenze pausiert, ob der Download von Partien
+  fehlgeschlagen ist, welche Art von Engine läuft („stockfish“, „patricia“
+  oder „other“) und ob sie abgestürzt ist, sowie einmal am Tag die
+  Trefferquote und Größe des Positionsspeichers,
+- dazu höchstens grobe Angaben wie die Suchtiefe, die Quelle („lichess“ oder
+  „chesscom“), die Art eines Fehlers („network“) oder eine Größenordnung
+  („10-49“). Fehlermeldungen selbst und selbst vergebene Engine-Namen werden
+  nicht gesendet.
 
 **Was nie gesendet wird:** Partien, Stellungen, Züge, Repertoires,
 Datei- und Datenbanknamen, Benutzernamen, E-Mail-Adresse und Konto-ID.

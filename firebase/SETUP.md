@@ -239,33 +239,58 @@ Damit die Zusatzangaben in den Berichten auswählbar sind: Verwaltung →
 **Benutzerdefinierte Definitionen** → _Benutzerdefinierte Dimension
 erstellen_. Der Name ist frei, der Parameter muss genau stimmen.
 
-| Parameter      | Umfang   | Bedeutung                                |
-| -------------- | -------- | ---------------------------------------- |
-| `app_version`  | Nutzer   | App-Version, z. B. `1.0.18`              |
-| `os`           | Nutzer   | `windows`, `macos`, `linux`              |
-| `app_language` | Nutzer   | Sprache der App, z. B. `de`              |
-| `tab_type`     | Ereignis | Art eines neuen Tabs                     |
-| `source`       | Ereignis | `lichess` oder `chesscom` beim Download  |
-| `method`       | Ereignis | `email` oder `lichess` bei der Anmeldung |
-| `mode`         | Ereignis | Training: `due` oder `all`               |
-| `depth`        | Ereignis | Suchtiefe bei Insight und Taktiksuche    |
-| `games`        | Ereignis | Größenordnung der analysierten Partien   |
-| `lines`        | Ereignis | Größenordnung der Linien                 |
+| Parameter      | Umfang   | Bedeutung                                                                             |
+| -------------- | -------- | ------------------------------------------------------------------------------------- |
+| `app_version`  | Nutzer   | App-Version, z. B. `1.0.18`                                                           |
+| `os`           | Nutzer   | `windows`, `macos`, `linux`                                                           |
+| `app_language` | Nutzer   | Sprache der App, z. B. `de`                                                           |
+| `tab_type`     | Ereignis | Art eines neuen Tabs                                                                  |
+| `source`       | Ereignis | `lichess` oder `chesscom` beim Download                                               |
+| `method`       | Ereignis | `email` oder `lichess` bei der Anmeldung                                              |
+| `mode`         | Ereignis | Training: `due` oder `all`                                                            |
+| `depth`        | Ereignis | Suchtiefe bei Insight und Taktiksuche                                                 |
+| `games`        | Ereignis | Größenordnung der analysierten Partien                                                |
+| `lines`        | Ereignis | Größenordnung der Linien                                                              |
+| `account`      | Nutzer   | `none`, `user` oder `admin` (ab 1.1.10)                                               |
+| `area`         | Ereignis | Teil des Abgleichs (`repertoires`, `training`, `evals`, `meta`)                       |
+| `kind`         | Ereignis | Art eines Fehlers (`network`, `permission`, `quota`, `other`, `early_exit`, `no_uci`) |
+| `changes`      | Ereignis | Größenordnung der übertragenen Einträge                                               |
+| `limit`        | Ereignis | erreichte Verbrauchsgrenze (`evals`, `total`)                                         |
+| `engine`       | Ereignis | `stockfish`, `patricia` oder `other`                                                  |
+| `use`          | Ereignis | wofür die Engine läuft (`live`)                                                       |
+| `hit_rate`     | Ereignis | Trefferquote des Positionsspeichers in Vierteln                                       |
+| `positions`    | Ereignis | Größenordnung des Positionsspeichers                                                  |
+| `found`        | Ereignis | Größenordnung der gefundenen Lücken                                                   |
 
 ### Was gezählt wird
 
-| Ereignis          | Wann                                  | Angaben          |
-| ----------------- | ------------------------------------- | ---------------- |
-| `app_open`        | App-Start (oder Einschalten)          |                  |
-| `page_view`       | Wechsel der Seite in der Seitenleiste | `page_title`     |
-| `tab_open`        | neuer Tab                             | `tab_type`       |
-| `games_download`  | Partien eines Kontos geladen          | `source`         |
-| `database_import` | PGN als Datenbank importiert          | `files`          |
-| `insight_run`     | Insight-Analyse fertig                | `depth`, `games` |
-| `tactic_search`   | Taktiksuche im Repertoire fertig      | `depth`, `lines` |
-| `training_start`  | Training gestartet                    | `mode`, `lines`  |
-| `login`           | Anmeldung am JBLBase-Konto            | `method`         |
-| `sign_up`         | Registrierung                         | `method`         |
+| Ereignis           | Wann                                                                       | Angaben                 |
+| ------------------ | -------------------------------------------------------------------------- | ----------------------- |
+| `app_open`         | App-Start (oder Einschalten)                                               |                         |
+| `page_view`        | Wechsel der Seite in der Seitenleiste                                      | `page_title`            |
+| `tab_open`         | neuer Tab                                                                  | `tab_type`              |
+| `games_download`   | Partien eines Kontos geladen                                               | `source`                |
+| `database_import`  | PGN als Datenbank importiert                                               | `files`                 |
+| `insight_run`      | Insight-Analyse fertig                                                     | `depth`, `games`        |
+| `tactic_search`    | Taktiksuche im Repertoire fertig                                           | `depth`, `lines`        |
+| `training_start`   | Training gestartet                                                         | `mode`, `lines`         |
+| `login`            | Anmeldung am JBLBase-Konto                                                 | `method`                |
+| `sign_up`          | Registrierung                                                              | `method`                |
+| `sync_run`         | Abgleich eines Bereichs fertig, höchstens 1× pro Stunde und Bereich        | `area`, `changes`       |
+| `sync_error`       | Abgleich fehlgeschlagen, höchstens 1× pro Stunde je Art                    | `area`, `kind`          |
+| `sync_paused`      | Verbrauchsgrenze erreicht, höchstens 1× pro Tag                            | `limit`                 |
+| `eval_cloud`       | Bewertungen hoch- oder heruntergeladen, höchstens 1× pro Stunde            | `up`, `down`, `source`  |
+| `eval_cache_day`   | 1× pro Tag: Trefferquote und Größe des Positionsspeichers (ab 20 Abfragen) | `hit_rate`, `positions` |
+| `engine_start`     | Engine analysiert, höchstens 1× pro Stunde und Engine                      | `engine`, `use`         |
+| `engine_error`     | Engine beendet sich selbst oder ist keine UCI-Engine                       | `engine`, `kind`        |
+| `report_run`       | Partiebericht fertig                                                       | `engine`, `depth`       |
+| `gaps_search`      | „Lücken finden“ fertig oder abgebrochen                                    | `found`, `stopped`      |
+| `repertoire_share` | Repertoire mit einem Konto geteilt                                         |                         |
+| `course_import`    | Kurs ins Repertoire importiert                                             | `chapters`              |
+| `download_error`   | Laden der Partien eines Kontos fehlgeschlagen                              | `source`, `kind`        |
+
+Die Ereignisse ab `sync_run` kamen mit 1.1.10 (#115). Neue Dimensionen
+füllen sich erst ab dem Anlegen, deshalb vor dem Update anlegen.
 
 Nie gesendet werden Partien, Stellungen, Namen von Dateien, Datenbanken oder
 Personen, Benutzernamen, E-Mail-Adresse und Konto-ID. Neue Ereignisse gehören

@@ -32,6 +32,7 @@ import {
 import { getBestMoves as lichessGetBestMoves } from "@/utils/lichess/api";
 import { useThrottledEffect } from "@/utils/misc";
 import { TreeStateContext } from "../common/TreeStateContext";
+import { engineFamily, HOUR_MS, trackUsage, trackUsageThrottled } from "@/utils/usageStats";
 
 function EvalListener() {
   const [engines] = useAtom(enginesAtom);
@@ -196,12 +197,14 @@ function EngineListener({
   // An engine that exits by itself (Stockfish on a position with too many
   // pieces) says why, once, instead of showing nothing (#103).
   const { t } = useTranslation();
+  const isLocalEngine = engine.type === "local";
   useEffect(() => {
     if (engine.type !== "local" || !activeTab) return;
     const unlisten = listen<{ engine: string; tab: string; reason: string }>(
       "engine_exited",
       ({ payload }) => {
         if (payload.engine !== engine.id || payload.tab !== activeTab) return;
+        trackUsage("engine_error", { engine: engineFamily(engine.name), kind: "early_exit" });
         notifications.show({
           id: `engine-exited-${engine.id}`,
           color: "red",
@@ -214,6 +217,18 @@ function EngineListener({
       void unlisten.then((f) => f());
     };
   }, [engine.type, engine.id, engine.name, activeTab, t]);
+
+  // Counts that an engine analyses, at most once per engine and hour (#115)
+  const engineEnabled = settings.enabled;
+  useEffect(() => {
+    if (!engineEnabled || !isLocalEngine) return;
+    trackUsageThrottled(
+      "engine_start",
+      { engine: engineFamily(engine.name), use: "live" },
+      engine.id,
+      HOUR_MS,
+    );
+  }, [engineEnabled, isLocalEngine, engine.id, engine.name]);
 
   // Leaving the tab (or unloading the engine) stops its search; otherwise an
   // infinite analysis keeps running in the background with nobody watching.

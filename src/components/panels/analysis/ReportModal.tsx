@@ -25,6 +25,7 @@ import { enginesAtom, referenceDbAtom } from "@/state/atoms";
 import { parseSanOrUci, positionFromFen } from "@/utils/chessops";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
 import type { LocalEngine } from "@/utils/engines";
+import { engineFamily, trackUsage } from "@/utils/usageStats";
 
 type LimitMode = "Time" | "Depth" | "Nodes";
 type ReportGoMode = Exclude<GoMode, { t: "Infinite" }>;
@@ -172,6 +173,11 @@ function ReportModal({
       )
       .then(async (analysis) => {
         if (analysis.status === "ok") {
+          const go = form.values.goMode;
+          trackUsage("report_run", {
+            engine: engineFamily(engine?.name),
+            depth: go.t === "Depth" ? go.c : go.t.toLowerCase(),
+          });
           addAnalysis(analysis.data, {
             showVariations: form.values.variations,
             source: { engine: engine?.name ?? "", goMode: form.values.goMode },

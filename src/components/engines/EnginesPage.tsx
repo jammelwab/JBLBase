@@ -45,7 +45,7 @@ import { Route } from "@/routes/engines";
 import { enginesAtom } from "@/state/atoms";
 import {
   type Engine,
-  engineSchema,
+  parseEngineJson,
   type LocalEngine,
   requiredEngineSettings,
 } from "@/utils/engines";
@@ -656,13 +656,19 @@ function JSONModal({
       <Space h="md" />
       <Button
         onClick={() => {
-          const parseRes = engineSchema.safeParse(JSON.parse(value));
-          if (parseRes.success) {
-            setEngine(parseRes.data);
+          const res = parseEngineJson(value);
+          if (res.ok) {
+            setEngine(res.engine);
             setError(null);
             toggleOpened();
+          } else if (res.reason === "syntax") {
+            setError(t("Engines.Settings.EditJSON.Syntax"));
           } else {
-            setError("Invalid Configuration"); // TODO: show better error message
+            setError(
+              res.fields.length > 0
+                ? t("Engines.Settings.EditJSON.Fields", { fields: res.fields.join(", ") })
+                : t("Engines.Settings.EditJSON.Invalid"),
+            );
           }
         }}
       >

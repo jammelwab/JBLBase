@@ -25,7 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { activeTabAtom, tabsAtom } from "@/state/atoms";
 import { updatePersistedState } from "@/state/store/debouncedStorage";
@@ -39,6 +39,7 @@ import type { TreeNode, TreeState } from "@/utils/treeReducer";
 import { ColorDot } from "./RepertoireLabel";
 import { useOpenLine } from "./useOpenLine";
 import { usePositionData } from "./usePositionData";
+import { bucket, trackUsage } from "@/utils/usageStats";
 
 // How many positions the check asks Lichess about at most, and how many at a time
 const REQUEST_LIMIT = 150;
@@ -100,17 +101,33 @@ export default function RepertoireCheckView({
   const pending = requested.filter((fen) => !counts.has(fen)).length;
   const searching = showLichess && !stopped && pending > 0;
 
-  // Asks for the next positions once the last ones are in: the most reached first, so the
-  // numbers that matter most come first and the list gets more exact step by step
-  useEffect(() => {
-    if (!showLichess || stopped || pending >= 3 || requested.length >= REQUEST_LIMIT) return;
+  // The positions to ask for next: the most reached first, so the numbers that matter most
+  // come first and the list gets more exact step by step
+  const nextBatch = useMemo(() => {
+    if (requested.length >= REQUEST_LIMIT) return [];
     const have = new Set(requested);
-    const more = scan.wanted
+    return scan.wanted
       .filter((w) => !have.has(w.fen) && w.reach >= 0.003)
       .slice(0, BATCH)
       .map((w) => w.fen);
-    if (more.length > 0) setRequested((prev) => [...prev, ...more].slice(0, REQUEST_LIMIT));
-  }, [showLichess, stopped, pending, requested, scan]);
+  }, [requested, scan]);
+
+  // Asks for the next positions once the last ones are in
+  useEffect(() => {
+    if (!showLichess || stopped || pending >= 3) return;
+    if (nextBatch.length > 0) {
+      setRequested((prev) => [...prev, ...nextBatch].slice(0, REQUEST_LIMIT));
+    }
+  }, [showLichess, stopped, pending, nextBatch]);
+
+  // Counts a search once when it is finished or stopped (#115): only how many gaps, never where
+  const finished = stopped || (pending === 0 && nextBatch.length === 0);
+  const counted = useRef(false);
+  useEffect(() => {
+    if (!finished || requested.length === 0 || counted.current) return;
+    counted.current = true;
+    trackUsage("gaps_search", { found: bucket(scan.gaps.length), stopped });
+  }, [finished, requested.length, scan.gaps.length, stopped]);
 
   const openLine = useOpenLine(root.fen, root.halfMoves, color);
   // Opens the repertoire itself at the gap, so the moves played there go right into it

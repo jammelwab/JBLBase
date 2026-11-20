@@ -38,6 +38,9 @@ export type UsageContext = {
     language: string;
 };
 
+/** Kind of account, sent as a user property: never which account. */
+export type UsageAccount = "none" | "user" | "admin";
+
 export type UsagePayload = {
     client_id: string;
     non_personalized_ads: true;
@@ -111,6 +114,7 @@ export function buildPayload(
     clientId: string,
     context: UsageContext,
     events: UsageEvent[],
+    account: UsageAccount = "none",
 ): UsagePayload {
     return {
         client_id: clientId,
@@ -120,9 +124,54 @@ export function buildPayload(
             app_version: { value: context.appVersion },
             os: { value: context.os },
             app_language: { value: context.language },
+            account: { value: account },
         },
         events,
     };
+}
+
+/** A larger count as a rough size (positions in the store, chapters of many courses). */
+export function bigBucket(count: number): string {
+    if (!Number.isFinite(count) || count < 1000) return bucket(count);
+    if (count < 10_000) return "1000-9999";
+    if (count < 100_000) return "10000-99999";
+    if (count < 1_000_000) return "100000-999999";
+    return "1000000+";
+}
+
+/** A share in steps of a quarter, so that no exact ratio leaves the device. */
+export function shareBucket(part: number, whole: number): string {
+    if (!Number.isFinite(part) || !Number.isFinite(whole) || whole <= 0 || part <= 0) {
+        return "0-24";
+    }
+    const percent = (part / whole) * 100;
+    if (percent < 25) return "0-24";
+    if (percent < 50) return "25-49";
+    if (percent < 75) return "50-74";
+    return "75-100";
+}
+
+/**
+ * An engine as one fixed word. The name someone gave an engine (or its file)
+ * never leaves the device.
+ */
+export function engineFamily(name: string | null | undefined): "stockfish" | "patricia" | "other" {
+    const n = (name ?? "").toLowerCase();
+    if (n.includes("stockfish")) return "stockfish";
+    if (n.includes("patricia")) return "patricia";
+    return "other";
+}
+
+/** What kind of failure an error is, as one fixed word (never its message). */
+export function errorKind(e: unknown): "network" | "permission" | "quota" | "other" {
+    const code =
+        e && typeof e === "object" && "code" in e ? String((e as { code: unknown }).code) : "";
+    if (code === "permission-denied" || code === "unauthenticated") return "permission";
+    if (code === "resource-exhausted") return "quota";
+    if (code === "unavailable" || code === "deadline-exceeded") return "network";
+    const message = e instanceof Error ? e.message : String(e ?? "");
+    if (/network|offline|failed to fetch|timed? ?out|unavailable/i.test(message)) return "network";
+    return "other";
 }
 
 function clientId(): string | null {
@@ -149,6 +198,17 @@ let queue: UsageEvent[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let sessionId = Math.floor(Date.now() / 1000);
 let lastEventAt = 0;
+let account: UsageAccount = "none";
+/** When an event under a throttle key was last counted (see `trackUsageThrottled`). */
+const lastByKey = new Map<string, number>();
+
+export const HOUR_MS = 60 * 60 * 1000;
+export const DAY_MS = 24 * HOUR_MS;
+
+/** Who is signed in, as a kind only (see `UsageAccount`). */
+export function setUsageAccount(next: UsageAccount) {
+    account = next;
+}
 
 /** Version, system and language sent along; events wait until this is set. */
 export function initUsageStats(ctx: UsageContext) {
@@ -184,6 +244,26 @@ export function trackUsage(name: string, params?: UsageParams, now = Date.now())
     schedule();
 }
 
+/**
+ * Like `trackUsage`, but counts the event under `key` at most once per
+ * `intervalMs`: for things that happen all the time (a sync every few
+ * minutes, an engine on every move) one event per hour says enough.
+ */
+export function trackUsageThrottled(
+    name: string,
+    params: UsageParams | undefined,
+    key: string,
+    intervalMs: number,
+    now = Date.now(),
+) {
+    if (!usageStatsEnabled()) return;
+    const id = `${name}:${key}`;
+    const last = lastByKey.get(id);
+    if (last !== undefined && now - last < intervalMs) return;
+    lastByKey.set(id, now);
+    trackUsage(name, params, now);
+}
+
 /** Sends what is waiting. A failed request is dropped, not repeated. */
 export async function flushUsageStats(): Promise<void> {
     if (!context || queue.length === 0) return;
@@ -202,7 +282,7 @@ export async function flushUsageStats(): Promise<void> {
     while (queue.length > 0) {
         const events = queue.splice(0, MAX_EVENTS_PER_REQUEST);
         try {
-            await transport(url, JSON.stringify(buildPayload(id, context, events)));
+            await transport(url, JSON.stringify(buildPayload(id, context, events, account)));
         } catch {
             // Statistics must never get in the way of the app.
         }
@@ -213,6 +293,7 @@ export async function flushUsageStats(): Promise<void> {
 export function forgetUsageStats() {
     queue = [];
     lastEventAt = 0;
+    lastByKey.clear();
     if (timer !== null) {
         clearTimeout(timer);
         timer = null;
@@ -227,5 +308,6 @@ export function resetUsageStatsForTest(next?: UsageTransport) {
     forgetUsageStats();
     transport = next ?? defaultTransport;
     context = null;
+    account = "none";
     sessionId = Math.floor(Date.now() / 1000);
 }

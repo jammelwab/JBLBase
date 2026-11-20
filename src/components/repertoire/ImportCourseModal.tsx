@@ -43,6 +43,7 @@ import {
   type Repertoire,
 } from "@/utils/repertoires";
 import { RepertoireLabel } from "./RepertoireLabel";
+import { bucket, trackUsage } from "@/utils/usageStats";
 
 type LoadedCourse = {
   id: number;
@@ -232,6 +233,7 @@ export default function ImportCourseModal({
           .map((c) => c.course.name)
           .join(", "),
       );
+      trackUsage("course_import", { chapters: bucket(chapters.length) });
       notifications.show({
         color: result.added > 0 ? "green" : "gray",
         title: repertoire.name,

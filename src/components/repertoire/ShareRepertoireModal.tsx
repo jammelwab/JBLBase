@@ -27,6 +27,7 @@ import {
 } from "@/utils/cloud/shares";
 import { cloudAccountAtom, shareOwnerName, syncNow } from "@/utils/cloud/sync";
 import type { Repertoire } from "@/utils/repertoires";
+import { trackUsage } from "@/utils/usageStats";
 
 const shares = async () => cloudShares(await cloudFirestore());
 
@@ -79,6 +80,7 @@ export default function ShareRepertoireModal({
         pgn: await readTextFile(repertoire.file.path),
       });
       setInput("");
+      trackUsage("repertoire_share");
       await mutate();
       notifications.show({
         color: "green",
