@@ -55,6 +55,7 @@ import {
   shownTitle,
 } from "./coachRewards";
 import CoachShowcase from "./CoachShowcase";
+import CoachHints from "./CoachHints";
 import { useCoach } from "./useCoach";
 
 const TASK_ICONS: Record<string, ReactNode> = {
@@ -276,6 +277,8 @@ export default function CoachPage({ id }: { id: string }) {
             </Box>
           </Group>
         </Card>
+
+        <CoachHints level={level} />
 
         {isAdmin && (
           <Switch

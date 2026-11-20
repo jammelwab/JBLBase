@@ -74,6 +74,8 @@ import CoachGamePanel from "@/components/coach/CoachGamePanel";
 import { findStockfish, jblEngineSetup, jblEngineSettings } from "@/components/coach/coachGame";
 import { COACH_STRENGTHS, coachStrengthAtom } from "@/components/coach/coachState";
 import { useCoachCommentary } from "@/components/coach/useCoachCommentary";
+import { coachDiaryAtom } from "@/components/coach/coachDiary";
+import { type CoachPlan, coachSparringAtom, prepareCoachGame } from "@/components/coach/coachPlan";
 
 function gameResultToOutcome(result: GameResult): Outcome {
   if (result.type === "whiteWins") return "1-0";
@@ -118,6 +120,10 @@ function BoardGame() {
   // Stärke und Rücknahmen der laufenden Coach-Partie (für den Kassenzettel)
   const [coachGameStrength, setCoachGameStrength] = useState(coachStrength);
   const [coachTakebacks, setCoachTakebacks] = useState(0);
+  // Zugbuch, Sparring und Repertoire der laufenden Coach-Partie
+  const [coachPlan, setCoachPlan] = useState<CoachPlan | null>(null);
+  const coachDiary = useAtomValue(coachDiaryAtom);
+  const coachSparring = useAtomValue(coachSparringAtom);
   const stockfish = findStockfish(useAtomValue(enginesAtom));
 
   function getPlayers() {
@@ -349,6 +355,13 @@ function BoardGame() {
 
     const initialMoves = getTreeMoves();
 
+    let plan: CoachPlan | null = null;
+    if (isCoachGame) {
+      const humanColor = playerSettings.white.type === "human" ? "white" : "black";
+      plan = await prepareCoachGame(humanColor, coachDiary, coachSparring);
+    }
+    setCoachPlan(plan);
+
     const config: GameConfig = {
       white: toPlayerConfig(playerSettings.white),
       black: toPlayerConfig(playerSettings.black),
@@ -370,6 +383,7 @@ function BoardGame() {
         !isCoachGame && openingBookEnabled && openingBookPath
           ? { path: openingBookPath, maxPly: Math.max(1, openingBookMaxPly) }
           : null,
+      moveBook: plan?.book ?? [],
     } as GameConfig;
 
     try {
@@ -823,6 +837,8 @@ function BoardGame() {
                       onTakeBack={onTakeBack}
                       strength={coachGameStrength}
                       takebacks={coachTakebacks}
+                      plan={coachPlan}
+                      root={root}
                     />
                   )}
                   <Box flex={1}>
