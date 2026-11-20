@@ -41,7 +41,7 @@ import { useIsAdmin } from "@/components/tutorial/tutorialState";
 import { useCoach } from "./useCoach";
 
 // Vitrine: Plätze für Titel, Rahmen, Verzierungen und Trophäen. Freigeschaltet
-// wird ab Etappe 3, bis dahin sind alle Plätze leer.
+// wird in einer späteren Etappe, bis dahin sind alle Plätze leer.
 const SHOWCASE = [
   { key: "Titles", slots: 3, round: false },
   { key: "Frames", slots: 3, round: false },

@@ -494,9 +494,9 @@ für normale Konten), die flachen Club-Rechnungen nicht.
 
 Seit 1.2.0 steht auf dem Startbildschirm die Karte **JBL Coach** an der Stelle von „Partie importieren“. Die Figur hat einen Bohnenkörper und die JBL-Box als Kopf; beim ersten Start winkt sie einmal. Wer in den Systemeinstellungen reduzierte Bewegung eingestellt hat, sieht sie ohne Animationen.
 
-Die Karte zeigt Level, Titel und XP-Balken (Level n braucht insgesamt 100 × (n − 1)^1,8 XP) und immer die **nächste Aufgabe** mit einem Knopf dafür. Die Reihenfolge: zuerst fällige Stellungen in den zuletzt geöffneten Repertoires, dann eine Partie gegen JBL, dann Puzzles. Ein neuer Tag fängt wieder von vorn an. Bis Partien und Puzzles ab Etappe 3 echt gezählt werden, gilt eine Aufgabe als erledigt, sobald man sie startet.
+Die Karte zeigt Level, Titel und XP-Balken (Level n braucht insgesamt 100 × (n − 1)^1,8 XP) und immer die **nächste Aufgabe** mit einem Knopf dafür. Die Reihenfolge: zuerst fällige Stellungen in den zuletzt geöffneten Repertoires, dann eine Partie gegen JBL, dann Puzzles. Ein neuer Tag fängt wieder von vorn an. Seit 1.2.2 gilt eine Partie oder ein Puzzle erst als erledigt, wenn sie fertig ist.
 
-Ein Klick auf die Figur oder „Coach öffnen“ macht den Tab zur **Coach-Seite**: oben JBL in seinem Rahmen, mit Titel, einem Satz zur nächsten Aufgabe und dem Level, daneben die Vitrine mit Plätzen für Titel, Rahmen, Verzierungen und Gimmicks sowie Trophäen (freigeschaltet wird ab Etappe 3), darunter „Was heute ansteht“ mit den drei Aufgaben (bei „Gegen JBL spielen“ die Stärke in sieben Stufen von „Sehr leicht · ca. 600“ bis „Sehr schwer · ca. 2800+“, die Wahl bleibt gespeichert) und darunter, nur für Admins und nur nach Einschalten des Schalters, die Vorschau „Bald beim Coach“ (Lektionen, Lücken finden mit JBL, typische Fehler). „Gegen JBL spielen“ öffnet in dieser Etappe noch die normale Partie gegen eine Engine.
+Ein Klick auf die Figur oder „Coach öffnen“ macht den Tab zur **Coach-Seite**: oben JBL in seinem Rahmen, mit Titel, einem Satz zur nächsten Aufgabe und dem Level, daneben die Vitrine mit Plätzen für Titel, Rahmen, Verzierungen und Gimmicks sowie Trophäen (freigeschaltet wird in einer späteren Etappe), darunter „Was heute ansteht“ mit den drei Aufgaben (bei „Gegen JBL spielen“ die Stärke in sieben Stufen von „Sehr leicht · ca. 600“ bis „Sehr schwer · ca. 2800+“, die Wahl bleibt gespeichert) und darunter, nur für Admins und nur nach Einschalten des Schalters, die Vorschau „Bald beim Coach“ (Lektionen, Lücken finden mit JBL, typische Fehler). „Gegen JBL spielen“ öffnet in dieser Etappe noch die normale Partie gegen eine Engine.
 
 „Partie importieren“ ist jetzt der Knopf oben rechts in der Karte „Zuletzt geöffnet“. Das Tutorial „Startseite“ zeigt beide Stellen.
 
@@ -510,7 +510,7 @@ Der Code: `coachGame.ts` (Stärke, Reaktionen, Sprüche), `useCoachCommentary.ts
 
 ### XP, Serie und Sperre
 
-Seit 1.3.0 gibt es für Partien gegen JBL XP. Nach dem Partieende zeigt JBL einen **Kassenzettel**: 20 XP fürs Spielen, 50 für einen Sieg oder 25 für ein Remis, jeweils mal dem Faktor der Stärke (0,5 bei „Sehr leicht“ bis 3 bei „Sehr schwer“), 30 XP je !! und 10 je !. Ab der vierten Partie am Tag gibt es nur noch die halbe Basis. Darauf kommen Prozent-Boni: +20 % für eine saubere Partie (kein ?? und nichts zurückgenommen) und der Serien-Bonus (+1 % pro Serientag). Ein richtig gelöstes Puzzle gibt 10 XP. Steigt das Level, sagt JBL das an.
+Seit 1.2.2 gibt es für Partien gegen JBL XP. Nach dem Partieende zeigt JBL einen **Kassenzettel**: 20 XP fürs Spielen, 50 für einen Sieg oder 25 für ein Remis, jeweils mal dem Faktor der Stärke (0,5 bei „Sehr leicht“ bis 3 bei „Sehr schwer“), 30 XP je !! und 10 je !. Ab der vierten Partie am Tag gibt es nur noch die halbe Basis. Darauf kommen Prozent-Boni: +20 % für eine saubere Partie (kein ?? und nichts zurückgenommen) und der Serien-Bonus (+1 % pro Serientag). Ein richtig gelöstes Puzzle gibt 10 XP. Steigt das Level, sagt JBL das an.
 
 Die **Serie** zählt Tage in Folge mit mindestens einer Partie oder einem Puzzle; ein verpasster Tag pro Woche wird überbrückt. Sie steht mit Flamme auf Karte und Coach-Seite.
 
