@@ -278,6 +278,7 @@
     "Coach.Game.NoEngine": "JBL needs Stockfish. Set up Stockfish under Engines, then you can start.",
     "Coach.Game.Random": "Random",
     "Coach.Game.Start": "Let's go",
+    "Coach.Game.TabName": "Against JBL",
     "Coach.Game.TakeBack": "Take back move",
     "Coach.Game.Title": "You against JBL",
     "Coach.Game.Watching": "I'm listening.",
