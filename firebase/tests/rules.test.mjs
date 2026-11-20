@@ -10,6 +10,7 @@ import {
 import {
   Bytes,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -356,6 +357,25 @@ describe("usage and limits (#114)", () => {
     await assertFails(setDoc(doc(admin(), "config/limits"), { evalReads: 1e9 }));
     // The allowlist stays unreadable.
     await assertFails(getDoc(doc(user(), "config/access")));
+  });
+
+  test("admins read everyone's usage and the allowlist (#116)", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "users/alice/usage/2026-11-20"), { dev1: counts });
+      await setDoc(doc(db, "users/bob/usage/2026-11-20"), { dev1: counts });
+      await setDoc(doc(db, "config/access"), { emails: ["alice@example.org"] });
+    });
+    const all = await assertSucceeds(getDocs(collectionGroup(admin(), "usage")));
+    if (all.size !== 2) throw new Error(`expected 2 usage docs, got ${all.size}`);
+    await assertSucceeds(getDoc(doc(admin(), "users/bob/usage/2026-11-20")));
+    await assertSucceeds(getDoc(doc(admin(), "config/access")));
+    await assertFails(getDocs(collectionGroup(user(), "usage")));
+    await assertFails(getDocs(collectionGroup(anon(), "usage")));
+    await assertFails(getDoc(doc(user(), "users/bob/usage/2026-11-20")));
+    // Reading does not allow writing.
+    await assertFails(setDoc(doc(admin(), "users/bob/usage/2026-11-20"), { dev1: counts }));
+    await assertFails(setDoc(doc(admin(), "config/access"), { emails: [] }));
   });
 });
 

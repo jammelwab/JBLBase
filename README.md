@@ -40,6 +40,7 @@ nicht neu gerechnet werden.
 - Neu in 1.1.7: Repertoire-Wiederholung bewertet automatisch (unter 30 s „Leicht“, sonst „Gut“, im zweiten Versuch „Schwer“, zweimal falsch „Erneut“) und geht nach einem richtigen Zug ohne Klick weiter; nach dem ersten Fehler gibt es einen Tipp und einen zweiten Versuch
 - Neu in 1.1.8: Repertoire-Wiederholung wartet nach einem richtigen Zug 2 Sekunden (einstellbar) und zeigt dieselbe Stellung nicht mehr zweimal hintereinander
 - Neu in 1.1.9: „Aktualisieren“ auf der Kontokarte lädt neue Partien und Wertungen und meldet das Ergebnis; „Lücken finden“ lässt sich abbrechen, ignoriert Zug 1 und meldet nur noch Gegnerzüge ohne Antwort (im Weiß-Repertoire schwarze, im Schwarz-Repertoire weiße Züge)
+- Neu in 1.1.11: Admin-Übersicht in den Einstellungen (nur für Admins): aktive Konten und Geräte, Cloud-Verbrauch der letzten 7 Tage gegen das kostenlose Firebase-Kontingent, Konten am Limit und Direktlinks zu Analytics, Firestore und Budget
 - Neu in 1.1.10: „Fehler melden“ im Einstellungsmenü oben rechts (kopiert Version, System und Protokoll und öffnet ein GitHub-Issue), verständliche Meldung beim Bearbeiten einer Engine als JSON, und die freiwillige Nutzungsstatistik zählt jetzt auch, ob Cloud-Abgleich, Positionsspeicher und Engines laufen
 
 **Später**

@@ -161,6 +161,27 @@ Die Grenzen schützen das gemeinsame Tageskontingent vor einem Konto oder
 einem Fehler (wie #99). Sie ersetzen nicht das Budget aus Schritt 2: die
 E-Mails bei 50 % und 90 % warnen früh, die Kostenbremse greift bei 100 %.
 
+## Admin-Übersicht (#116)
+
+Admins (Custom Claim `admin: true`) sehen in der App unter Einstellungen →
+Admin, wie viele Konten und Geräte die Cloud in den letzten 7 Tagen genutzt
+haben, den Verbrauch pro Tag gegen das kostenlose Tageskontingent
+(50 000 Lesungen, 20 000 Schreibvorgänge), welche Konten heute an einer
+Grenze sind, die Länge der Freigabeliste und die Größe des
+Positionsspeichers. Namen oder E-Mails zeigt sie nicht, nur Zahlen.
+
+Dafür dürfen Admins alle `usage`-Dokumente (als Sammlungsgruppe) und
+`config/access` lesen, aber nicht ändern. Die Abfrage braucht einen
+Einzelfeld-Index auf `usage.updatedAt` für Sammlungsgruppen; er steht in
+`firestore.indexes.json`. Beides kommt mit
+
+```bash
+cd firebase && npx -y firebase-tools@15 deploy --only firestore --project jblbase
+```
+
+Ohne diesen Deploy zeigt die Übersicht eine Fehlermeldung. Ein Aufruf
+kostet etwa so viele Lesungen wie Konten × Tage, plus drei.
+
 ## Eigene E-Mails (Bestätigung, Passwort)
 
 Firebase erlaubt keinen eigenen Text für seine Mails. JBLBase verschickt
