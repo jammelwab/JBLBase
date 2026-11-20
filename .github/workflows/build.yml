@@ -51,6 +51,8 @@ jobs:
         env:
           AIX_EXTENSION_TARGET: ${{ matrix.aix_target }}
           AIX_EXTENSION_FORCE_DOWNLOAD: "1"
+          # Stockfish and Patricia go into the installer (scripts/prepare-engines.mjs).
+          JBLBASE_BUNDLE_ENGINES: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: false
         shell: bash

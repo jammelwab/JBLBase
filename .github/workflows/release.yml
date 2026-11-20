@@ -92,6 +92,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AIX_EXTENSION_TARGET: ${{ matrix.aix_target }}
           AIX_EXTENSION_FORCE_DOWNLOAD: "1"
+          # Stockfish and Patricia go into the installer (scripts/prepare-engines.mjs).
+          JBLBASE_BUNDLE_ENGINES: "1"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Measurement Protocol secret of the usage statistics (optional;

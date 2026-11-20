@@ -40,12 +40,9 @@ nicht neu gerechnet werden.
 - Neu in 1.1.7: Repertoire-Wiederholung bewertet automatisch (unter 30 s „Leicht“, sonst „Gut“, im zweiten Versuch „Schwer“, zweimal falsch „Erneut“) und geht nach einem richtigen Zug ohne Klick weiter; nach dem ersten Fehler gibt es einen Tipp und einen zweiten Versuch
 - Neu in 1.1.8: Repertoire-Wiederholung wartet nach einem richtigen Zug 2 Sekunden (einstellbar) und zeigt dieselbe Stellung nicht mehr zweimal hintereinander
 - Neu in 1.1.9: „Aktualisieren“ auf der Kontokarte lädt neue Partien und Wertungen und meldet das Ergebnis; „Lücken finden“ lässt sich abbrechen, ignoriert Zug 1 und meldet nur noch Gegnerzüge ohne Antwort (im Weiß-Repertoire schwarze, im Schwarz-Repertoire weiße Züge)
-- Neu in 1.1.11: Admin-Übersicht in den Einstellungen (nur für Admins): aktive Konten und Geräte, Cloud-Verbrauch der letzten 7 Tage gegen das kostenlose Firebase-Kontingent, Konten am Limit und Direktlinks zu Analytics, Firestore und Budget
 - Neu in 1.1.10: „Fehler melden“ im Einstellungsmenü oben rechts (kopiert Version, System und Protokoll und öffnet ein GitHub-Issue), verständliche Meldung beim Bearbeiten einer Engine als JSON, und die freiwillige Nutzungsstatistik zählt jetzt auch, ob Cloud-Abgleich, Positionsspeicher und Engines laufen
-
-**Später**
-
-- Stockfish und Patricia direkt mitliefern
+- Neu in 1.1.11: Admin-Übersicht in den Einstellungen (nur für Admins): aktive Konten und Geräte, Cloud-Verbrauch der letzten 7 Tage gegen das kostenlose Firebase-Kontingent, Konten am Limit und Direktlinks zu Analytics, Firestore und Budget
+- Neu in 1.1.12: Stockfish 19 und Patricia 5.1 sind im Installer dabei und werden beim ersten Start mit passenden Einstellungen angelegt (Stockfish bis 10 Threads und 4 GB, Patricia 2 Threads und 1 GB); eigene Engines bleiben, wie sie sind; kurze Tutorials für alle Bereiche, das Fragezeichen oben rechts startet das Tutorial zur Seite
 
 ## Installieren
 
@@ -65,9 +62,14 @@ das System beim ersten Start:
 Neue Versionen holt sich die App selbst: **Einstellungen → Nach Updates
 suchen** oder im Hilfe-Menü.
 
-Engines werden nicht mitgeliefert. [Stockfish](https://stockfishchess.org/download/)
-und [Patricia](https://github.com/Adam-Kulju/Patricia/releases) herunterladen
-und unter **Engines → Engine hinzufügen → Lokal** einbinden.
+Stockfish 19 und Patricia 5.1 kommen mit dem Installer und stehen nach dem
+ersten Start unter **Engines** bereit. Wer schon eine eigene Stockfish- oder
+Patricia-Engine eingebunden hat, behält sie; die mitgelieferte wird dann nicht
+zusätzlich angelegt. Beide sind unverändert: Stockfish steht unter der
+[GPL-3.0](https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt),
+Patricia unter der [MIT-Lizenz](https://github.com/Adam-Kulju/Patricia/blob/main/LICENSE);
+Lizenztexte und Quellcode-Links liegen neben den Programmen im Engines-Ordner
+(`bundled/`).
 
 Details zu Positionsspeicher, Engine-Einstellungen, Patricia für macOS und zum
 Selbstbauen stehen in [JBLBASE.md](JBLBASE.md).

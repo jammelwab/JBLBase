@@ -13,6 +13,7 @@ import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { check } from "@tauri-apps/plugin-updater";
 import { checkForAppUpdate } from "@/utils/updater";
 import CornerMenu from "@/components/corner/CornerMenu";
+import BundledEngines from "@/components/BundledEngines";
 import UsageStats from "@/components/UsageStats";
 import TutorialOverlay from "@/components/tutorial/TutorialOverlay";
 import { useAtom, useAtomValue } from "jotai";
@@ -429,6 +430,7 @@ function RootLayout() {
       </AppShell.Main>
       <CornerMenu />
       <UsageStats />
+      <BundledEngines />
       <TutorialOverlay />
     </AppShell>
   );

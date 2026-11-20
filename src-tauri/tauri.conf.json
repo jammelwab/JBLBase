@@ -36,14 +36,15 @@
     "resources": {
       "../sound/": "sound/",
       "../aixchess.duckdb_extension": "aixchess.duckdb_extension",
-      "resources/vision/": "vision/"
+      "resources/vision/": "vision/",
+      "resources/engines/": "engines/"
     },
     "targets": "all",
     "createUpdaterArtifacts": true
   },
   "build": {
     "beforeDevCommand": "pnpm prepare:aix-extension && pnpm start-vite",
-    "beforeBuildCommand": "pnpm prepare:aix-extension && pnpm build-vite",
+    "beforeBuildCommand": "pnpm prepare:aix-extension && pnpm prepare:engines && pnpm build-vite",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
