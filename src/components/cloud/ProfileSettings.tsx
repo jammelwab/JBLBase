@@ -79,7 +79,7 @@ export default function ProfileSettings() {
   if (account === undefined) return <Loader size="sm" />;
 
   return (
-    <Stack maw={560}>
+    <Stack maw={560} data-tour="set-profile">
       {message && (
         <Alert color={message.color} withCloseButton onClose={() => setMessage(null)}>
           {message.text}
@@ -436,7 +436,7 @@ function SyncStatus() {
   const navigate = useNavigate();
 
   return (
-    <Stack gap="xs">
+    <Stack gap="xs" data-tour="set-sync">
       <Divider label={t("Settings.Cloud.Sync")} labelPosition="left" />
       <Text size="sm" c="dimmed">
         {t("Settings.Cloud.Sync.Desc")}

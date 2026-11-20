@@ -225,6 +225,7 @@ function RepertoireCard({
                 color="gray"
                 size="sm"
                 aria-label={t("Repertoire.Share.Button")}
+                data-tour="rep-share"
                 onClick={() => setSharing(true)}
               >
                 <IconShare size="1rem" />

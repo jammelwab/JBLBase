@@ -279,7 +279,7 @@ function FilesPage() {
       <Group grow flex={1} style={{ overflow: "hidden" }} px="md" pb="md">
         <Paper withBorder style={{ borderWidth: 2 }} h="100%">
           <Stack ref={dropzoneRef} gap={0} h="100%" style={{ overflow: "hidden" }}>
-            <Group p="xs" gap="xs">
+            <Group p="xs" gap="xs" data-tour="files-new">
               <Input
                 size="sm"
                 style={{ flexGrow: 1 }}
@@ -310,7 +310,7 @@ function FilesPage() {
               </Tooltip>
             </Group>
             <Divider />
-            <Group px="xs" py={6} gap={4} wrap="wrap">
+            <Group px="xs" py={6} gap={4} wrap="wrap" data-tour="files-filter">
               {FILE_TYPES.map((type) => (
                 <Chip
                   variant="outline"
@@ -324,7 +324,7 @@ function FilesPage() {
               ))}
             </Group>
             <Divider />
-            <ScrollArea flex={1}>
+            <ScrollArea flex={1} data-tour="files-tree">
               {error ? (
                 <Center h="100%">
                   <Text c="red">{t("Files.LoadingFailed")}</Text>

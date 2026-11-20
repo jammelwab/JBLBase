@@ -7,6 +7,7 @@ import {
   activeTutorialAtom,
   modalOpen,
   tutorialsSeenAtom,
+  useIsAdmin,
   useStartTutorial,
 } from "./tutorialState";
 import { findTutorial, type TutorialStep } from "./tutorials";
@@ -47,6 +48,7 @@ export default function TutorialOverlay() {
   const [active, setActive] = useAtom(activeTutorialAtom);
   const setSeen = useSetAtom(tutorialsSeenAtom);
   const startTutorial = useStartTutorial();
+  const isAdmin = useIsAdmin();
   const tutorial = active ? findTutorial(active.id) : undefined;
   const step = tutorial && active ? tutorial.steps[active.step] : undefined;
   const [box, setBox] = useState<Box | null>(null);
@@ -136,7 +138,8 @@ export default function TutorialOverlay() {
   const highlight = box ? visibleBox(box, viewport) : null;
   const pos = placeCard(highlight, cardSize, viewport);
   const key = `Tutorial.${tutorial.id}.${step.id}`;
-  const next = last && tutorial.next ? findTutorial(tutorial.next) : undefined;
+  const nextTutorial = last && tutorial.next ? findTutorial(tutorial.next) : undefined;
+  const next = nextTutorial && (isAdmin || !nextTutorial.adminOnly) ? nextTutorial : undefined;
 
   function onNext() {
     if (step?.action) {
