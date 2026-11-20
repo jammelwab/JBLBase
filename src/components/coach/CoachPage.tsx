@@ -75,10 +75,11 @@ export function StrengthSelect() {
   );
 }
 
-export function CoachLevel({ size = "sm" }: { size?: "xs" | "sm" }) {
+export function CoachLevel({ size = "sm", streak = 0 }: { size?: "xs" | "sm"; streak?: number }) {
   const { t } = useTranslation();
   const xp = useAtomValue(coachXpAtom);
   const { level, intoLevel, needed } = levelProgress(xp);
+  const left = needed - intoLevel;
   return (
     <Box w="100%">
       <Text size={size} c="dimmed">
@@ -93,8 +94,15 @@ export function CoachLevel({ size = "sm" }: { size?: "xs" | "sm" }) {
         aria-label={t("Coach.Card.XpLabel")}
       />
       <Text size="xs" c="dimmed" mt={2}>
-        {t("Coach.Card.Xp", { xp: intoLevel, needed })}
+        {needed && intoLevel / needed >= 0.8
+          ? t("Coach.Card.AlmostThere", { xp: left, level: level + 1 })
+          : t("Coach.Card.Xp", { xp: intoLevel, needed })}
       </Text>
+      {streak > 0 && (
+        <Text size="xs" mt={2} c="orange">
+          {t("Coach.Card.Streak", { days: Math.min(streak, 365) })}
+        </Text>
+      )}
     </Box>
   );
 }
@@ -102,7 +110,7 @@ export function CoachLevel({ size = "sm" }: { size?: "xs" | "sm" }) {
 export default function CoachPage({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
-  const { next, tasks, dueCount, actions } = useCoach(id);
+  const { next, tasks, dueCount, actions, lock, streak } = useCoach(id);
   const isAdmin = useIsAdmin();
   const { level } = levelProgress(useAtomValue(coachXpAtom));
   const [showSoon, setShowSoon] = useAtom(coachShowSoonAtom);
@@ -148,10 +156,10 @@ export default function CoachPage({ id }: { id: string }) {
                 </Badge>
               </Group>
               <Text size="lg" aria-live="polite">
-                {t(`Coach.Say.${next}`, { count: dueCount })}
+                {lock > 0 ? t("Coach.Say.locked") : t(`Coach.Say.${next}`, { count: dueCount })}
               </Text>
               <Box maw={380}>
-                <CoachLevel />
+                <CoachLevel streak={streak} />
               </Box>
             </Stack>
 
@@ -215,9 +223,11 @@ export default function CoachPage({ id }: { id: string }) {
                 <Box>
                   <Text fw={600}>{t(`Coach.Task.${task.id}.Title`)}</Text>
                   <Text size="sm" c="dimmed">
-                    {task.id === "repertoire" && dueCount === 0
-                      ? t("Coach.Task.repertoire.Nothing")
-                      : t(`Coach.Task.${task.id}.Desc`, { count: dueCount })}
+                    {task.locked
+                      ? t("Coach.Card.Locked", { count: lock })
+                      : task.id === "repertoire" && dueCount === 0
+                        ? t("Coach.Task.repertoire.Nothing")
+                        : t(`Coach.Task.${task.id}.Desc`, { count: dueCount })}
                   </Text>
                 </Box>
                 <Stack gap={6}>
@@ -226,7 +236,7 @@ export default function CoachPage({ id }: { id: string }) {
                     radius="md"
                     variant={task.id === next ? "filled" : "light"}
                     color={task.id === next ? "orange" : undefined}
-                    disabled={task.id === "repertoire" && dueCount === 0}
+                    disabled={(task.id === "repertoire" && dueCount === 0) || task.locked}
                     onClick={actions[task.id]}
                   >
                     {t(`Coach.Task.${task.id}.Button`)}

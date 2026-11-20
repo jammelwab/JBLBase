@@ -63,4 +63,9 @@ describe("nächste Coach-Aufgabe", () => {
         expect(nextCoachTask(0, day(true, true, "2026-11-19"), now)).toBe("play");
         expect(today(now)).toBe("2026-11-20");
     });
+
+    it("schickt nach einer Niederlage erst zu den Puzzles", () => {
+        expect(nextCoachTask(5, day(false, false), now, 3)).toBe("puzzles");
+        expect(nextCoachTask(5, day(false, false), now, 0)).toBe("repertoire");
+    });
 });

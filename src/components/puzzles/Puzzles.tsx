@@ -74,11 +74,13 @@ import AddPuzzle from "./AddPuzzle";
 import PuzzleBoard from "./PuzzleBoard";
 import PuzzleStatsModal from "./PuzzleStatsModal";
 import { getPuzzleStats, recordPuzzleAttempt, usePuzzleStats } from "./usePuzzleStats";
+import { coachPuzzleDoneAtom } from "@/components/coach/coachProgress";
 import { ReportedPuzzlesModal, ReportPuzzleModal } from "./PuzzleReports";
 import GameTacticSearchModal from "./GameTacticSearchModal";
 
 function Puzzles({ id }: { id: string }) {
   const { t } = useTranslation();
+  const coachPuzzleDone = useSetAtom(coachPuzzleDoneAtom);
   const store = useContext(TreeStateContext)!;
   const setFen = useStore(store, (s) => s.setFen);
   const goToStart = useStore(store, (s) => s.goToStart);
@@ -253,6 +255,7 @@ function Puzzles({ id }: { id: string }) {
     setTimerStart(null);
 
     if (firstResult) {
+      coachPuzzleDone(completion === "correct");
       await recordPuzzleAttempt({
         rating: puzzle.rating,
         correct: completion === "correct",

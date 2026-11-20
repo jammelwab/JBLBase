@@ -508,6 +508,16 @@ Nach jedem deiner Züge prüft JBL im Hintergrund mit Stockfish (Tiefe 12, zwei 
 
 Der Code: `coachGame.ts` (Stärke, Reaktionen, Sprüche), `useCoachCommentary.ts` (Bewertung), `CoachGameSetup.tsx` und `CoachGamePanel.tsx`; in `BoardGame.tsx` erkennt die Partie über `tab.coach`, dass sie gegen JBL läuft.
 
+### XP, Serie und Sperre
+
+Seit 1.3.0 gibt es für Partien gegen JBL XP. Nach dem Partieende zeigt JBL einen **Kassenzettel**: 20 XP fürs Spielen, 50 für einen Sieg oder 25 für ein Remis, jeweils mal dem Faktor der Stärke (0,5 bei „Sehr leicht“ bis 3 bei „Sehr schwer“), 30 XP je !! und 10 je !. Ab der vierten Partie am Tag gibt es nur noch die halbe Basis. Darauf kommen Prozent-Boni: +20 % für eine saubere Partie (kein ?? und nichts zurückgenommen) und der Serien-Bonus (+1 % pro Serientag). Ein richtig gelöstes Puzzle gibt 10 XP. Steigt das Level, sagt JBL das an.
+
+Die **Serie** zählt Tage in Folge mit mindestens einer Partie oder einem Puzzle; ein verpasster Tag pro Woche wird überbrückt. Sie steht mit Flamme auf Karte und Coach-Seite.
+
+Die **Sperre**: nach einer Niederlage sind drei Puzzles fällig, nach einem Remis eines, bevor „Gegen JBL spielen“ wieder geht. Karte und Coach-Seite zeigen, wie viele noch fehlen.
+
+Bonus für Lambrusco und ×2 am Geburtstag sind im Kassenzettel vorbereitet, aber noch nicht aktiv. Der Code: `coachProgress.ts` (Serie, Sperre, Kassenzettel, Ereignisse) und `CoachReceipt.tsx`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten

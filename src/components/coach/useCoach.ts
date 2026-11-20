@@ -1,10 +1,11 @@
-import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useMemo } from "react";
+import { atom, useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getStats } from "@/components/files/opening";
 import { useOpenRecentFile } from "@/components/tabs/useOpenRecentFile";
 import { deckAtomFamily, type RecentFile, recentFilesAtom, tabsAtom } from "@/state/atoms";
 import type { Tab } from "@/utils/tabs";
+import { coachLockAtom, coachStreakAtom, currentStreak } from "./coachProgress";
 import { type CoachTaskId, coachDayAtom, coachTasks, nextCoachTask, today } from "./coachState";
 
 // Fällige und neue Stellungen in den zuletzt geöffneten Repertoires.
@@ -24,7 +25,9 @@ const repertoireDueAtom = atom((get) => {
 export function useCoach(tabId: string) {
     const { t } = useTranslation();
     const setTabs = useSetAtom(tabsAtom);
-    const [day, setDay] = useAtom(coachDayAtom);
+    const day = useAtomValue(coachDayAtom);
+    const lock = useAtomValue(coachLockAtom);
+    const streak = currentStreak(useAtomValue(coachStreakAtom), today());
     const { total: dueCount, best } = useAtomValue(repertoireDueAtom);
     const openRecentFile = useOpenRecentFile();
 
@@ -41,36 +44,25 @@ export function useCoach(tabId: string) {
         [setTabs, tabId],
     );
 
-    const mark = useCallback(
-        (key: "played" | "puzzles") =>
-            setDay((prev) => {
-                const fresh =
-                    prev.day === today() ? prev : { day: today(), played: false, puzzles: false };
-                return { ...fresh, [key]: true };
-            }),
-        [setDay],
-    );
-
     const actions = useMemo(
         () => ({
             openCoach: () => turnTabInto("coach", t("Coach.Card.Title")),
             play: () => {
-                mark("played");
+                if (lock > 0) return;
                 turnTabInto("play", t("Coach.Game.TabName"), true);
             },
-            puzzles: () => {
-                mark("puzzles");
-                turnTabInto("puzzles", t("Home.PuzzleTraining"));
-            },
+            puzzles: () => turnTabInto("puzzles", t("Home.PuzzleTraining")),
             repertoire: () => {
                 if (best) openRecentFile(best.file);
             },
         }),
-        [turnTabInto, mark, t, best, openRecentFile],
+        [turnTabInto, lock, t, best, openRecentFile],
     );
 
-    const next: CoachTaskId = nextCoachTask(dueCount, day);
-    const tasks = coachTasks(dueCount, day);
+    // Zeitpunkt beim Öffnen der Karte; reicht für die Tagesaufgaben.
+    const [now] = useState(() => new Date());
+    const next: CoachTaskId = nextCoachTask(dueCount, day, now, lock);
+    const tasks = coachTasks(dueCount, day, now, lock);
 
-    return { next, tasks, dueCount, actions };
+    return { next, tasks, dueCount, actions, lock, streak };
 }
