@@ -61,6 +61,7 @@ export default defineConfig({
             "Coach.Task.*",
             "Coach.Say.*",
             "Coach.Soon.*",
+            "Coach.Showcase.*",
         ],
         sort: true,
     },

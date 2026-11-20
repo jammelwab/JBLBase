@@ -92,3 +92,6 @@ export function coachTasks(
 export function nextCoachTask(dueCount: number, day: CoachDay, now = new Date()): CoachTaskId {
     return coachTasks(dueCount, day, now).find((t) => !t.done)?.id ?? "done";
 }
+
+// Vorschau „Bald beim Coach“: nur für Admins, standardmäßig aus.
+export const coachShowSoonAtom = atomWithStorage<boolean>("jbl-coach-show-soon", false);

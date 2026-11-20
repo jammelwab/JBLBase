@@ -9,8 +9,10 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   Title,
+  Tooltip,
   UnstyledButton,
 } from "@mantine/core";
 import {
@@ -20,6 +22,7 @@ import {
   IconSearch,
   IconTargetArrow,
   IconBrain,
+  IconLock,
 } from "@tabler/icons-react";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useRef } from "react";
@@ -28,12 +31,23 @@ import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import {
   COACH_STRENGTHS,
   type CoachStrengthId,
+  coachShowSoonAtom,
   coachStrengthAtom,
   coachTitleKey,
   coachXpAtom,
   levelProgress,
 } from "./coachState";
+import { useIsAdmin } from "@/components/tutorial/tutorialState";
 import { useCoach } from "./useCoach";
+
+// Vitrine: Plätze für Titel, Rahmen, Verzierungen und Trophäen. Freigeschaltet
+// wird ab Etappe 3, bis dahin sind alle Plätze leer.
+const SHOWCASE = [
+  { key: "Titles", slots: 3, round: false },
+  { key: "Frames", slots: 3, round: false },
+  { key: "Gimmicks", slots: 5, round: true },
+  { key: "Trophies", slots: 5, round: true },
+] as const;
 
 const TASK_ICONS: Record<string, ReactNode> = {
   repertoire: <IconTargetArrow size={36} />,
@@ -89,6 +103,9 @@ export default function CoachPage({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
   const { next, tasks, dueCount, actions } = useCoach(id);
+  const isAdmin = useIsAdmin();
+  const { level } = levelProgress(useAtomValue(coachXpAtom));
+  const [showSoon, setShowSoon] = useAtom(coachShowSoonAtom);
 
   const soon = [
     { key: "Lessons", icon: <IconBook size={28} /> },
@@ -99,23 +116,73 @@ export default function CoachPage({ id }: { id: string }) {
   return (
     <ScrollArea h="100%" type="auto">
       <Stack gap="lg" p="md" maw={1100} mx="auto">
-        <Card withBorder radius="md" p="lg" data-tour="coach-header">
-          <Group wrap="nowrap" align="center" gap="xl">
-            <UnstyledButton
-              onClick={() => figure.current?.play(next === "done" ? "win" : "hello")}
-              aria-label={t("Coach.Card.Poke.Label")}
-              style={{ lineHeight: 0, flexShrink: 0 }}
-            >
-              <CoachFigure ref={figure} size={160} title={t("Coach.Card.Title")} />
-            </UnstyledButton>
-            <Stack gap="xs" style={{ flex: 1, minWidth: 0 }}>
-              <Title order={2}>{t("Coach.Card.Title")}</Title>
+        <Card withBorder radius="md" px="xl" pt={36} pb="xl" data-tour="coach-header">
+          <Group wrap="wrap" align="flex-start" gap={40}>
+            <Stack align="center" gap={6} style={{ flexShrink: 0 }}>
+              {/* Rahmen um die Figur: später der ausgerüstete Rahmen (Duell, OberBoss) */}
+              <Box
+                p="sm"
+                style={{
+                  border: "2px solid var(--mantine-color-default-border)",
+                  borderRadius: "var(--mantine-radius-lg)",
+                }}
+              >
+                <UnstyledButton
+                  onClick={() => figure.current?.play(next === "done" ? "win" : "hello")}
+                  aria-label={t("Coach.Card.Poke.Label")}
+                  style={{ lineHeight: 0 }}
+                >
+                  <CoachFigure ref={figure} size={180} title={t("Coach.Card.Title")} />
+                </UnstyledButton>
+              </Box>
+              <Text size="xs" c="dimmed">
+                {t("Coach.Showcase.FrameDefault")}
+              </Text>
+            </Stack>
+
+            <Stack gap="sm" style={{ flex: "1 1 280px", minWidth: 0 }}>
+              <Group gap="sm" align="center">
+                <Title order={2}>{t("Coach.Card.Title")}</Title>
+                <Badge variant="light" color="orange" size="lg">
+                  {t(`Coach.Title.${coachTitleKey(level)}`)}
+                </Badge>
+              </Group>
               <Text size="lg" aria-live="polite">
                 {t(`Coach.Say.${next}`, { count: dueCount })}
               </Text>
-              <Box maw={360}>
+              <Box maw={380}>
                 <CoachLevel />
               </Box>
+            </Stack>
+
+            <Stack gap="md" style={{ flex: "1 1 300px", minWidth: 0 }} data-tour="coach-showcase">
+              {SHOWCASE.map((row) => (
+                <Box key={row.key}>
+                  <Text size="sm" fw={600} mb={6}>
+                    {t(`Coach.Showcase.${row.key}`)}
+                  </Text>
+                  <Group gap="xs">
+                    {Array.from({ length: row.slots }, (_, i) => (
+                      <Tooltip key={i} label={t("Coach.Showcase.Locked")}>
+                        <Box
+                          w={row.round ? 44 : 64}
+                          h={44}
+                          c="dimmed"
+                          style={{
+                            display: "grid",
+                            placeItems: "center",
+                            border: "1px dashed var(--mantine-color-default-border)",
+                            borderRadius: row.round ? "50%" : "var(--mantine-radius-md)",
+                            opacity: 0.6,
+                          }}
+                        >
+                          <IconLock size={16} />
+                        </Box>
+                      </Tooltip>
+                    ))}
+                  </Group>
+                </Box>
+              ))}
             </Stack>
           </Group>
         </Card>
@@ -170,27 +237,38 @@ export default function CoachPage({ id }: { id: string }) {
           ))}
         </SimpleGrid>
 
-        <Title order={3}>{t("Coach.Page.Soon")}</Title>
-        <SimpleGrid cols={{ base: 1, sm: 3 }}>
-          {soon.map((s) => (
-            <Card key={s.key} withBorder radius="md" p="md" style={{ opacity: 0.7 }}>
-              <Group wrap="nowrap" align="flex-start">
-                <Box c="dimmed">{s.icon}</Box>
-                <Box>
-                  <Group gap="xs">
-                    <Text fw={600}>{t(`Coach.Soon.${s.key}.Title`)}</Text>
-                    <Badge size="xs" variant="light" color="gray">
-                      {t("Coach.Page.SoonBadge")}
-                    </Badge>
+        {isAdmin && (
+          <Switch
+            label={t("Coach.Page.ShowSoon")}
+            checked={showSoon}
+            onChange={(e) => setShowSoon(e.currentTarget.checked)}
+          />
+        )}
+        {isAdmin && showSoon && (
+          <>
+            <Title order={3}>{t("Coach.Page.Soon")}</Title>
+            <SimpleGrid cols={{ base: 1, sm: 3 }}>
+              {soon.map((s) => (
+                <Card key={s.key} withBorder radius="md" p="md" style={{ opacity: 0.7 }}>
+                  <Group wrap="nowrap" align="flex-start">
+                    <Box c="dimmed">{s.icon}</Box>
+                    <Box>
+                      <Group gap="xs">
+                        <Text fw={600}>{t(`Coach.Soon.${s.key}.Title`)}</Text>
+                        <Badge size="xs" variant="light" color="gray">
+                          {t("Coach.Page.SoonBadge")}
+                        </Badge>
+                      </Group>
+                      <Text size="sm" c="dimmed">
+                        {t(`Coach.Soon.${s.key}.Desc`)}
+                      </Text>
+                    </Box>
                   </Group>
-                  <Text size="sm" c="dimmed">
-                    {t(`Coach.Soon.${s.key}.Desc`)}
-                  </Text>
-                </Box>
-              </Group>
-            </Card>
-          ))}
-        </SimpleGrid>
+                </Card>
+              ))}
+            </SimpleGrid>
+          </>
+        )}
       </Stack>
     </ScrollArea>
   );
