@@ -262,6 +262,14 @@ async setFileAsExecutable(path: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async installBundledEngines(enginesDir: string) : Promise<Result<BundledEngine[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("install_bundled_engines", { enginesDir }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async editDbInfo(file: string, title: string | null, description: string | null) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("edit_db_info", { file, title, description }) };
@@ -987,6 +995,11 @@ export type DatabaseInfo = { needs_conversion: boolean; title: string; descripti
 export type DatabaseProgress = { id: string; progress: number }
 export type DrawReason = "stalemate" | "insufficientMaterial" | "threefoldRepetition" | "fiftyMoveRule" | "agreement"
 export type EngineCacheStats = { engine: string; entries: number; maxDepth: number }
+export type BundledEngine = { id: string; name: string; version: string; 
+/**
+ * Where the program lies after copying.
+ */
+path: string }
 export type EngineConfig = { name: string; options: UciOptionConfig[] }
 export type EngineLog = { type: "gui"; value: string } | { type: "engine"; value: string }
 export type EvalSyncPending = { evals: SyncEval[]; 

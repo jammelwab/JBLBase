@@ -5,6 +5,7 @@
 
 mod backup;
 mod brilliance;
+mod bundled_engines;
 mod chess;
 mod db;
 mod engine;
@@ -176,6 +177,7 @@ fn main() {
             delete_empty_games,
             compact_database,
             set_file_as_executable,
+            bundled_engines::install_bundled_engines,
             edit_db_info,
             delete_db_game,
             write_db_game,

@@ -1,0 +1,48 @@
+name: Bundled engines
+
+# Checks that the engines the installers ship (scripts/prepare-engines.mjs)
+# can still be downloaded and unpacked, for both platforms, before a release
+# depends on it. On macOS the binary is also thinned, signed and started.
+
+on:
+  pull_request:
+    paths:
+      - scripts/prepare-engines.mjs
+      - .github/workflows/bundled-engines.yml
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            target: windows_amd64
+          - platform: macos-latest
+            target: osx_arm64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Download and unpack
+        env:
+          JBLBASE_BUNDLE_ENGINES: "1"
+          ENGINES_TARGET: ${{ matrix.target }}
+        run: node scripts/prepare-engines.mjs
+
+      - name: Engines answer to UCI
+        shell: bash
+        run: |
+          cd src-tauri/resources/engines
+          cat engines.json
+          for f in $(node -e 'for (const e of require("./engines.json")) console.log(e.file)'); do
+            echo "== $f"
+            out=$(printf 'uci\nquit\n' | "./$f")
+            echo "$out" | grep -m1 "^id name"
+            echo "$out" | grep -q "^uciok"
+          done

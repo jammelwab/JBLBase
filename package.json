@@ -1,10 +1,11 @@
 {
   "name": "en-croissant",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "private": true,
   "type": "module",
   "scripts": {
     "prepare:aix-extension": "node ./scripts/prepare-aix-extension.mjs",
+    "prepare:engines": "node ./scripts/prepare-engines.mjs",
     "start-vite": "vite",
     "build-vite": "tsc --noEmit && vite build",
     "build": "tauri build --no-bundle",

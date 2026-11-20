@@ -478,7 +478,18 @@ für normale Konten), die flachen Club-Rechnungen nicht.
 
 ## Engines einrichten
 
-Engines sind eigenständige Programme und werden nicht mitgeliefert.
+Seit 1.1.12 bringt der Installer **Stockfish 19** und **Patricia 5.1** mit
+(Windows x64 und macOS Apple Silicon). Beim ersten Start kopiert die App sie in
+den Engines-Ordner (Unterordner `bundled/`, mit Lizenztexten) und legt sie
+unter **Engines** an, mit Einstellungen passend zum Rechner: Stockfish bis zu
+10 Threads (ein Kern bleibt frei) und bis zu 4 GB Hash (höchstens ein Viertel
+des Arbeitsspeichers), Patricia 2 Threads und bis zu 1 GB. Wer schon eine
+eigene Stockfish- oder Patricia-Engine eingebunden hat, behält sie, die
+mitgelieferte kommt dann nicht dazu. Eine gelöschte mitgelieferte Engine
+kommt nicht wieder. Mit einer neuen Version zeigt die angelegte Engine
+automatisch auf das neue Programm, die Einstellungen bleiben.
+
+Von Hand einrichten (andere Version, andere Systeme) geht weiterhin so:
 
 ### Stockfish
 
