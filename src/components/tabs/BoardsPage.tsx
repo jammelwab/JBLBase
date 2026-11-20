@@ -237,6 +237,7 @@ export default function BoardsPage() {
                   <ActionIcon
                     variant="default"
                     radius={0}
+                    data-tour="board-new-tab"
                     onClick={() =>
                       createTab({
                         tab: {

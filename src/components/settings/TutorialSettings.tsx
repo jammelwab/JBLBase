@@ -2,17 +2,22 @@ import { Badge, Button, Group, Stack, Text } from "@mantine/core";
 import { IconPlayerPlay } from "@tabler/icons-react";
 import { useAtomValue } from "jotai";
 import { useTranslation } from "react-i18next";
-import { tutorialsSeenAtom, useStartTutorial } from "@/components/tutorial/tutorialState";
-import { TUTORIALS } from "@/components/tutorial/tutorials";
+import {
+  tutorialsSeenAtom,
+  useIsAdmin,
+  useStartTutorial,
+} from "@/components/tutorial/tutorialState";
+import { availableTutorials } from "@/components/tutorial/tutorials";
 
 // All tutorials, each one can be started again at any time
 export default function TutorialSettings() {
   const { t } = useTranslation();
   const seen = useAtomValue(tutorialsSeenAtom);
   const start = useStartTutorial();
+  const isAdmin = useIsAdmin();
   return (
     <Stack gap="md">
-      {TUTORIALS.map((tutorial) => (
+      {availableTutorials(isAdmin).map((tutorial) => (
         <Group key={tutorial.id} justify="space-between" wrap="nowrap" align="flex-start">
           <div>
             <Group gap="xs">

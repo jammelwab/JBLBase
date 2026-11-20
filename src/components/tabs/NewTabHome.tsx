@@ -231,6 +231,7 @@ export default function NewTabHome({ id }: { id: string }) {
       title: t("Home.Card.ImportGame.Title"),
       description: t("Home.Card.ImportGame.Desc"),
       label: t("Home.Card.ImportGame.Button"),
+      tour: "home-import",
       onClick: () => {
         setOpenModal(true);
       },
@@ -240,6 +241,7 @@ export default function NewTabHome({ id }: { id: string }) {
       title: t("Home.Card.Puzzle.Title"),
       description: t("Home.Card.Puzzle.Desc"),
       label: t("Home.Card.Puzzle.Button"),
+      tour: "home-puzzle",
       onClick: () => {
         setTabs((prev) => {
           const tab = prev.find((t) => t.value === id);
@@ -262,7 +264,7 @@ export default function NewTabHome({ id }: { id: string }) {
       />
       <CreateRepertoireModal opened={openRepertoireModal} setOpened={setOpenRepertoireModal} />
       <Stack gap="lg" pt="sm">
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} data-tour="home-cards">
           {cards.map((card) => (
             <Card shadow="sm" p="lg" radius="md" withBorder key={card.title}>
               <Stack align="center" h="100%" justify="space-between">
@@ -275,7 +277,14 @@ export default function NewTabHome({ id }: { id: string }) {
                   </Text>
                 </Box>
 
-                <Button variant="light" fullWidth mt="md" radius="md" onClick={card.onClick}>
+                <Button
+                  variant="light"
+                  fullWidth
+                  mt="md"
+                  radius="md"
+                  onClick={card.onClick}
+                  data-tour={"tour" in card ? card.tour : undefined}
+                >
                   {card.label}
                 </Button>
               </Stack>
@@ -283,7 +292,7 @@ export default function NewTabHome({ id }: { id: string }) {
           ))}
         </SimpleGrid>
 
-        <Card shadow="sm" p="md" radius="md" withBorder>
+        <Card shadow="sm" p="md" radius="md" withBorder data-tour="home-recent">
           <Text fw={600} size="lg" mb="xs">
             {t("Home.RecentFiles.Title")}
           </Text>
