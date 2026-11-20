@@ -518,6 +518,18 @@ Die **Sperre**: nach einer Niederlage sind drei Puzzles fällig, nach einem Remi
 
 Bonus für Lambrusco und ×2 am Geburtstag sind im Kassenzettel vorbereitet, aber noch nicht aktiv. Der Code: `coachProgress.ts` (Serie, Sperre, Kassenzettel, Ereignisse) und `CoachReceipt.tsx`.
 
+### Vitrine, Tagesaufgabe und Stärke-Schätzung
+
+Seit 1.2.3 füllt sich die **Vitrine** auf der Coach-Seite. Jedes Level schaltet eine Verzierung frei: Sonnenbrille (Level 2), Schal (3), Mütze (4), Kopfhörer (5), Fliege (6), blaue Box (8), Krone (15). Ein Klick legt sie an oder ab; pro Stelle (Augen, Kopf, Hals, Farbe) trägt JBL eine, und er trägt sie überall, auf der Karte, auf der Coach-Seite und in der Partie. Partyhütchen, Hasenohren und Medaille gibt es nur über besondere Tage und Easter Eggs. **Rahmen** um JBL: Standard, Bronze ab Level 5, Silber ab 10, Gold ab 20, dazu später Duell, OberBoss und Karotte. **Titel**: alle erreichten Level-Titel lassen sich auswählen, dazu Sondertitel. **Trophäen**: erster Sieg, erstes !!, sauberer Sieg, Sieg auf „Schwer“, 7 und 30 Tage Serie, Level 10, dazu drei geheime.
+
+Nach einer Niederlage oder einem Remis ist die erste Aufgabe der **schlimmste eigene Zug** der Partie: JBL zeigt die Stellung davor, und man hat zwei Versuche, den besseren Zug zu finden (der beste Zug und jeder, der höchstens 0,3 Bauern schlechter ist, zählt). Richtig gibt 10 XP; danach gelten die Puzzles wie bisher.
+
+Jeden Tag gibt es eine **Tagesaufgabe** für 40 XP (ein ! finden, eine Partie gewinnen, 3 Puzzles, 10 Repertoire-Züge oder eine saubere Partie), für alle am selben Tag dieselbe. Nach jeder Partie gibt es mit 10 % Chance einen **Bonus-Track**: Die nächste Partie bringt doppelte XP, JBL sagt es erst zu Beginn dieser Partie an. Ab der vierten Partie am Tag gähnt JBL und schlägt Training vor. Jeder richtig gewusste Zug im Repertoire-Training bringt 2 XP.
+
+Nach 5 Partien schätzt JBL eine **Spielstärke** aus den letzten 30 Ergebnissen gegen die Stufen (Leistungszahl nach Elo) und sagt eine neue Bestmarke an.
+
+Der Code: `coachRewards.ts` (Verzierungen, Rahmen, Titel, Trophäen, Bonus-Track, Tagesaufgabe, Schätzung), `CoachShowcase.tsx` und `CoachMistakeTask.tsx`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten

@@ -1,13 +1,19 @@
 import { Box, Button, Group, Paper, Text } from "@mantine/core";
 import { IconArrowBackUp } from "@tabler/icons-react";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Outcome } from "@/bindings";
 import CoachFigure, { type CoachAnimation, type CoachFigureHandle } from "./CoachFigure";
 import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coachGame";
 import CoachReceipt from "./CoachReceipt";
-import { finishCoachGameAtom, lockAfter, type ReceiptLine } from "./coachProgress";
+import {
+  type CoachMistake,
+  finishCoachGameAtom,
+  lockAfter,
+  type ReceiptLine,
+} from "./coachProgress";
+import { coachBonusTrackAtom, DAILY_QUEST_XP } from "./coachRewards";
 import type { CoachStrengthId } from "./coachState";
 import type { CoachComment } from "./useCoachCommentary";
 
@@ -21,6 +27,10 @@ const SIGN_COLOR: Record<string, string> = {
 };
 
 type Bubble = { sign: string | null; text: string; key: number };
+type Say = { anim: CoachAnimation | null; text: string; sign: string | null };
+
+// Wie schlimm ein Fehler ist, um den schlimmsten der Partie zu finden
+const SEVERITY: Record<string, number> = { missedMate: 4, blunder: 3, mistake: 2, dubious: 1 };
 
 // JBL neben dem Brett: reagiert auf deine Züge und spricht in einer Sprechblase.
 export default function CoachGamePanel({
@@ -53,29 +63,44 @@ export default function CoachGamePanel({
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const finishGame = useSetAtom(finishCoachGameAtom);
   const stats = useRef({ brilliants: 0, goods: 0, blunders: 0 });
+  const worst = useRef<{ severity: number; mistake: CoachMistake } | null>(null);
+  const bonusTrack = useAtomValue(coachBonusTrackAtom);
   const [receipt, setReceipt] = useState<{
     lines: ReceiptLine[];
     lock: number;
   } | null>(null);
 
-  // Erst die Bewegung, dann der Satz: die Blase kommt 300 ms nach dem Start
-  // der Animation und bleibt so lange, wie man zum Lesen braucht.
-  const deliver = (
-    anim: CoachAnimation | null,
-    lineKey: string,
-    sign: string | null,
-    extra = "",
-  ) => {
+  const line = (lineKey: string, extra = "") => {
     const key = pickLine(lineKey, recent.current);
     recent.current = [key, ...recent.current].slice(0, 20);
-    const text = `${t(`Coach.Line.${key}`)}${extra ? ` ${extra}` : ""}`;
+    return `${t(`Coach.Line.${key}`)}${extra ? ` ${extra}` : ""}`;
+  };
+
+  // Erst die Bewegung, dann der Satz: die Blase kommt 300 ms nach dem Start
+  // der Animation und bleibt so lange, wie man zum Lesen braucht. Mehrere
+  // Sätze kommen nacheinander, nie zwei auf einmal.
+  const speak = (items: Say[], startDelay = 0) => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
-    if (anim) figure.current?.play(anim);
-    timers.current.push(
-      setTimeout(() => setBubble({ sign, text, key: Date.now() }), anim ? 300 : 0),
-    );
+    let at = startDelay;
+    for (const item of items) {
+      timers.current.push(
+        setTimeout(() => {
+          if (item.anim) figure.current?.play(item.anim);
+          timers.current.push(
+            setTimeout(
+              () => setBubble({ sign: item.sign, text: item.text, key: Date.now() }),
+              item.anim ? 300 : 0,
+            ),
+          );
+        }, at),
+      );
+      at += (item.anim ? 300 : 0) + readingTime(item.text) + 300;
+    }
   };
+
+  const deliver = (anim: CoachAnimation | null, lineKey: string, sign: string | null, extra = "") =>
+    speak([{ anim, text: line(lineKey, extra), sign }]);
 
   // Ausblenden nach der Lesezeit, aber nicht, solange die Maus darauf ist.
   useEffect(() => {
@@ -95,6 +120,16 @@ export default function CoachGamePanel({
     if (comment.reaction === "good") stats.current.goods++;
     if (comment.reaction === "blunder" || comment.reaction === "missedMate")
       stats.current.blunders++;
+    const severity = SEVERITY[comment.reaction] ?? 0;
+    if (
+      severity > 0 &&
+      comment.solutions.length > 0 &&
+      (!worst.current || severity > worst.current.severity)
+    )
+      worst.current = {
+        severity,
+        mistake: { fen: comment.fen, played: comment.san, solutions: comment.solutions },
+      };
     const sign = REACTION_SIGN[comment.reaction];
     const better =
       comment.best && ["dubious", "mistake", "blunder"].includes(comment.reaction)
@@ -112,8 +147,12 @@ export default function CoachGamePanel({
     if (prev === gameState) return;
     if (gameState === "playing") {
       stats.current = { brilliants: 0, goods: 0, blunders: 0 };
+      worst.current = null;
       setReceipt(null);
-      deliver("hello", "start", null);
+      speak([
+        { anim: "hello", text: line("start"), sign: null },
+        ...(bonusTrack ? [{ anim: "bril" as const, text: line("bonusTrack"), sign: null }] : []),
+      ]);
     }
     if (gameState === "gameOver" && humanColor && result && result !== "*") {
       const outcome =
@@ -122,17 +161,56 @@ export default function CoachGamePanel({
           : (result === "1-0") === (humanColor === "white")
             ? ("win" as const)
             : ("loss" as const);
-      if (outcome === "draw") deliver(null, "draw", null);
-      else deliver(outcome, outcome, null);
-      // Kassenzettel: erst nach der Reaktion, damit beides lesbar bleibt
-      const done = finishGame({ result: outcome, strength, takebacks, ...stats.current });
+      const done = finishGame({
+        result: outcome,
+        strength,
+        takebacks,
+        ...stats.current,
+        mistake: worst.current?.mistake ?? null,
+      });
+      // Erst die Reaktion, dann der Kassenzettel, danach was neu ist
+      const after: Say[] = [];
+      if (done.levelAfter > done.levelBefore) {
+        after.push({
+          anim: "win",
+          text: line("levelUp", t("Coach.Game.NewLevel", { level: done.levelAfter })),
+          sign: null,
+        });
+        for (const item of done.newItems)
+          after.push({
+            anim: null,
+            text: t("Coach.Game.NewItem", { item: t(`Coach.Item.${item}`) }),
+            sign: null,
+          });
+      }
+      for (const trophy of done.trophies)
+        after.push({
+          anim: "good",
+          text: t("Coach.Game.Trophy", { trophy: t(`Coach.Trophy.${trophy}.Title`) }),
+          sign: null,
+        });
+      if (done.questDone)
+        after.push({
+          anim: null,
+          text: t("Coach.Game.QuestDone", { xp: DAILY_QUEST_XP }),
+          sign: null,
+        });
+      if (done.newBest && done.estimate)
+        after.push({
+          anim: "good",
+          text: t("Coach.Game.NewBest", { elo: done.estimate }),
+          sign: null,
+        });
+      if (done.lines.some((l) => l.key === "tired"))
+        after.push({ anim: "think", text: line("tired"), sign: null });
+      speak([
+        outcome === "draw"
+          ? { anim: null, text: line("draw"), sign: null }
+          : { anim: outcome, text: line(outcome), sign: null },
+        ...after,
+      ]);
       timers.current.push(
-        setTimeout(() => {
-          setReceipt({ lines: done.lines, lock: lockAfter(outcome) });
-          if (done.levelAfter > done.levelBefore) {
-            deliver("win", "levelUp", null, t("Coach.Game.NewLevel", { level: done.levelAfter }));
-          }
-        }, 2400),
+        setTimeout(() => setReceipt({ lines: done.lines, lock: lockAfter(outcome) }), 2400),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

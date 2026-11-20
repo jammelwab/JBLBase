@@ -106,6 +106,8 @@ export const LINE_VARIANTS: Record<string, number> = {
     loss: 2,
     draw: 1,
     levelUp: 1,
+    bonusTrack: 2,
+    tired: 2,
 };
 
 // Wählt eine Fassung und meidet die zuletzt gezeigten.

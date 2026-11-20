@@ -29,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { coachRepertoireMoveAtom } from "@/components/coach/coachProgress";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useTranslation } from "react-i18next";
@@ -190,6 +191,12 @@ function PracticePanel() {
       setPracticeState,
     ],
   );
+
+  // JBL Coach: 2 XP für jeden richtig gewussten Zug
+  const coachRepertoireMove = useSetAtom(coachRepertoireMoveAtom);
+  useEffect(() => {
+    if (practiceState.phase === "correct" && practiceState.wrongTries === 0) coachRepertoireMove();
+  }, [practiceState.phase, practiceState.wrongTries, coachRepertoireMove]);
 
   useEffect(() => {
     if (practiceState.phase === "correct") {

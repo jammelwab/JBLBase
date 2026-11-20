@@ -20,7 +20,13 @@ export type CoachComment = {
     san: string;
     // Was die Engine stattdessen gespielt hätte (SAN), falls anders
     best: string | null;
+    // Stellung vor dem Zug und die Züge, die dort gut gewesen wären
+    fen: string;
+    solutions: string[];
 };
+
+// Zweitbester Zug zählt mit, wenn er höchstens so viel schlechter ist.
+const SOLUTION_MARGIN_CP = 30;
 
 let runs = 0;
 
@@ -97,12 +103,23 @@ export function useCoachCommentary(
             const reaction = reactionFor(annotation, allowsMateInOne);
             if (!reaction) return;
             const engineMove = preBest.sanMoves[0] ?? null;
+            const bestScore = normalizeScore(preBest.score.value, humanColor);
+            const solutions = pre.best
+                .filter(
+                    (b, i) =>
+                        i === 0 ||
+                        bestScore - normalizeScore(b.score.value, humanColor) <= SOLUTION_MARGIN_CP,
+                )
+                .map((b) => b.sanMoves[0])
+                .filter((m): m is string => !!m && m !== last.san);
             setComment((prev) => ({
                 id: (prev?.id ?? 0) + 1,
                 reaction,
                 ply: last.halfMoves,
                 san: last.san ?? "",
                 best: engineMove && engineMove !== last.san ? engineMove : null,
+                fen: before.fen,
+                solutions,
             }));
         })().catch(() => {});
 
