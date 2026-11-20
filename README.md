@@ -44,6 +44,7 @@ nicht neu gerechnet werden.
 - Neu in 1.1.11: Admin-Übersicht in den Einstellungen (nur für Admins): aktive Konten und Geräte, Cloud-Verbrauch der letzten 7 Tage gegen das kostenlose Firebase-Kontingent, Konten am Limit und Direktlinks zu Analytics, Firestore und Budget
 - Neu in 1.1.12: Stockfish 19 und Patricia 5.1 sind im Installer dabei und werden beim ersten Start mit passenden Einstellungen angelegt (Stockfish bis 10 Threads und 4 GB, Patricia 2 Threads und 1 GB); eigene Engines bleiben, wie sie sind; kurze Tutorials für alle Bereiche, das Fragezeichen oben rechts startet das Tutorial zur Seite
 - Neu in 1.2.0: JBL Coach: auf dem Startbildschirm steht statt „Partie importieren“ die Coach-Karte mit Figur, Level, XP und immer der nächsten Aufgabe; „Coach öffnen“ zeigt die eigene Coach-Seite mit allem, was heute ansteht (Repertoire wiederholen, gegen JBL spielen mit sieben Stärkestufen, Puzzles); „Partie importieren“ sitzt jetzt oben rechts bei den zuletzt geöffneten Dateien
+- Neu in 1.2.1: Gegen JBL spielen: eigene Startseite der Partie (Farbe und Stärke wählen), JBL spielt mit Stockfish in der gewählten Stärke und kommentiert deine Züge mit !!, !, !?, ?!, ? und ?? samt Animation und Sprechblase; nach ? und ?? kannst du den Zug zurücknehmen, nach zugelassenem Matt in 1 nicht
 
 ## Installieren
 
