@@ -12,7 +12,6 @@ import {
   Switch,
   Text,
   Title,
-  Tooltip,
   UnstyledButton,
 } from "@mantine/core";
 import {
@@ -22,7 +21,7 @@ import {
   IconSearch,
   IconTargetArrow,
   IconBrain,
-  IconLock,
+  IconCalendarCheck,
 } from "@tabler/icons-react";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useRef } from "react";
@@ -36,18 +35,27 @@ import {
   coachTitleKey,
   coachXpAtom,
   levelProgress,
+  today,
 } from "./coachState";
 import { useIsAdmin } from "@/components/tutorial/tutorialState";
+import CoachMistakeTask from "./CoachMistakeTask";
+import { coachMistakeAtom } from "./coachProgress";
+import {
+  coachBestEstimateAtom,
+  coachExtraTitlesAtom,
+  coachFrameAtom,
+  coachQuestAtom,
+  coachResultsAtom,
+  coachShownTitleAtom,
+  currentQuest,
+  DAILY_QUEST_XP,
+  estimateStrength,
+  frameColor,
+  questTarget,
+  shownTitle,
+} from "./coachRewards";
+import CoachShowcase from "./CoachShowcase";
 import { useCoach } from "./useCoach";
-
-// Vitrine: Plätze für Titel, Rahmen, Verzierungen und Trophäen. Freigeschaltet
-// wird in einer späteren Etappe, bis dahin sind alle Plätze leer.
-const SHOWCASE = [
-  { key: "Titles", slots: 3, round: false },
-  { key: "Frames", slots: 3, round: false },
-  { key: "Gimmicks", slots: 5, round: true },
-  { key: "Trophies", slots: 5, round: true },
-] as const;
 
 const TASK_ICONS: Record<string, ReactNode> = {
   repertoire: <IconTargetArrow size={36} />,
@@ -114,6 +122,16 @@ export default function CoachPage({ id }: { id: string }) {
   const isAdmin = useIsAdmin();
   const { level } = levelProgress(useAtomValue(coachXpAtom));
   const [showSoon, setShowSoon] = useAtom(coachShowSoonAtom);
+  const frame = useAtomValue(coachFrameAtom);
+  const title = shownTitle(
+    level,
+    useAtomValue(coachShownTitleAtom),
+    useAtomValue(coachExtraTitlesAtom),
+  );
+  const mistake = useAtomValue(coachMistakeAtom);
+  const estimate = estimateStrength(useAtomValue(coachResultsAtom));
+  const best = useAtomValue(coachBestEstimateAtom);
+  const quest = currentQuest(useAtomValue(coachQuestAtom), today());
 
   const soon = [
     { key: "Lessons", icon: <IconBook size={28} /> },
@@ -127,11 +145,10 @@ export default function CoachPage({ id }: { id: string }) {
         <Card withBorder radius="md" px="xl" pt={36} pb="xl" data-tour="coach-header">
           <Group wrap="wrap" align="flex-start" gap={40}>
             <Stack align="center" gap={6} style={{ flexShrink: 0 }}>
-              {/* Rahmen um die Figur: später der ausgerüstete Rahmen (Duell, OberBoss) */}
               <Box
                 p="sm"
                 style={{
-                  border: "2px solid var(--mantine-color-default-border)",
+                  border: `${frame === "standard" ? 2 : 5}px solid ${frameColor(frame)}`,
                   borderRadius: "var(--mantine-radius-lg)",
                 }}
               >
@@ -144,7 +161,7 @@ export default function CoachPage({ id }: { id: string }) {
                 </UnstyledButton>
               </Box>
               <Text size="xs" c="dimmed">
-                {t("Coach.Showcase.FrameDefault")}
+                {t("Coach.Showcase.Frame", { name: t(`Coach.Frame.${frame}`) })}
               </Text>
             </Stack>
 
@@ -152,7 +169,7 @@ export default function CoachPage({ id }: { id: string }) {
               <Group gap="sm" align="center">
                 <Title order={2}>{t("Coach.Card.Title")}</Title>
                 <Badge variant="light" color="orange" size="lg">
-                  {t(`Coach.Title.${coachTitleKey(level)}`)}
+                  {t(`Coach.Title.${title}`)}
                 </Badge>
               </Group>
               <Text size="lg" aria-live="polite">
@@ -160,42 +177,22 @@ export default function CoachPage({ id }: { id: string }) {
               </Text>
               <Box maw={380}>
                 <CoachLevel streak={streak} />
+                {estimate !== null && (
+                  <Text size="xs" c="dimmed" mt={2}>
+                    {t("Coach.Page.Estimate", { elo: estimate, best: Math.max(best, estimate) })}
+                  </Text>
+                )}
               </Box>
             </Stack>
 
-            <Stack gap="md" style={{ flex: "1 1 300px", minWidth: 0 }} data-tour="coach-showcase">
-              {SHOWCASE.map((row) => (
-                <Box key={row.key}>
-                  <Text size="sm" fw={600} mb={6}>
-                    {t(`Coach.Showcase.${row.key}`)}
-                  </Text>
-                  <Group gap="xs">
-                    {Array.from({ length: row.slots }, (_, i) => (
-                      <Tooltip key={i} label={t("Coach.Showcase.Locked")}>
-                        <Box
-                          w={row.round ? 44 : 64}
-                          h={44}
-                          c="dimmed"
-                          style={{
-                            display: "grid",
-                            placeItems: "center",
-                            border: "1px dashed var(--mantine-color-default-border)",
-                            borderRadius: row.round ? "50%" : "var(--mantine-radius-md)",
-                            opacity: 0.6,
-                          }}
-                        >
-                          <IconLock size={16} />
-                        </Box>
-                      </Tooltip>
-                    ))}
-                  </Group>
-                </Box>
-              ))}
-            </Stack>
+            <Box style={{ flex: "1 1 300px", minWidth: 0 }} data-tour="coach-showcase">
+              <CoachShowcase level={level} />
+            </Box>
           </Group>
         </Card>
 
         <Title order={3}>{t("Coach.Page.Today")}</Title>
+        {lock > 0 && mistake && <CoachMistakeTask mistake={mistake} />}
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
           {tasks.map((task) => (
             <Card
@@ -246,6 +243,39 @@ export default function CoachPage({ id }: { id: string }) {
             </Card>
           ))}
         </SimpleGrid>
+
+        <Card withBorder radius="md" p="md">
+          <Group wrap="nowrap" align="center" gap="md">
+            <IconCalendarCheck size={32} />
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <Group justify="space-between" gap="xs">
+                <Text fw={600}>
+                  {t("Coach.Quest.Label")}: {t(`Coach.Quest.${quest.id}`)}
+                </Text>
+                {quest.done ? (
+                  <Badge color="teal" variant="light">
+                    {t("Coach.Page.Done")}
+                  </Badge>
+                ) : (
+                  <Badge color="orange" variant="light">
+                    +{DAILY_QUEST_XP} XP
+                  </Badge>
+                )}
+              </Group>
+              <Progress
+                mt={6}
+                size="sm"
+                radius="xl"
+                color={quest.done ? "teal" : "orange"}
+                value={(quest.progress / questTarget(quest.id)) * 100}
+                aria-label={t("Coach.Quest.Label")}
+              />
+              <Text size="xs" c="dimmed" mt={2}>
+                {quest.progress} / {questTarget(quest.id)}
+              </Text>
+            </Box>
+          </Group>
+        </Card>
 
         {isAdmin && (
           <Switch

@@ -13,6 +13,7 @@ import { notifications } from "@mantine/notifications";
 import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import { makeSquare, type NormalMove } from "chessops";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { coachRepertoireMoveAtom } from "@/components/coach/coachProgress";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { bucket, trackUsage } from "@/utils/usageStats";
@@ -90,6 +91,7 @@ export default function LineTrainer() {
   const [mode, setMode] = useState<"due" | "all">("due");
   const [session, setSession] = useState<Session | null>(null);
   const [finished, setFinished] = useState<{ correct: number; wrong: number } | null>(null);
+  const coachRepertoireMove = useSetAtom(coachRepertoireMoveAtom);
   const [now, setNow] = useState(() => Date.now());
 
   // A line needs training when one of your positions on it is new or due
@@ -228,7 +230,10 @@ export default function LineTrainer() {
       const node = lineNodes[session.ply];
       const expected = lineNodes[session.ply + 1];
       if (san === expected.san) {
-        if (session.phase === "user") grade(node, 3);
+        if (session.phase === "user") {
+          grade(node, 3);
+          coachRepertoireMove();
+        }
         goToMove(l.slice(0, session.ply + 1));
         advance(
           { ...session, correct: session.phase === "user" ? session.correct + 1 : session.correct },
@@ -246,7 +251,7 @@ export default function LineTrainer() {
       }
       miss(session, "wrong");
     },
-    [session, lines, root, grade, goToMove, advance, miss, t],
+    [session, lines, root, grade, goToMove, advance, miss, t, coachRepertoireMove],
   );
 
   const onMoveRef = useRef(onMove);

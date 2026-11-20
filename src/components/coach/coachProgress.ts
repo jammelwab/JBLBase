@@ -1,6 +1,24 @@
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import {
+    advanceQuest,
+    awardTrophyAtom,
+    BONUS_TRACK_CHANCE,
+    type CoachItemId,
+    type CoachTrophyId,
+    coachBestEstimateAtom,
+    coachBonusTrackAtom,
+    coachQuestAtom,
+    coachResultsAtom,
+    currentQuest,
+    DAILY_QUEST_XP,
+    type DailyQuestId,
+    estimateStrength,
+    itemsUnlockedBetween,
+    strengthElo,
+    trophiesForGame,
+} from "./coachRewards";
+import {
     type CoachStrengthId,
     coachDayAtom,
     coachXpAtom,
@@ -113,6 +131,10 @@ export type ReceiptInput = {
     gameOfDay: number;
     lambrusco?: boolean;
     birthday?: boolean;
+    // Bonus-Track: doppelte XP für diese Partie
+    bonusTrack?: boolean;
+    // XP für eine Tagesaufgabe, die diese Partie erfüllt hat
+    questXp?: number;
 };
 
 export type ReceiptLine = {
@@ -158,6 +180,14 @@ export function computeReceipt(input: ReceiptInput): { lines: ReceiptLine[]; tot
         lines.push({ key, xp, percent, kind: "bonus" });
         total += xp;
     }
+    if (input.questXp) {
+        lines.push({ key: "quest", xp: input.questXp, kind: "bonus" });
+        total += input.questXp;
+    }
+    if (input.bonusTrack) {
+        lines.push({ key: "bonusTrack", xp: total, kind: "bonus" });
+        total *= 2;
+    }
     if (input.birthday) {
         lines.push({ key: "birthday", xp: total, kind: "bonus" });
         total *= 2;
@@ -166,6 +196,19 @@ export function computeReceipt(input: ReceiptInput): { lines: ReceiptLine[]; tot
     return { lines, total };
 }
 
+// ---------- Schlimmster eigener Fehler ----------
+
+// Nach Niederlage oder Remis ist die erste Aufgabe der schlimmste eigene Zug
+// aus der Partie: „Finde den besseren Zug“.
+export type CoachMistake = {
+    fen: string;
+    played: string;
+    // Züge, die als richtig zählen (bester Zug und gleich gute)
+    solutions: string[];
+};
+
+export const coachMistakeAtom = atomWithStorage<CoachMistake | null>("jbl-coach-mistake", null);
+
 // ---------- Ereignisse ----------
 
 // Eine Coach-Aktion an diesem Tag: hält die Serie am Leben.
@@ -173,26 +216,78 @@ export const touchStreakAtom = atom(null, (get, set) => {
     set(coachStreakAtom, touchStreak(get(coachStreakAtom), today()));
 });
 
-// Ein Puzzle ist fertig: zählt für die Sperre, gibt XP, wenn richtig.
-export const coachPuzzleDoneAtom = atom(null, (get, set, correct: boolean) => {
+// Fortschritt für die Tagesaufgabe; gibt die XP zurück, wenn sie fertig wurde.
+export const questEventAtom = atom(
+    null,
+    (get, set, event: DailyQuestId, amount?: number): number => {
+        const { quest, completed } = advanceQuest(
+            currentQuest(get(coachQuestAtom), today()),
+            event,
+            amount ?? 1,
+        );
+        set(coachQuestAtom, quest);
+        return completed ? DAILY_QUEST_XP : 0;
+    },
+);
+
+// Eine Aufgabe der Sperre ist erledigt (Puzzle oder eigener Fehler).
+const finishLockTaskAtom = atom(null, (get, set, correct: boolean) => {
     const lock = get(coachLockAtom);
     if (lock > 0) set(coachLockAtom, lock - 1);
-    if (correct) set(coachXpAtom, get(coachXpAtom) + XP.puzzle);
+    let xp = correct ? XP.puzzle : 0;
+    if (correct) xp += set(questEventAtom, "puzzles");
+    if (xp) set(coachXpAtom, get(coachXpAtom) + xp);
     set(touchStreakAtom);
     const day = get(coachDayAtom);
     const fresh = day.day === today() ? day : { day: today(), played: false, puzzles: false };
     set(coachDayAtom, { ...fresh, puzzles: true });
 });
 
-// Eine Partie gegen JBL ist zu Ende: XP gutschreiben, Serie, Tageszähler und
-// Sperre setzen. Gibt den Kassenzettel und die Level davor und danach zurück.
+// Ein Puzzle ist fertig: zählt für die Sperre, gibt XP, wenn richtig.
+export const coachPuzzleDoneAtom = atom(null, (_get, set, correct: boolean) => {
+    set(finishLockTaskAtom, correct);
+});
+
+// Der eigene Fehler ist gelöst oder aufgegeben.
+export const coachMistakeDoneAtom = atom(null, (_get, set, correct: boolean) => {
+    set(coachMistakeAtom, null);
+    set(finishLockTaskAtom, correct);
+});
+
+// Ein richtiger Zug im Repertoire-Training: 2 XP.
+export const REPERTOIRE_XP = 2;
+export const coachRepertoireMoveAtom = atom(null, (get, set) => {
+    const xp = REPERTOIRE_XP + set(questEventAtom, "repertoire");
+    set(coachXpAtom, get(coachXpAtom) + xp);
+    set(touchStreakAtom);
+});
+
+export type CoachGameInput = Omit<
+    ReceiptInput,
+    "streakDays" | "gameOfDay" | "birthday" | "bonusTrack" | "questXp"
+> & {
+    mistake?: CoachMistake | null;
+};
+
+export type CoachGameSummary = {
+    lines: ReceiptLine[];
+    total: number;
+    levelBefore: number;
+    levelAfter: number;
+    newItems: CoachItemId[];
+    trophies: CoachTrophyId[];
+    questDone: boolean;
+    // Bonus-Track für die nächste Partie ausgelost
+    bonusNext: boolean;
+    estimate: number | null;
+    newBest: boolean;
+};
+
+// Eine Partie gegen JBL ist zu Ende: XP gutschreiben, Serie, Tageszähler,
+// Sperre, Tagesaufgabe, Trophäen und Stärke-Schätzung.
 export const finishCoachGameAtom = atom(
     null,
-    (
-        get,
-        set,
-        game: Omit<ReceiptInput, "streakDays" | "gameOfDay" | "birthday">,
-    ): { lines: ReceiptLine[]; total: number; levelBefore: number; levelAfter: number } => {
+    (get, set, game: CoachGameInput, random: () => number = Math.random): CoachGameSummary => {
         const day = today();
         set(touchStreakAtom);
         const streakDays = currentStreak(get(coachStreakAtom), day);
@@ -200,14 +295,56 @@ export const finishCoachGameAtom = atom(
         const fresh = prevDay.day === day ? prevDay : { day, played: false, puzzles: false };
         const gameOfDay = (fresh.games ?? 0) + 1;
         set(coachDayAtom, { ...fresh, played: true, games: gameOfDay });
-        const receipt = computeReceipt({ ...game, streakDays, gameOfDay });
+
+        // Tagesaufgabe
+        const events: DailyQuestId[] = [];
+        if (game.goods > 0 || game.brilliants > 0) events.push("findGood");
+        if (game.result === "win") events.push("win");
+        if (game.blunders === 0 && game.takebacks === 0) events.push("clean");
+        let questXp = 0;
+        for (const e of events) questXp += set(questEventAtom, e);
+
+        const bonusTrack = get(coachBonusTrackAtom);
+        const receipt = computeReceipt({ ...game, streakDays, gameOfDay, bonusTrack, questXp });
         const xpBefore = get(coachXpAtom);
-        set(coachXpAtom, xpBefore + receipt.total);
+        const xpAfter = xpBefore + receipt.total;
+        set(coachXpAtom, xpAfter);
         set(coachLockAtom, lockAfter(game.result));
+        set(coachMistakeAtom, game.result !== "win" && game.mistake ? game.mistake : null);
+
+        const bonusNext = random() < BONUS_TRACK_CHANCE;
+        set(coachBonusTrackAtom, bonusNext);
+
+        const levelBefore = levelProgress(xpBefore).level;
+        const levelAfter = levelProgress(xpAfter).level;
+
+        const trophies = trophiesForGame({ ...game, streakDays, level: levelAfter }).filter((id) =>
+            set(awardTrophyAtom, id),
+        );
+
+        const results = [
+            ...get(coachResultsAtom),
+            {
+                elo: strengthElo(game.strength),
+                score: game.result === "win" ? 1 : game.result === "draw" ? 0.5 : 0,
+            },
+        ].slice(-30);
+        set(coachResultsAtom, results);
+        const estimate = estimateStrength(results);
+        const best = get(coachBestEstimateAtom);
+        const newBest = estimate !== null && estimate > best;
+        if (newBest) set(coachBestEstimateAtom, estimate);
+
         return {
             ...receipt,
-            levelBefore: levelProgress(xpBefore).level,
-            levelAfter: levelProgress(xpBefore + receipt.total).level,
+            levelBefore,
+            levelAfter,
+            newItems: itemsUnlockedBetween(levelBefore, levelAfter),
+            trophies,
+            questDone: questXp > 0,
+            bonusNext,
+            estimate,
+            newBest: newBest && best > 0,
         };
     },
 );
