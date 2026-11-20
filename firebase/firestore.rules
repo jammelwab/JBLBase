@@ -300,6 +300,18 @@ service cloud.firestore {
       allow read: if member();
     }
 
+    // Admin overview (#116): admins read the usage counts of all accounts
+    // (a collection group query over users/*/usage) and how long the
+    // allowlist is. The counts hold only numbers per device; nothing else
+    // below users/{uid} becomes readable.
+    match /{path=**}/usage/{day} {
+      allow read: if isAdmin();
+    }
+
+    match /config/access {
+      allow read: if isAdmin();
+    }
+
     // Everything else is closed.
   }
 }

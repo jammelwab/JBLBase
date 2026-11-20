@@ -16,6 +16,7 @@ import { useHotkeys } from "@mantine/hooks";
 import {
   IconBook,
   IconBrush,
+  IconChartBar,
   IconChess,
   IconDatabase,
   IconDownload,
@@ -32,7 +33,7 @@ import {
 } from "@tabler/icons-react";
 import { useLoaderData } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { RESET } from "jotai/utils";
 import { TRASH_RETENTION_CHOICES, trashRetentionDaysAtom } from "@/utils/trash";
 import BackupSetting from "./BackupSetting";
@@ -84,6 +85,8 @@ import PiecesSelect from "./PiecesSelect";
 import RepertoireMainOwnerSetting from "./RepertoireMainOwnerSetting";
 import RepertoireMinGamesSetting from "./RepertoireMinGamesSetting";
 import TutorialSettings from "./TutorialSettings";
+import AdminOverview from "./AdminOverview";
+import { cloudAccountAtom } from "@/utils/cloud/sync";
 import classes from "./SettingsPage.module.css";
 import { LegalLinks } from "@/components/cloud/LegalText";
 import { usageStatsConfigured } from "@/utils/usageStats";
@@ -146,6 +149,8 @@ function SettingRow({
 
 export default function Page() {
   const { t, i18n } = useTranslation();
+  // The admin overview (#116) exists only for admin accounts
+  const isAdmin = useAtomValue(cloudAccountAtom)?.role === "admin";
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -995,6 +1000,11 @@ export default function Page() {
             <Tabs.Tab value="privacy" leftSection={<IconShield size="1rem" />}>
               {t("Settings.Privacy")}
             </Tabs.Tab>
+            {isAdmin && (
+              <Tabs.Tab value="admin" leftSection={<IconChartBar size="1rem" />}>
+                {t("Settings.Admin")}
+              </Tabs.Tab>
+            )}
           </Tabs.List>
           <Stack flex={1} px="md">
             <ScrollArea>
@@ -1148,6 +1158,18 @@ export default function Page() {
                   </Text>
                   {renderCategorySettings("privacy")}
                 </Tabs.Panel>
+
+                {isAdmin && (
+                  <Tabs.Panel value="admin">
+                    <Text size="lg" fw={500} className={classes.title}>
+                      {t("Settings.Admin")}
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={3} mb="lg">
+                      {t("Settings.Admin.Desc")}
+                    </Text>
+                    <AdminOverview />
+                  </Tabs.Panel>
+                )}
               </Card>
             </ScrollArea>
             <Group justify="flex-end" gap="xs" pb="xs">
