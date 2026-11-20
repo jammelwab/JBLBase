@@ -74,8 +74,10 @@ async function walk(dir) {
   return out;
 }
 
-/** macOS: keep only the Apple Silicon part and sign it (ad hoc), as the system requires. */
-function prepareMacBinary(file) {
+/** Executable; on macOS also keep only the Apple Silicon part and sign it (ad hoc), as the system requires. */
+async function prepareMacBinary(file) {
+  // A downloaded file is not executable yet (no effect on Windows).
+  await fs.chmod(file, 0o755);
   if (process.platform !== "darwin") return;
   const archs = execFileSync("lipo", ["-archs", file]).toString().trim().split(/\s+/);
   if (archs.length > 1 && archs.includes("arm64")) {
@@ -109,7 +111,7 @@ async function stockfish(t, work) {
   await fs.mkdir(dir, { recursive: true });
   const exe = t.startsWith("windows") ? "stockfish.exe" : "stockfish";
   await fs.copyFile(sized[0].f, join(dir, exe));
-  prepareMacBinary(join(dir, exe));
+  await prepareMacBinary(join(dir, exe));
   // License texts that come with the release (GPL-3.0).
   for (const f of files) {
     if (/^(copying|license|authors)/i.test(basename(f))) {
@@ -144,7 +146,7 @@ async function patricia(t) {
     `https://github.com/jammelwab/JBLBase/releases/download/${id}/${asset}`,
     join(dir, asset),
   );
-  prepareMacBinary(join(dir, asset));
+  await prepareMacBinary(join(dir, asset));
   await licenseOf("Adam-Kulju/Patricia", PATRICIA_VERSION, join(dir, "LICENSE"));
   await fs.writeFile(
     join(dir, "SOURCE.txt"),
