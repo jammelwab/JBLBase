@@ -51,12 +51,9 @@ function extract(archive, dir) {
   if (!archive.endsWith(".zip")) {
     execFileSync("tar", ["-xzf", archive, "-C", dir]);
   } else if (process.platform === "win32") {
-    // Not tar: on the runners it may be GNU tar from Git, which cannot read zip.
-    execFileSync("powershell", [
-      "-NoProfile",
-      "-Command",
-      `Expand-Archive -LiteralPath '${archive}' -DestinationPath '${dir}' -Force`,
-    ]);
+    // Windows' own tar (bsdtar) reads zip; the "tar" on PATH may be GNU tar from Git.
+    const tar = join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
+    execFileSync(tar, ["-xf", archive, "-C", dir]);
   } else if (process.platform === "darwin") {
     execFileSync("ditto", ["-x", "-k", archive, dir]);
   } else {
