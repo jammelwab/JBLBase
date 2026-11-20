@@ -427,6 +427,7 @@ function Puzzles({ id }: { id: string }) {
           <Group justify="space-between" pb="sm">
             <Select
               style={{ flex: 1 }}
+              data-tour="puz-db"
               data={puzzleDbs
                 .map((p) => ({
                   label: p.title.replace(/\.(duckdb|db3)$/i, ""),
@@ -446,7 +447,7 @@ function Puzzles({ id }: { id: string }) {
             />
             <Group gap="xs">
               <Tooltip label={t("GameTactics.Title")}>
-                <ActionIcon onClick={() => setGameTacticsOpened(true)}>
+                <ActionIcon onClick={() => setGameTacticsOpened(true)} data-tour="puz-game-tactics">
                   <IconTargetArrow size={20} />
                 </ActionIcon>
               </Tooltip>
@@ -465,7 +466,7 @@ function Puzzles({ id }: { id: string }) {
                 </ActionIcon>
               </Tooltip>
               <Tooltip label={t("Puzzle.Stats.Title")}>
-                <ActionIcon onClick={() => setStatsOpened(true)}>
+                <ActionIcon onClick={() => setStatsOpened(true)} data-tour="puz-stats">
                   <IconChartLine size={20} />
                 </ActionIcon>
               </Tooltip>
@@ -480,6 +481,7 @@ function Puzzles({ id }: { id: string }) {
           <SegmentedControl
             fullWidth
             mb="sm"
+            data-tour="puz-mode"
             value={mode}
             onChange={(v) => setMode(v === "streak" ? "streak" : "normal")}
             data={[
@@ -487,7 +489,7 @@ function Puzzles({ id }: { id: string }) {
               { label: t("Puzzle.Mode.Streak"), value: "streak" },
             ]}
           />
-          <Group gap="xs" mb="sm" wrap="nowrap">
+          <Group gap="xs" mb="sm" wrap="nowrap" data-tour="puz-blind">
             <Tooltip label={t("Puzzle.Blind.Desc")} multiline w={260}>
               <Group gap={4} wrap="nowrap">
                 <IconEyeOff size={18} />

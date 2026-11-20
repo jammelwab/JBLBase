@@ -300,7 +300,7 @@ function Statistics({
 
   return (
     <Stack>
-      <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }}>
+      <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} data-tour="ins-stats">
         <Tile label={t("Insight.Games")} value={summary.games.toString()} />
         <Tile label={t("Insight.Accuracy")} value={percent(summary.accuracy)} />
         <Tile label={t("Insight.OpponentAccuracy")} value={percent(summary.opponentAccuracy)} />
@@ -573,7 +573,7 @@ function RatingCalibration({ engine }: { engine: LocalEngine | undefined }) {
   const progress = step === "rerate" ? rerating.progress : calibrating.progress;
 
   return (
-    <Paper withBorder p="md">
+    <Paper withBorder p="md" data-tour="ins-calibration">
       <Stack gap="sm">
         <Text fw={600}>{t("Insight.Calibration.Title")}</Text>
         <Text size="sm" c="dimmed">
@@ -792,7 +792,7 @@ export default function InsightPage() {
           {t("Insight.Desc")}
         </Text>
 
-        <Group align="flex-end">
+        <Group align="flex-end" data-tour="ins-player">
           <Select
             w={300}
             allowDeselect={false}
@@ -841,7 +841,7 @@ export default function InsightPage() {
           />
         )}
 
-        <Paper withBorder p="md">
+        <Paper withBorder p="md" data-tour="ins-run">
           {accounts.length === 0 ? (
             <Alert icon={<IconAlertCircle size="1rem" />} color="yellow">
               {t("Insight.NoAccounts")}

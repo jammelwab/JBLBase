@@ -164,7 +164,7 @@ export default function DatabasesPage() {
       </Group>
 
       <Group grow flex={1} style={{ overflow: "hidden" }} align="start" px="md" pb="md">
-        <Paper withBorder style={{ borderWidth: 2 }} h="100%">
+        <Paper withBorder style={{ borderWidth: 2 }} h="100%" data-tour="db-list">
           <Stack gap={0} h="100%" style={{ overflow: "hidden" }}>
             <Group p="xs" gap="xs">
               <Input
@@ -179,6 +179,7 @@ export default function DatabasesPage() {
                 <ActionIcon
                   variant="default"
                   size="lg"
+                  data-tour="db-add"
                   onClick={() => setOpen(true)}
                   disabled={conversionState.inProgress}
                 >
@@ -315,7 +316,7 @@ export default function DatabasesPage() {
             </Center>
           </Paper>
         ) : (
-          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%">
+          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%" data-tour="db-details">
             <ScrollArea h="100%" offsetScrollbars>
               <Stack>
                 {selectedDatabase.type === "error" ? (

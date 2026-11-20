@@ -367,9 +367,23 @@ aufbauen**, **Am Brett arbeiten** (Tab Repertoire mit den Hinweisen, Linien aufn
 Training, Engine und Brillant, Datenbank) und **Eigene Partien laden** (Konto hinzufügen,
 Partien herunterladen, Eröffnungen vergleichen).
 
+Dazu kommt für jeden weiteren Bereich ein kurzes Tutorial mit drei bis sechs Schritten:
+**Neuer Tab** (Startkarten, Partie importieren, zuletzt geöffnet, Tabs), **Puzzles und
+Taktik** (Puzzle-Datenbank, Aufgaben aus eigenen Partien, Training/Streak, Blind-Modus,
+Statistik), **Datenbanken** (PGN importieren, erkunden, Baum, Referenzdatenbank),
+**Dateien**, **Engines** (hinzufügen, Threads/Hash/Linien, Positionsspeicher),
+**Insight**, **Repertoire teilen**, **Konto und Sync**, **Einstellungen und Hilfe**
+(Positionsspeicher, Schnellmenü, Fehler melden) und für Admins **Admin-Übersicht**. Am Ende
+jedes Tutorials geht es auf Wunsch mit dem nächsten weiter.
+
+Das **Fragezeichen oben rechts** zeigt die Tutorials zur gerade offenen Seite und führt zur
+Liste aller Tutorials. Diese Tutorials starten nicht von selbst.
+
 Für Entwickler: Ein Tutorial ist ein Eintrag in `src/components/tutorial/tutorials.ts`
-(Schritte mit dem `data-tour`-Namen des Elements), seine Texte stehen unter
+(Schritte mit dem `data-tour`-Namen des Elements; optional `settingsTab`, `newTab`,
+`pages`, `adminOnly`), seine Texte stehen unter
 `Tutorial.<Tutorial>.<Schritt>.Title`/`.Body` in `en-US.json` und `de-DE.json`.
+`tutorials.test.ts` prüft, dass jeder Schritt Texte hat und jedes Ziel im Code existiert.
 
 ## Meine Spieler: Konten und Datenbanken zusammenfassen
 

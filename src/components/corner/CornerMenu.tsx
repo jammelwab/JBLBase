@@ -9,14 +9,17 @@ import {
   IconDownload,
   IconFlag,
   IconFolder,
+  IconHelp,
   IconKeyboard,
   IconMouse,
+  IconPlayerPlay,
+  IconSchool,
   IconSettings,
   IconShield,
   IconUserCircle,
   IconVolume,
 } from "@tabler/icons-react";
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { getVersion } from "@tauri-apps/api/app";
 import { appLogDir, resolve } from "@tauri-apps/api/path";
 import { readTextFile } from "@tauri-apps/plugin-fs";
@@ -29,6 +32,8 @@ import { settingsTabAtom } from "@/components/cloud/cloudUi";
 import SyncIndicator from "@/components/cloud/SyncIndicator";
 import { type BugReportInfo, bugReportText, bugReportUrl } from "@/utils/bugReport";
 import { availableUpdateAtom, checkForAppUpdate } from "@/utils/updater";
+import { useIsAdmin, useStartTutorial } from "@/components/tutorial/tutorialState";
+import { tutorialsForPage } from "@/components/tutorial/tutorials";
 import classes from "./CornerMenu.module.css";
 
 /** Look for a new release again every few hours while the app stays open. */
@@ -74,9 +79,66 @@ async function collectBugReport(
 }
 
 /**
+ * The question mark in the corner: the short tutorials for the page that is
+ * open, and the list of all tutorials.
+ */
+function HelpMenu() {
+  const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const isAdmin = useIsAdmin();
+  const start = useStartTutorial();
+  const navigate = useNavigate();
+  const setSettingsTab = useSetAtom(settingsTabAtom);
+  const here = tutorialsForPage(pathname, isAdmin);
+
+  return (
+    <Menu position="bottom-end" offset={8} width={260} shadow="md" radius="md">
+      <Menu.Target>
+        <Tooltip label={t("Tutorial.Help")}>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            radius="xl"
+            size="md"
+            aria-label={t("Tutorial.Help")}
+            data-tour="corner-help"
+          >
+            <IconHelp size="1.1rem" stroke={1.6} />
+          </ActionIcon>
+        </Tooltip>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t("Tutorial.ThisPage")}</Menu.Label>
+        {here.length === 0 && <Menu.Item disabled>{t("Tutorial.NoneHere")}</Menu.Item>}
+        {here.map((tutorial) => (
+          <Menu.Item
+            key={tutorial.id}
+            leftSection={<IconPlayerPlay size="1rem" stroke={1.6} />}
+            onClick={() => start(tutorial.id)}
+          >
+            {t(`Tutorial.${tutorial.id}.Title`)}
+          </Menu.Item>
+        ))}
+        <Menu.Divider />
+        <Menu.Item
+          leftSection={<IconSchool size="1rem" stroke={1.6} />}
+          onClick={() => {
+            setSettingsTab("tutorials");
+            void navigate({ to: "/settings" });
+          }}
+        >
+          {t("Tutorial.All")}
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+/**
  * Small rounded panel in the top right corner: the cloud sync state while
- * someone is signed in, a settings menu that jumps straight to a settings
- * tab, and a download arrow while a newer version of JBLBase is available.
+ * someone is signed in, the tutorials for the open page, a settings menu that
+ * jumps straight to a settings tab, and a download arrow while a newer version
+ * of JBLBase is available.
  */
 export default function CornerMenu() {
   const { t, i18n } = useTranslation();
@@ -113,7 +175,7 @@ export default function CornerMenu() {
   };
 
   return (
-    <div className={classes.panel}>
+    <div className={classes.panel} data-tour="corner-menu">
       <SyncIndicator />
       {update && (
         <Tooltip label={t("Updater.Available.Short", { version: update.version })}>
@@ -130,6 +192,7 @@ export default function CornerMenu() {
           </ActionIcon>
         </Tooltip>
       )}
+      <HelpMenu />
       <Menu position="bottom-end" offset={8} width={230} shadow="md" radius="md">
         <Menu.Target>
           <ActionIcon

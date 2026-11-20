@@ -104,7 +104,7 @@ export default function EnginesPage() {
         <OpenFolderButton base="Engines" folder="engines" />
       </Group>
       <Group grow flex={1} style={{ overflow: "hidden" }} align="start" px="md" pb="md">
-        <Paper withBorder style={{ borderWidth: 2 }} h="100%">
+        <Paper withBorder style={{ borderWidth: 2 }} h="100%" data-tour="eng-list">
           <Stack gap={0} h="100%" style={{ overflow: "hidden" }}>
             <Group p="xs" gap="xs">
               <Input
@@ -116,7 +116,12 @@ export default function EnginesPage() {
                 onChange={(e) => setSearch(e.currentTarget.value)}
               />
               <Tooltip label={t("Common.AddNew")}>
-                <ActionIcon variant="default" size="lg" onClick={() => setOpened(true)}>
+                <ActionIcon
+                  variant="default"
+                  size="lg"
+                  onClick={() => setOpened(true)}
+                  data-tour="eng-add"
+                >
                   <IconPlus size="1rem" />
                 </ActionIcon>
               </Tooltip>
@@ -187,7 +192,7 @@ export default function EnginesPage() {
             </Center>
           </Paper>
         ) : (
-          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%">
+          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%" data-tour="eng-settings">
             {selectedEngine.type === "local" ? (
               <EngineSettings selected={selected} setSelected={setSelected} />
             ) : (

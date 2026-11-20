@@ -963,7 +963,7 @@ export default function Page() {
             },
           }}
         >
-          <Tabs.List h="100%">
+          <Tabs.List h="100%" data-tour="set-tabs">
             <Tabs.Tab value="profile" leftSection={<IconUserCircle size="1rem" />}>
               {t("Settings.Cloud")}
             </Tabs.Tab>
@@ -994,7 +994,11 @@ export default function Page() {
             <Tabs.Tab value="tutorials" leftSection={<IconSchool size="1rem" />}>
               {t("Settings.Tutorials")}
             </Tabs.Tab>
-            <Tabs.Tab value="evalcache" leftSection={<IconDatabase size="1rem" />}>
+            <Tabs.Tab
+              value="evalcache"
+              leftSection={<IconDatabase size="1rem" />}
+              data-tour="set-tab-evalcache"
+            >
               {t("Settings.EvalCache")}
             </Tabs.Tab>
             <Tabs.Tab value="privacy" leftSection={<IconShield size="1rem" />}>
@@ -1139,7 +1143,7 @@ export default function Page() {
                   <TutorialSettings />
                 </Tabs.Panel>
 
-                <Tabs.Panel value="evalcache">
+                <Tabs.Panel value="evalcache" data-tour="set-evalcache">
                   <Text size="lg" fw={500} className={classes.title}>
                     {t("Settings.EvalCache")}
                   </Text>
@@ -1160,7 +1164,7 @@ export default function Page() {
                 </Tabs.Panel>
 
                 {isAdmin && (
-                  <Tabs.Panel value="admin">
+                  <Tabs.Panel value="admin" data-tour="set-admin">
                     <Text size="lg" fw={500} className={classes.title}>
                       {t("Settings.Admin")}
                     </Text>
