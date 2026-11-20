@@ -494,9 +494,9 @@ für normale Konten), die flachen Club-Rechnungen nicht.
 
 Seit 1.2.0 steht auf dem Startbildschirm die Karte **JBL Coach** an der Stelle von „Partie importieren“. Die Figur hat einen Bohnenkörper und die JBL-Box als Kopf; beim ersten Start winkt sie einmal. Wer in den Systemeinstellungen reduzierte Bewegung eingestellt hat, sieht sie ohne Animationen.
 
-Die Karte zeigt Level, Titel und XP-Balken (Level n braucht insgesamt 100 × (n − 1)^1,8 XP) und immer die **nächste Aufgabe** mit einem Knopf dafür. Die Reihenfolge: zuerst fällige Stellungen in den zuletzt geöffneten Repertoires, dann eine Partie gegen JBL, dann Puzzles. Ein neuer Tag fängt wieder von vorn an. Bis Partien und Puzzles ab Etappe 3 echt gezählt werden, gilt eine Aufgabe als erledigt, sobald man sie startet.
+Die Karte zeigt Level, Titel und XP-Balken (Level n braucht insgesamt 100 × (n − 1)^1,8 XP) und immer die **nächste Aufgabe** mit einem Knopf dafür. Die Reihenfolge: zuerst fällige Stellungen in den zuletzt geöffneten Repertoires, dann eine Partie gegen JBL, dann Puzzles. Ein neuer Tag fängt wieder von vorn an. Seit 1.2.2 gilt eine Partie oder ein Puzzle erst als erledigt, wenn sie fertig ist.
 
-Ein Klick auf die Figur oder „Coach öffnen“ macht den Tab zur **Coach-Seite**: oben JBL in seinem Rahmen, mit Titel, einem Satz zur nächsten Aufgabe und dem Level, daneben die Vitrine mit Plätzen für Titel, Rahmen, Verzierungen und Gimmicks sowie Trophäen (freigeschaltet wird ab Etappe 3), darunter „Was heute ansteht“ mit den drei Aufgaben (bei „Gegen JBL spielen“ die Stärke in sieben Stufen von „Sehr leicht · ca. 600“ bis „Sehr schwer · ca. 2800+“, die Wahl bleibt gespeichert) und darunter, nur für Admins und nur nach Einschalten des Schalters, die Vorschau „Bald beim Coach“ (Lektionen, Lücken finden mit JBL, typische Fehler). „Gegen JBL spielen“ öffnet in dieser Etappe noch die normale Partie gegen eine Engine.
+Ein Klick auf die Figur oder „Coach öffnen“ macht den Tab zur **Coach-Seite**: oben JBL in seinem Rahmen, mit Titel, einem Satz zur nächsten Aufgabe und dem Level, daneben die Vitrine mit Plätzen für Titel, Rahmen, Verzierungen und Gimmicks sowie Trophäen (freigeschaltet wird in einer späteren Etappe), darunter „Was heute ansteht“ mit den drei Aufgaben (bei „Gegen JBL spielen“ die Stärke in sieben Stufen von „Sehr leicht · ca. 600“ bis „Sehr schwer · ca. 2800+“, die Wahl bleibt gespeichert) und darunter, nur für Admins und nur nach Einschalten des Schalters, die Vorschau „Bald beim Coach“ (Lektionen, Lücken finden mit JBL, typische Fehler). „Gegen JBL spielen“ öffnet in dieser Etappe noch die normale Partie gegen eine Engine.
 
 „Partie importieren“ ist jetzt der Knopf oben rechts in der Karte „Zuletzt geöffnet“. Das Tutorial „Startseite“ zeigt beide Stellen.
 
@@ -507,6 +507,16 @@ Seit 1.2.1 ist „Gegen JBL spielen“ eine echte Partie. Der Tab zeigt vor dem 
 Nach jedem deiner Züge prüft JBL im Hintergrund mit Stockfish (Tiefe 12, zwei Linien) die Stellung davor und danach und bewertet den Zug wie die Analyse (`getAnnotation`). Bei !!, !, !?, ?!, ? und ?? reagiert die Figur neben dem Brett mit ihrer Animation, die Sprechblase kommt 300 ms später und bleibt je nach Länge 1,5 bis 6 s stehen (länger, solange die Maus darauf ist). Bei ?!, ? und ?? steht dabei, welcher Zug besser war. Jeder Spruch hat mehrere Fassungen, die zuletzt gezeigten kommen nicht gleich wieder. Nach ? und ?? bietet JBL „Zug zurücknehmen“ an; das setzt die Partie vor deinen Zug zurück. Hast du ein Matt in 1 zugelassen, gibt es kein Zurücknehmen, auch nicht über den normalen Knopf.
 
 Der Code: `coachGame.ts` (Stärke, Reaktionen, Sprüche), `useCoachCommentary.ts` (Bewertung), `CoachGameSetup.tsx` und `CoachGamePanel.tsx`; in `BoardGame.tsx` erkennt die Partie über `tab.coach`, dass sie gegen JBL läuft.
+
+### XP, Serie und Sperre
+
+Seit 1.2.2 gibt es für Partien gegen JBL XP. Nach dem Partieende zeigt JBL einen **Kassenzettel**: 20 XP fürs Spielen, 50 für einen Sieg oder 25 für ein Remis, jeweils mal dem Faktor der Stärke (0,5 bei „Sehr leicht“ bis 3 bei „Sehr schwer“), 30 XP je !! und 10 je !. Ab der vierten Partie am Tag gibt es nur noch die halbe Basis. Darauf kommen Prozent-Boni: +20 % für eine saubere Partie (kein ?? und nichts zurückgenommen) und der Serien-Bonus (+1 % pro Serientag). Ein richtig gelöstes Puzzle gibt 10 XP. Steigt das Level, sagt JBL das an.
+
+Die **Serie** zählt Tage in Folge mit mindestens einer Partie oder einem Puzzle; ein verpasster Tag pro Woche wird überbrückt. Sie steht mit Flamme auf Karte und Coach-Seite.
+
+Die **Sperre**: nach einer Niederlage sind drei Puzzles fällig, nach einem Remis eines, bevor „Gegen JBL spielen“ wieder geht. Karte und Coach-Seite zeigen, wie viele noch fehlen.
+
+Bonus für Lambrusco und ×2 am Geburtstag sind im Kassenzettel vorbereitet, aber noch nicht aktiv. Der Code: `coachProgress.ts` (Serie, Sperre, Kassenzettel, Ereignisse) und `CoachReceipt.tsx`.
 
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 

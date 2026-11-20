@@ -19,7 +19,7 @@ export const coachStrengthAtom = atomWithStorage<CoachStrengthId>(
     "fairlyEasy",
 );
 
-// Gesamt-XP. In Etappe 1 nur Anzeige, gesammelt wird ab Etappe 3.
+// Gesamt-XP aus Partien gegen JBL und gelösten Puzzles.
 export const coachXpAtom = atomWithStorage<number>("jbl-coach-xp", 0);
 
 // XP, die man insgesamt braucht, um Level n zu erreichen (Level 1 ab 0 XP).
@@ -56,9 +56,9 @@ export function coachTitleKey(level: number): string {
     return key;
 }
 
-// Was heute schon erledigt ist. Bis XP und Partien in Etappe 3 echt gezählt
-// werden, zählt ein Klick auf die Aufgabe als erledigt.
-export type CoachDay = { day: string; played: boolean; puzzles: boolean };
+// Was heute schon erledigt ist: gezählt, wenn eine Partie oder ein Puzzle
+// wirklich fertig ist.
+export type CoachDay = { day: string; played: boolean; puzzles: boolean; games?: number };
 
 export const coachDayAtom = atomWithStorage<CoachDay>("jbl-coach-day", {
     day: "",
@@ -76,21 +76,30 @@ export type CoachTaskId = "repertoire" | "play" | "puzzles" | "done";
 
 // Reihenfolge: fällige Repertoire-Stellungen zuerst, dann eine Partie gegen
 // JBL, dann Puzzles. Ein neuer Tag fängt wieder von vorn an.
+// Nach einer Niederlage sind erst Aufgaben dran (lock > 0): dann sind Puzzles
+// die nächste Aufgabe und „Gegen JBL spielen“ ist gesperrt.
 export function coachTasks(
     dueCount: number,
     day: CoachDay,
     now = new Date(),
-): { id: Exclude<CoachTaskId, "done">; done: boolean }[] {
+    lock = 0,
+): { id: Exclude<CoachTaskId, "done">; done: boolean; locked?: boolean }[] {
     const fresh = day.day === today(now);
     return [
         { id: "repertoire", done: dueCount === 0 },
-        { id: "play", done: fresh && day.played },
-        { id: "puzzles", done: fresh && day.puzzles },
+        { id: "play", done: fresh && day.played, locked: lock > 0 },
+        { id: "puzzles", done: lock === 0 && fresh && day.puzzles },
     ];
 }
 
-export function nextCoachTask(dueCount: number, day: CoachDay, now = new Date()): CoachTaskId {
-    return coachTasks(dueCount, day, now).find((t) => !t.done)?.id ?? "done";
+export function nextCoachTask(
+    dueCount: number,
+    day: CoachDay,
+    now = new Date(),
+    lock = 0,
+): CoachTaskId {
+    if (lock > 0) return "puzzles";
+    return coachTasks(dueCount, day, now, lock).find((t) => !t.done)?.id ?? "done";
 }
 
 // Vorschau „Bald beim Coach“: nur für Admins, standardmäßig aus.

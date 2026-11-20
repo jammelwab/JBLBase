@@ -1,10 +1,14 @@
 import { Box, Button, Group, Paper, Text } from "@mantine/core";
 import { IconArrowBackUp } from "@tabler/icons-react";
+import { useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Outcome } from "@/bindings";
 import CoachFigure, { type CoachAnimation, type CoachFigureHandle } from "./CoachFigure";
 import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coachGame";
+import CoachReceipt from "./CoachReceipt";
+import { finishCoachGameAtom, lockAfter, type ReceiptLine } from "./coachProgress";
+import type { CoachStrengthId } from "./coachState";
 import type { CoachComment } from "./useCoachCommentary";
 
 const SIGN_COLOR: Record<string, string> = {
@@ -27,6 +31,8 @@ export default function CoachGamePanel({
   lastPly,
   onTakeBack,
   rootHalfMoves,
+  strength,
+  takebacks,
 }: {
   comment: CoachComment | null;
   gameState: "settingUp" | "playing" | "gameOver";
@@ -35,6 +41,9 @@ export default function CoachGamePanel({
   lastPly: number;
   onTakeBack: (keepPlies: number) => void;
   rootHalfMoves: number;
+  // Stärke, mit der diese Partie gestartet wurde
+  strength: CoachStrengthId;
+  takebacks: number;
 }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
@@ -42,6 +51,12 @@ export default function CoachGamePanel({
   const [bubble, setBubble] = useState<Bubble | null>(null);
   const [hover, setHover] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const finishGame = useSetAtom(finishCoachGameAtom);
+  const stats = useRef({ brilliants: 0, goods: 0, blunders: 0 });
+  const [receipt, setReceipt] = useState<{
+    lines: ReceiptLine[];
+    lock: number;
+  } | null>(null);
 
   // Erst die Bewegung, dann der Satz: die Blase kommt 300 ms nach dem Start
   // der Animation und bleibt so lange, wie man zum Lesen braucht.
@@ -76,6 +91,10 @@ export default function CoachGamePanel({
   useEffect(() => {
     if (!comment || comment.id === lastComment.current) return;
     lastComment.current = comment.id;
+    if (comment.reaction === "brilliant") stats.current.brilliants++;
+    if (comment.reaction === "good") stats.current.goods++;
+    if (comment.reaction === "blunder" || comment.reaction === "missedMate")
+      stats.current.blunders++;
     const sign = REACTION_SIGN[comment.reaction];
     const better =
       comment.best && ["dubious", "mistake", "blunder"].includes(comment.reaction)
@@ -91,11 +110,30 @@ export default function CoachGamePanel({
     const prev = lastState.current;
     lastState.current = gameState;
     if (prev === gameState) return;
-    if (gameState === "playing") deliver("hello", "start", null);
+    if (gameState === "playing") {
+      stats.current = { brilliants: 0, goods: 0, blunders: 0 };
+      setReceipt(null);
+      deliver("hello", "start", null);
+    }
     if (gameState === "gameOver" && humanColor && result && result !== "*") {
-      const won = (result === "1-0") === (humanColor === "white") && result !== "1/2-1/2";
-      if (result === "1/2-1/2") deliver(null, "draw", null);
-      else deliver(won ? "win" : "loss", won ? "win" : "loss", null);
+      const outcome =
+        result === "1/2-1/2"
+          ? ("draw" as const)
+          : (result === "1-0") === (humanColor === "white")
+            ? ("win" as const)
+            : ("loss" as const);
+      if (outcome === "draw") deliver(null, "draw", null);
+      else deliver(outcome, outcome, null);
+      // Kassenzettel: erst nach der Reaktion, damit beides lesbar bleibt
+      const done = finishGame({ result: outcome, strength, takebacks, ...stats.current });
+      timers.current.push(
+        setTimeout(() => {
+          setReceipt({ lines: done.lines, lock: lockAfter(outcome) });
+          if (done.levelAfter > done.levelBefore) {
+            deliver("win", "levelUp", null, t("Coach.Game.NewLevel", { level: done.levelAfter }));
+          }
+        }, 2400),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, result]);
@@ -135,6 +173,7 @@ export default function CoachGamePanel({
               {t("Coach.Game.Watching")}
             </Text>
           )}
+          {receipt && <CoachReceipt lines={receipt.lines} lock={receipt.lock} />}
           {offerTakeBack && (
             <Button
               mt="xs"

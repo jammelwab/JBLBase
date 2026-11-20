@@ -115,6 +115,9 @@ function BoardGame() {
   const allTabs = useAtomValue(tabsAtom);
   const isCoachGame = allTabs.find((x) => x.value === activeTab)?.coach === true;
   const coachStrength = useAtomValue(coachStrengthAtom);
+  // Stärke und Rücknahmen der laufenden Coach-Partie (für den Kassenzettel)
+  const [coachGameStrength, setCoachGameStrength] = useState(coachStrength);
+  const [coachTakebacks, setCoachTakebacks] = useState(0);
   const stockfish = findStockfish(useAtomValue(enginesAtom));
 
   function getPlayers() {
@@ -332,6 +335,8 @@ function BoardGame() {
 
   async function startGame() {
     const playerSettings = getPlayers();
+    setCoachGameStrength(coachStrength);
+    setCoachTakebacks(0);
     setPlayers(playerSettings);
 
     const boardOrientation =
@@ -510,6 +515,7 @@ function BoardGame() {
       if (!gameId || gameState !== "playing") return;
       try {
         unwrap(await commands.takeBackGameMove(gameId, keepPlies));
+        setCoachTakebacks((n) => n + 1);
       } catch {
         // unwrap already logged the error and showed a notification
       }
@@ -815,6 +821,8 @@ function BoardGame() {
                       lastPly={lastPly}
                       rootHalfMoves={root.halfMoves}
                       onTakeBack={onTakeBack}
+                      strength={coachGameStrength}
+                      takebacks={coachTakebacks}
                     />
                   )}
                   <Box flex={1}>

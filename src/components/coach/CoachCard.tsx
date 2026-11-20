@@ -12,7 +12,7 @@ let greeted = false;
 export default function CoachCard({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
-  const { next, dueCount, actions } = useCoach(id);
+  const { next, dueCount, actions, lock, streak } = useCoach(id);
 
   useEffect(() => {
     if (greeted) return;
@@ -34,16 +34,18 @@ export default function CoachCard({ id }: { id: string }) {
 
         <Box style={{ textAlign: "center", width: "100%" }}>
           <Text fw={500}>{t("Coach.Card.Title")}</Text>
-          <CoachLevel size="xs" />
+          <CoachLevel size="xs" streak={streak} />
           <Text size="xs" c="dimmed" mt={6}>
             {t("Coach.Card.NextLabel")}
           </Text>
           <Text size="sm" fw={500}>
-            {next === "done"
-              ? t("Coach.Card.AllDone")
-              : next === "repertoire"
-                ? t("Coach.Task.repertoire.Desc", { count: dueCount })
-                : t(`Coach.Task.${next}.Title`)}
+            {lock > 0
+              ? t("Coach.Card.Locked", { count: lock })
+              : next === "done"
+                ? t("Coach.Card.AllDone")
+                : next === "repertoire"
+                  ? t("Coach.Task.repertoire.Desc", { count: dueCount })
+                  : t(`Coach.Task.${next}.Title`)}
           </Text>
         </Box>
 
