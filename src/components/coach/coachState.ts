@@ -55,3 +55,40 @@ export function coachTitleKey(level: number): string {
     for (const [from, k] of TITLES) if (level >= from) key = k;
     return key;
 }
+
+// Was heute schon erledigt ist. Bis XP und Partien in Etappe 3 echt gezählt
+// werden, zählt ein Klick auf die Aufgabe als erledigt.
+export type CoachDay = { day: string; played: boolean; puzzles: boolean };
+
+export const coachDayAtom = atomWithStorage<CoachDay>("jbl-coach-day", {
+    day: "",
+    played: false,
+    puzzles: false,
+});
+
+export function today(now = new Date()): string {
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${now.getFullYear()}-${m}-${d}`;
+}
+
+export type CoachTaskId = "repertoire" | "play" | "puzzles" | "done";
+
+// Reihenfolge: fällige Repertoire-Stellungen zuerst, dann eine Partie gegen
+// JBL, dann Puzzles. Ein neuer Tag fängt wieder von vorn an.
+export function coachTasks(
+    dueCount: number,
+    day: CoachDay,
+    now = new Date(),
+): { id: Exclude<CoachTaskId, "done">; done: boolean }[] {
+    const fresh = day.day === today(now);
+    return [
+        { id: "repertoire", done: dueCount === 0 },
+        { id: "play", done: fresh && day.played },
+        { id: "puzzles", done: fresh && day.puzzles },
+    ];
+}
+
+export function nextCoachTask(dueCount: number, day: CoachDay, now = new Date()): CoachTaskId {
+    return coachTasks(dueCount, day, now).find((t) => !t.done)?.id ?? "done";
+}

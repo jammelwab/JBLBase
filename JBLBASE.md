@@ -492,13 +492,15 @@ für normale Konten), die flachen Club-Rechnungen nicht.
 
 ## JBL Coach
 
-Seit 1.2.0 steht auf dem Startbildschirm die Karte **JBL Coach** an der Stelle von „Partie importieren“. Die Figur hat einen Bohnenkörper und die JBL-Box als Kopf. Ein Klick auf die Figur lässt sie winken, nachdenken oder ein „!“ zeigen; beim ersten Start winkt sie einmal von selbst. Wer in den Systemeinstellungen reduzierte Bewegung eingestellt hat, sieht die Figur ohne Animationen.
+Seit 1.2.0 steht auf dem Startbildschirm die Karte **JBL Coach** an der Stelle von „Partie importieren“. Die Figur hat einen Bohnenkörper und die JBL-Box als Kopf; beim ersten Start winkt sie einmal. Wer in den Systemeinstellungen reduzierte Bewegung eingestellt hat, sieht sie ohne Animationen.
 
-Auf der Karte stehen Level, Titel und XP-Balken (die Kurve: Level n braucht insgesamt 100 × (n − 1)^1,8 XP), darunter die Spielstärke in sieben Stufen von „Sehr leicht · ca. 600“ bis „Sehr schwer · ca. 2800+“. Die gewählte Stufe bleibt gespeichert. „Gegen JBL spielen“ öffnet in dieser Etappe noch die normale Partie gegen eine Engine; Züge kommentieren, XP sammeln und die Stärkestufen kommen in den nächsten Versionen.
+Die Karte zeigt Level, Titel und XP-Balken (Level n braucht insgesamt 100 × (n − 1)^1,8 XP) und immer die **nächste Aufgabe** mit einem Knopf dafür. Die Reihenfolge: zuerst fällige Stellungen in den zuletzt geöffneten Repertoires, dann eine Partie gegen JBL, dann Puzzles. Ein neuer Tag fängt wieder von vorn an. Bis Partien und Puzzles ab Etappe 3 echt gezählt werden, gilt eine Aufgabe als erledigt, sobald man sie startet.
+
+Ein Klick auf die Figur oder „Coach öffnen“ macht den Tab zur **Coach-Seite**: oben JBL mit einem Satz zur nächsten Aufgabe und dem Level, darunter „Was heute ansteht“ mit den drei Aufgaben (bei „Gegen JBL spielen“ die Stärke in sieben Stufen von „Sehr leicht · ca. 600“ bis „Sehr schwer · ca. 2800+“, die Wahl bleibt gespeichert) und „Bald beim Coach“ (Lektionen, Lücken finden mit JBL, typische Fehler). „Gegen JBL spielen“ öffnet in dieser Etappe noch die normale Partie gegen eine Engine.
 
 „Partie importieren“ ist jetzt der Knopf oben rechts in der Karte „Zuletzt geöffnet“. Das Tutorial „Startseite“ zeigt beide Stellen.
 
-Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel).
+Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten
 

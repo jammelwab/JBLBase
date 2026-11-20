@@ -58,6 +58,9 @@ export default defineConfig({
             // JBL Coach: Stärkestufen und Level-Titel, nach id gewählt
             "Coach.Strength.*",
             "Coach.Title.*",
+            "Coach.Task.*",
+            "Coach.Say.*",
+            "Coach.Soon.*",
         ],
         sort: true,
     },
