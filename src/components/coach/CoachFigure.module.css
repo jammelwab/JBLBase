@@ -1,0 +1,68 @@
+/* Jedes bewegliche Teil hängt an einem Gelenk. Ursprung 0 0 ist der Gelenkpunkt. */
+.rig {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+.fbox {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.breath {
+  animation: breath 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.wave {
+  animation: wave 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.wave2 {
+  animation-delay: 0.5s;
+}
+
+.blink {
+  animation: blink 6s infinite;
+}
+
+@keyframes breath {
+  50% {
+    transform: translateY(-1.6px) scaleY(1.008);
+  }
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .breath,
+  .wave,
+  .blink {
+    animation: none;
+  }
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}

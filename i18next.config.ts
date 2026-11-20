@@ -55,6 +55,13 @@ export default defineConfig({
             "Login.*",
             // Tutorial texts, named by the tutorial and step ids in tutorials.ts
             "Tutorial.*",
+            // JBL Coach: Stärkestufen und Level-Titel, nach id gewählt
+            "Coach.Strength.*",
+            "Coach.Title.*",
+            "Coach.Task.*",
+            "Coach.Say.*",
+            "Coach.Soon.*",
+            "Coach.Showcase.*",
         ],
         sort: true,
     },

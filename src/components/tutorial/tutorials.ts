@@ -96,6 +96,7 @@ export const TUTORIALS: Tutorial[] = [
         newTab: true,
         steps: [
             { id: "Cards", target: "home-cards" },
+            { id: "Coach", target: "home-coach" },
             { id: "Import", target: "home-import" },
             { id: "Recent", target: "home-recent" },
             { id: "Tabs", target: "board-new-tab" },

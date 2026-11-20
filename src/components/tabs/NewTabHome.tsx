@@ -12,23 +12,21 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { useAtom, useSetAtom, useStore } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   activeTabAtom,
   deckAtomFamily,
   type RecentFile,
   recentFilesAtom,
   recentPathKey,
-  removeRecentFilesAtom,
   tabsAtom,
 } from "@/state/atoms";
 import type { Tab } from "@/utils/tabs";
-import { openFile, readInfoFile } from "@/utils/files";
 import { isInTempDir } from "@/utils/tabs";
-import { unwrap } from "@/utils/unwrap";
-import { notifications } from "@mantine/notifications";
+import CoachCard from "@/components/coach/CoachCard";
 import CreateRepertoireModal from "./CreateRepertoireModal";
 import ImportModal from "./ImportModal";
+import { useOpenRecentFile } from "./useOpenRecentFile";
 import classes from "./NewTabHome.module.css";
 import {
   IconChess,
@@ -38,7 +36,6 @@ import {
   IconTarget,
   IconTargetArrow,
 } from "@tabler/icons-react";
-import { useNavigate } from "@tanstack/react-router";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useTranslation } from "react-i18next";
@@ -117,7 +114,6 @@ export default function NewTabHome({ id }: { id: string }) {
 
   const [recentFiles, setRecentFiles] = useAtom(recentFilesAtom);
   const store = useStore();
-  const navigate = useNavigate();
 
   // Clean the list once when the home tab opens: drop files that are gone,
   // imported temp files and rows that point at the same file twice.
@@ -146,45 +142,17 @@ export default function NewTabHome({ id }: { id: string }) {
     checkFiles();
   }, [store, setRecentFiles]);
 
-  const openRecentFile = useCallback(
-    async (file: RecentFile) => {
-      try {
-        const exists = await commands.fileExists(file.path);
-        if (exists.status === "error" || !exists.data) {
-          store.set(removeRecentFilesAtom, file.path);
-          notifications.show({
-            color: "orange",
-            title: file.name.replace(/\.pgn$/i, ""),
-            message: t("Home.RecentFiles.Missing"),
-          });
-          return;
-        }
-        // Read the real .info, so a repertoire keeps its colour, owner and id.
-        const info = await readInfoFile(file.path);
-        const numGames = unwrap(await commands.countPgnGames(file.path));
-        await openFile(
-          {
-            type: "file",
-            name: file.name.replace(/\.pgn$/i, ""),
-            path: file.path,
-            numGames,
-            metadata: info ?? { type: file.type, tags: [] },
-            lastModified: Date.now(),
-          },
-          setTabs,
-          setActiveTab,
-        );
-        navigate({ to: "/" });
-      } catch (e) {
-        notifications.show({
-          color: "red",
-          title: t("Home.RecentFiles.OpenFailed"),
-          message: e instanceof Error ? e.message : String(e),
-        });
-      }
-    },
-    [setTabs, setActiveTab, store, navigate, t],
-  );
+  const openRecentFile = useOpenRecentFile();
+
+  const startGame = () => {
+    setTabs((prev: Tab[]) => {
+      const tab = prev.find((t) => t.value === id);
+      if (!tab) return prev;
+      tab.name = t("Home.NewGame");
+      tab.type = "play";
+      return [...prev];
+    });
+  };
 
   const cards = [
     {
@@ -192,15 +160,7 @@ export default function NewTabHome({ id }: { id: string }) {
       title: t("Home.Card.PlayChess.Title"),
       description: t("Home.Card.PlayChess.Desc"),
       label: t("Home.Card.PlayChess.Button"),
-      onClick: () => {
-        setTabs((prev: Tab[]) => {
-          const tab = prev.find((t) => t.value === id);
-          if (!tab) return prev;
-          tab.name = t("Home.NewGame");
-          tab.type = "play";
-          return [...prev];
-        });
-      },
+      onClick: startGame,
     },
     {
       icon: <Chessboard size={60} />,
@@ -224,16 +184,6 @@ export default function NewTabHome({ id }: { id: string }) {
       label: t("Home.Card.NewRepertoire.Button"),
       onClick: () => {
         setOpenRepertoireModal(true);
-      },
-    },
-    {
-      icon: <IconFileImport size={60} />,
-      title: t("Home.Card.ImportGame.Title"),
-      description: t("Home.Card.ImportGame.Desc"),
-      label: t("Home.Card.ImportGame.Button"),
-      tour: "home-import",
-      onClick: () => {
-        setOpenModal(true);
       },
     },
     {
@@ -265,7 +215,8 @@ export default function NewTabHome({ id }: { id: string }) {
       <CreateRepertoireModal opened={openRepertoireModal} setOpened={setOpenRepertoireModal} />
       <Stack gap="lg" pt="sm">
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} data-tour="home-cards">
-          {cards.map((card) => (
+          {cards.flatMap((card, i) => [
+            i === 3 && <CoachCard key="coach" id={id} />,
             <Card shadow="sm" p="lg" radius="md" withBorder key={card.title}>
               <Stack align="center" h="100%" justify="space-between">
                 {card.icon}
@@ -288,14 +239,25 @@ export default function NewTabHome({ id }: { id: string }) {
                   {card.label}
                 </Button>
               </Stack>
-            </Card>
-          ))}
+            </Card>,
+          ])}
         </SimpleGrid>
 
         <Card shadow="sm" p="md" radius="md" withBorder data-tour="home-recent">
-          <Text fw={600} size="lg" mb="xs">
-            {t("Home.RecentFiles.Title")}
-          </Text>
+          <Group justify="space-between" mb="xs">
+            <Text fw={600} size="lg">
+              {t("Home.RecentFiles.Title")}
+            </Text>
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconFileImport size={16} />}
+              onClick={() => setOpenModal(true)}
+              data-tour="home-import"
+            >
+              {t("Home.Card.ImportGame.Title")}
+            </Button>
+          </Group>
           {recentFiles.length === 0 ? (
             <Stack align="center" justify="center" h={200} gap="xs">
               <IconClock size={48} style={{ opacity: 0.3 }} />
