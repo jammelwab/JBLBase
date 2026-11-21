@@ -536,7 +536,7 @@ Seit 1.2.4 gleicht der Cloud-Sync auch den Coach ab, im Dokument `users/{uid}/co
 
 Das **Coach-Profil** `coachProfiles/{uid}` trägt nur der Admin in der Firebase-Konsole ein (siehe `firebase/SETUP.md`): Geburtstag (`MM-TT`), persönliche Easter Eggs (`eggs`), Name und Rivale. Die App liest es beim Sync und merkt es sich lokal.
 
-**Geburtstag:** Beim ersten Öffnen des Startbildschirms am Geburtstag kommt JBL mit Partyhütchen und Torte. Ein Klick auf die Torte pustet die Kerzen aus: 250 XP und das Partyhütchen zum Behalten. Den ganzen Tag trägt JBL das Hütchen, Partien bringen doppelte XP, und nach einer Niederlage gibt es keine Pflichtaufgaben. War die App am Geburtstag nicht offen, gibt es bis zu 3 Tage später ein „Nachträglich alles Gute!“. Der Code: `coachSync.ts`, `coachProfile.ts`, `coachBirthday.ts`, `CoachBirthday.tsx` und `src/utils/cloud/coachCloud.ts`.
+**Geburtstag:** Beim ersten Öffnen des Startbildschirms am Geburtstag kommt JBL mit Partyhütchen und Torte. Ein Klick auf die Torte pustet die Kerzen aus: 250 XP und das Partyhütchen zum Behalten. Den ganzen Tag trägt JBL das Hütchen, Partien bringen doppelte XP, und nach einer Niederlage gibt es keine Pflichtaufgaben. War die App am Geburtstag nicht offen, gibt es bis zu 3 Tage später ein „Nachträglich alles Gute!“. Der Code: `coachSync.ts`, `coachProfile.ts`, `coachBirthdayState.ts`, `CoachBirthday.tsx` und `src/utils/cloud/coachCloud.ts`.
 
 ### Gedächtnis und Training
 
@@ -575,7 +575,7 @@ Seit 1.2.7 fordert ab Level 5 manchmal **der Boss** heraus: nach einem Sieg mit 
 
 **Duell Aaron gegen Ben:** Wer im Coach-Profil einen Rivalen hat, sieht auf der Coach-Karte einen zweiten Balken mit dessen Level, und JBL sagt, wenn einer überholt hat. Auf der Coach-Seite kann man den Rivalen herausfordern; die Züge laufen über Firebase, live oder wie Fernschach. Der Sieger trägt den Titel „Duell-Champion“, bis der andere eine Partie gewinnt, und bekommt den Duell-Rahmen. Remis ändert nichts.
 
-Der Code: `coachBoss.ts`, `coachBossBuild.ts`, `BossBookAdmin.tsx`, `coachDuel.ts`, `CoachDuel.tsx` und `src/utils/cloud/duelCloud.ts`.
+Der Code: `coachBoss.ts`, `coachBossBuild.ts`, `BossBookAdmin.tsx`, `coachDuelState.ts`, `CoachDuel.tsx` und `src/utils/cloud/duelCloud.ts`.
 
 ### Einführung und Lernpfad
 
@@ -592,7 +592,7 @@ Die Antwort auf „Wie stark bist du?“ setzt die Stärke von JBL und den Einst
 
 Offen sind die erste Lektion des Einstiegspfads und alles davor; jedes Coach-Level schaltet eine weitere frei. Eine Lektion hat ein paar Sätze vom Coach, ein Beispiel mit Pfeilen und drei Aufgaben am Brett („Zeig's mir“ hilft nach einem Fehlversuch). Wer fertig ist, bekommt 150 XP und ein Abzeichen, beim Wiederholen gibt es keine XP mehr. Eine neu freigeschaltete Lektion meldet die Coach-Karte direkt nach der Sperre. Die Tests in `coachLessons.test.ts` prüfen jede Aufgabe: Matt ist Matt, eine Gabel greift zwei Figuren an, eine Fesselung fesselt.
 
-Der Code: `coachLessons.ts`, `CoachLessons.tsx`, `coachIntro.ts` und `CoachIntro.tsx`.
+Der Code: `coachLessonsData.ts`, `CoachLessons.tsx`, `coachIntroState.ts` und `CoachIntro.tsx`.
 
 ### „Warum?“ und Töne
 

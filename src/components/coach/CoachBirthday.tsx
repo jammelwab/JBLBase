@@ -7,7 +7,7 @@ import {
   birthdayYear,
   coachBirthdayCelebratedAtom,
   pendingBirthdayAtom,
-} from "./coachBirthday";
+} from "./coachBirthdayState";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { coachProfileAtom } from "./coachProfile";
 import { coachExtraItemsAtom } from "./coachRewards";

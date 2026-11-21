@@ -20,7 +20,7 @@ import {
 } from "./coachRewards";
 import { COACH_STRENGTHS, type CoachStrengthId } from "./coachState";
 import { coachLockAtom, coachMateDrillAtom } from "./coachProgress";
-import { isBirthdayAtom } from "./coachBirthday";
+import { isBirthdayAtom } from "./coachBirthdayState";
 
 // Easter Eggs und der Angriffsmodus mit Patricia. Die Auslöser stehen nur
 // hier im Code, nirgends in der App.

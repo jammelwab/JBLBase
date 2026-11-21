@@ -7,7 +7,7 @@ import { askCoachExplain } from "@/utils/cloud/auth";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
 import { type ExplainError, type ExplainFacts, explainError } from "./coachExplain";
 import { REACTION_SIGN } from "./coachGame";
-import { coachIntroAtom } from "./coachIntro";
+import { coachIntroAtom } from "./coachIntroState";
 import type { CoachComment } from "./useCoachCommentary";
 
 // Schon gefragte Erklärungen dieser Sitzung (die Cloud merkt sie sich auch)

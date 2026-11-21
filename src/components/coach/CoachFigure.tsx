@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef } from "react";
 import { useAtomValue } from "jotai";
 import classes from "./CoachFigure.module.css";
-import { isBirthdayAtom } from "./coachBirthday";
+import { isBirthdayAtom } from "./coachBirthdayState";
 import { type CoachItemId, coachOutfitAtom, itemSlot } from "./coachRewards";
 
 // Die JBL-Figur: Bohnenkörper, Kopf ist die JBL-Box aus dem Logo.

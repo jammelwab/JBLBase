@@ -16,9 +16,9 @@ import {
     newLesson,
     taskPosition,
     unlockedLessons,
-} from "./coachLessons";
+} from "./coachLessonsData";
 import { sanToSquares } from "@/utils/gamesTree";
-import { introDue, introReminder } from "./coachIntro";
+import { introDue, introReminder } from "./coachIntroState";
 import { coachXpAtom } from "./coachState";
 
 const VALUE: Record<string, number> = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 0 };

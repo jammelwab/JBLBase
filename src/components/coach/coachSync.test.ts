@@ -2,7 +2,7 @@ import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
 import de from "@/translation/de-DE.json";
 import en from "@/translation/en-US.json";
-import { birthdayState, birthdayYear } from "./coachBirthday";
+import { birthdayState, birthdayYear } from "./coachBirthdayState";
 import { coachLockAtom, coachStreakAtom } from "./coachProgress";
 import { parseCoachProfile } from "./coachProfile";
 import { coachTrophiesAtom } from "./coachRewards";

@@ -13,7 +13,7 @@ import {
 } from "@/components/coach/coachSync";
 import type { BookMove } from "@/bindings";
 import { coachBossBookAtom, packBossBook, unpackBossBook } from "@/components/coach/coachBoss";
-import { coachRivalAtom, coachRivalMarkAtom, parseRival } from "@/components/coach/coachDuel";
+import { coachRivalAtom, coachRivalMarkAtom, parseRival } from "@/components/coach/coachDuelState";
 import { coachXpAtom, levelProgress } from "@/components/coach/coachState";
 import type { CloudFirestore } from "./firestoreDocs";
 

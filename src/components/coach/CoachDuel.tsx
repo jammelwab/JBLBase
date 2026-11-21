@@ -25,7 +25,7 @@ import {
   overtake,
   playDuelMove,
   settleDuelAtom,
-} from "./coachDuel";
+} from "./coachDuelState";
 import { coachProfileAtom } from "./coachProfile";
 import { coachXpAtom, levelProgress } from "./coachState";
 

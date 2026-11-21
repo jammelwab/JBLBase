@@ -20,13 +20,13 @@ import {
     coachStreakAtom,
     currentStreak,
 } from "./coachProgress";
-import { coachIntroAtom, introReminder } from "./coachIntro";
+import { coachIntroAtom, introReminder } from "./coachIntroState";
 import {
     coachLessonAnnouncedAtom,
     coachLessonsDoneAtom,
     newLesson,
     unlockedLessons,
-} from "./coachLessons";
+} from "./coachLessonsData";
 import {
     type CoachTaskId,
     coachDayAtom,

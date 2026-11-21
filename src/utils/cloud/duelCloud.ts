@@ -8,7 +8,7 @@ import {
     type DuelReason,
     type DuelResult,
     parseDuel,
-} from "@/components/coach/coachDuel";
+} from "@/components/coach/coachDuelState";
 
 export type DuelFirestore = { db: Firestore.Firestore; firestore: typeof Firestore };
 

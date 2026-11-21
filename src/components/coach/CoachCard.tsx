@@ -6,8 +6,8 @@ import CoachBirthday from "./CoachBirthday";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { RivalBar } from "./CoachDuel";
 import { CoachLevel } from "./CoachPage";
-import { coachIntroAtom, coachIntroOpenAtom } from "./coachIntro";
-import { coachLessonAnnouncedAtom, coachOpenLessonAtom } from "./coachLessons";
+import { coachIntroAtom, coachIntroOpenAtom } from "./coachIntroState";
+import { coachLessonAnnouncedAtom, coachOpenLessonAtom } from "./coachLessonsData";
 import { useCoach } from "./useCoach";
 
 // Der Coach winkt nur einmal pro Programmstart, nicht bei jedem neuen Tab.

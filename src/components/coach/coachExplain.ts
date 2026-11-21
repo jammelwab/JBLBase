@@ -1,5 +1,5 @@
 import type { ScoreValue } from "@/bindings";
-import type { CoachEntry } from "./coachLessons";
+import type { CoachEntry } from "./coachLessonsData";
 
 // „Warum?“ (1.2.9): die Fakten zu einem bewerteten Zug, wie sie an die
 // Cloud-Funktion gehen. Die KI bewertet nichts selbst, sie formuliert nur.
