@@ -1,6 +1,7 @@
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { isBirthdayAtom } from "./coachBirthday";
+import { bossChallenge, coachBossAtom } from "./coachBoss";
 import {
     advanceQuest,
     awardTrophyAtom,
@@ -138,6 +139,8 @@ export type ReceiptInput = {
     bonusTrack?: boolean;
     // XP für eine Tagesaufgabe, die diese Partie erfüllt hat
     questXp?: number;
+    // Boss-Challenge gewonnen: dreifache XP
+    bossWin?: boolean;
 };
 
 export type ReceiptLine = {
@@ -190,6 +193,10 @@ export function computeReceipt(input: ReceiptInput): { lines: ReceiptLine[]; tot
     if (input.bonusTrack) {
         lines.push({ key: "bonusTrack", xp: total, kind: "bonus" });
         total *= 2;
+    }
+    if (input.bossWin) {
+        lines.push({ key: "boss", xp: total * 2, kind: "bonus" });
+        total *= 3;
     }
     if (input.birthday) {
         lines.push({ key: "birthday", xp: total, kind: "bonus" });
@@ -268,9 +275,13 @@ export const coachRepertoireMoveAtom = atom(null, (get, set) => {
 
 export type CoachGameInput = Omit<
     ReceiptInput,
-    "streakDays" | "gameOfDay" | "birthday" | "bonusTrack" | "questXp"
+    "streakDays" | "gameOfDay" | "birthday" | "bonusTrack" | "questXp" | "bossWin"
 > & {
     mistake?: CoachMistake | null;
+    // Die Partie war die Boss-Challenge
+    boss?: boolean;
+    // Admins (der Boss selbst) bekommen keine Challenge
+    isAdmin?: boolean;
 };
 
 export type CoachGameSummary = {
@@ -283,6 +294,8 @@ export type CoachGameSummary = {
     questDone: boolean;
     // Bonus-Track für die nächste Partie ausgelost
     bonusNext: boolean;
+    // Der Boss fordert für die nächste Partie heraus
+    bossNext: boolean;
     estimate: number | null;
     newBest: boolean;
     lock: number;
@@ -311,8 +324,10 @@ export const finishCoachGameAtom = atom(
 
         const bonusTrack = get(coachBonusTrackAtom);
         const birthday = get(isBirthdayAtom);
+        const { boss: wasBoss = false, isAdmin = false, mistake, ...receiptGame } = game;
         const receipt = computeReceipt({
-            ...game,
+            ...receiptGame,
+            bossWin: wasBoss && game.result === "win",
             streakDays,
             gameOfDay,
             bonusTrack,
@@ -324,10 +339,7 @@ export const finishCoachGameAtom = atom(
         set(coachXpAtom, xpAfter);
         // Am Geburtstag gibt es keine Pflichtaufgaben
         set(coachLockAtom, birthday ? 0 : lockAfter(game.result));
-        set(
-            coachMistakeAtom,
-            !birthday && game.result !== "win" && game.mistake ? game.mistake : null,
-        );
+        set(coachMistakeAtom, !birthday && game.result !== "win" && mistake ? mistake : null);
 
         const bonusNext = random() < BONUS_TRACK_CHANCE;
         set(coachBonusTrackAtom, bonusNext);
@@ -335,9 +347,21 @@ export const finishCoachGameAtom = atom(
         const levelBefore = levelProgress(xpBefore).level;
         const levelAfter = levelProgress(xpAfter).level;
 
-        const trophies = trophiesForGame({ ...game, streakDays, level: levelAfter }).filter((id) =>
-            set(awardTrophyAtom, id),
+        const trophies = trophiesForGame({
+            ...game,
+            streakDays,
+            level: levelAfter,
+            boss: wasBoss,
+        }).filter((id) => set(awardTrophyAtom, id));
+
+        const bossBefore = get(coachBossAtom);
+        const bossAfter = bossChallenge(
+            bossBefore,
+            { result: game.result, level: levelAfter, isAdmin, wasBoss },
+            day,
+            random,
         );
+        set(coachBossAtom, bossAfter);
 
         const results = [
             ...get(coachResultsAtom),
@@ -360,6 +384,7 @@ export const finishCoachGameAtom = atom(
             trophies,
             questDone: questXp > 0,
             bonusNext,
+            bossNext: bossAfter.pending && !bossBefore.pending,
             estimate,
             newBest: newBest && best > 0,
             lock: get(coachLockAtom),

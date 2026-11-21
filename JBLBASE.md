@@ -569,6 +569,14 @@ Seit 1.2.6 gibt es ab Level 5 den **Angriffsmodus**: ein Schalter beim Partiesta
 
 Der Code: `coachEggs.ts`, `CoachEggArt.tsx`, `PatriciaPeek.tsx` und `CoachEggs.module.css`.
 
+### Boss-Challenge und Duell
+
+Seit 1.2.7 fordert ab Level 5 manchmal **der Boss** heraus: nach einem Sieg mit 10 % Chance, höchstens einmal pro Woche, nie für Admins. Die Karte sagt dann „Der Boss fordert dich heraus!“, und die nächste Partie ist Pflicht. Statt JBL spielt „Jannick“: erst seine Repertoire-Züge, dann Züge aus seinen Chess.com-Partien (häufige öfter), sonst Stockfish mit ca. 1800. Gesucht wird nach Stellung, auch nach Zugumstellung. Ein Sieg bringt dreifache XP, eine eigene Zeile auf dem Kassenzettel und die Trophäe „Boss besiegt“; bei einer Niederlage gilt die normale Sperre. Das Boss-Buch baut der Admin in der Admin-Übersicht (siehe `firebase/SETUP.md`).
+
+**Duell Aaron gegen Ben:** Wer im Coach-Profil einen Rivalen hat, sieht auf der Coach-Karte einen zweiten Balken mit dessen Level, und JBL sagt, wenn einer überholt hat. Auf der Coach-Seite kann man den Rivalen herausfordern; die Züge laufen über Firebase, live oder wie Fernschach. Der Sieger trägt den Titel „Duell-Champion“, bis der andere eine Partie gewinnt, und bekommt den Duell-Rahmen. Remis ändert nichts.
+
+Der Code: `coachBoss.ts`, `coachBossBuild.ts`, `BossBookAdmin.tsx`, `coachDuel.ts`, `CoachDuel.tsx` und `src/utils/cloud/duelCloud.ts`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten

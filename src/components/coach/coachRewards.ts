@@ -86,6 +86,14 @@ export const EXTRA_TITLES = ["DuelChampion", "OberBoss", "KingWalker", "BunnyHun
 export type CoachExtraTitle = (typeof EXTRA_TITLES)[number];
 
 export const coachExtraTitlesAtom = atomWithStorage<CoachExtraTitle[]>("jbl-coach-titles", []);
+// Duell-Champion ist man nur, bis der Rivale eine Partie gewinnt; darum
+// nicht bei den gesammelten Titeln (die werden nur vereinigt).
+export const coachDuelChampionAtom = atomWithStorage<boolean>("jbl-coach-duel-champion", false);
+// Alle besonderen Titel, die gerade gelten
+export const coachSpecialTitlesAtom = atom((get): CoachExtraTitle[] => [
+    ...get(coachExtraTitlesAtom).filter((x) => x !== "DuelChampion"),
+    ...(get(coachDuelChampionAtom) ? (["DuelChampion"] as const) : []),
+]);
 // Gewählter Titel; null = der aktuelle Level-Titel
 export const coachShownTitleAtom = atomWithStorage<string | null>("jbl-coach-title", null);
 
@@ -136,6 +144,7 @@ export function trophiesForGame(g: {
     takebacks: number;
     streakDays: number;
     level: number;
+    boss?: boolean;
 }): CoachTrophyId[] {
     const out: CoachTrophyId[] = [];
     if (g.result === "win") out.push("firstWin");
@@ -146,6 +155,7 @@ export function trophiesForGame(g: {
     if (g.streakDays >= 7) out.push("streak7");
     if (g.streakDays >= 30) out.push("streak30");
     if (g.level >= 10) out.push("level10");
+    if (g.boss && g.result === "win") out.push("bossBeaten");
     return out;
 }
 

@@ -24,6 +24,7 @@ import {
   summarizeUsage,
 } from "@/utils/cloud/adminOverview";
 import { cloudFirestore } from "@/utils/cloud/auth";
+import BossBookAdmin from "@/components/coach/BossBookAdmin";
 import { parseLimits, usageDay, usageMeter } from "@/utils/cloud/usage";
 
 const CONSOLE = "https://console.firebase.google.com/project/jblbase";
@@ -117,6 +118,8 @@ export default function AdminOverview() {
           {t("Settings.Admin.Reload")}
         </Button>
       </Group>
+
+      <BossBookAdmin />
 
       {error && (
         <Alert color="red" title={t("Settings.Admin.Error")}>

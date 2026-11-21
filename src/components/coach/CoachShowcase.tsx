@@ -10,7 +10,7 @@ import {
   COACH_TROPHIES,
   coachExtraFramesAtom,
   coachExtraItemsAtom,
-  coachExtraTitlesAtom,
+  coachSpecialTitlesAtom,
   coachFrameAtom,
   coachOutfitAtom,
   coachShownTitleAtom,
@@ -81,7 +81,7 @@ function Slot({
 // Freigeschaltetes lässt sich anklicken und ausrüsten.
 export default function CoachShowcase({ level }: { level: number }) {
   const { t } = useTranslation();
-  const extraTitles = useAtomValue(coachExtraTitlesAtom);
+  const extraTitles = useAtomValue(coachSpecialTitlesAtom);
   const [chosenTitle, setChosenTitle] = useAtom(coachShownTitleAtom);
   const extraFrames = useAtomValue(coachExtraFramesAtom);
   const [frame, setFrame] = useAtom(coachFrameAtom);

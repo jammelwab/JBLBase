@@ -17,17 +17,21 @@ import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { StrengthSelect } from "./CoachPage";
 import { coachSparringAtom } from "./coachPlan";
 import { ATTACK_LEVEL, coachAttackAtom } from "./coachEggs";
+import { BOSS_ELO, BOSS_NAME } from "./coachBoss";
 import { coachXpAtom, levelProgress } from "./coachState";
 
 // Vor der Partie gegen JBL: Farbe und Stärke wählen, dann los.
 export default function CoachGameSetup({
   hasEngine,
   hasPatricia,
+  boss = false,
   canStart,
   onStart,
 }: {
   hasEngine: boolean;
   hasPatricia: boolean;
+  // Der Boss fordert heraus: keine Stärke, kein Sparring
+  boss?: boolean;
   canStart: boolean;
   onStart: () => void;
 }) {
@@ -68,40 +72,48 @@ export default function CoachGameSetup({
               { value: "black", label: t("Coach.Game.Black") },
             ]}
           />
-          <Text size="sm" fw={500} mt="sm" mb={4}>
-            {t("Coach.Strength.Label")}
-          </Text>
-          <StrengthSelect />
-          <Switch
-            mt="md"
-            color="orange"
-            checked={sparring}
-            onChange={(e) => setSparring(e.currentTarget.checked)}
-            label={t("Coach.Game.Sparring")}
-            description={t("Coach.Game.SparringDesc")}
-          />
-          <Switch
-            mt="sm"
-            color="orange"
-            checked={attackOpen && hasPatricia && attack}
-            disabled={!attackOpen || !hasPatricia}
-            onChange={(e) => setAttack(e.currentTarget.checked)}
-            label={
-              <>
-                {t("Coach.Game.Attack")}
-                {!attackOpen && (
-                  <Badge ml={6} size="xs" variant="light" color="gray">
-                    {t("Coach.Game.AttackLocked", { level: ATTACK_LEVEL })}
-                  </Badge>
-                )}
-              </>
-            }
-            description={
-              attackOpen && !hasPatricia
-                ? t("Coach.Game.AttackNoEngine")
-                : t("Coach.Game.AttackDesc")
-            }
-          />
+          {boss ? (
+            <Alert mt="sm" color="orange" title={t("Coach.Boss.Title")}>
+              {t("Coach.Boss.Intro", { name: BOSS_NAME, elo: BOSS_ELO })}
+            </Alert>
+          ) : (
+            <>
+              <Text size="sm" fw={500} mt="sm" mb={4}>
+                {t("Coach.Strength.Label")}
+              </Text>
+              <StrengthSelect />
+              <Switch
+                mt="md"
+                color="orange"
+                checked={sparring}
+                onChange={(e) => setSparring(e.currentTarget.checked)}
+                label={t("Coach.Game.Sparring")}
+                description={t("Coach.Game.SparringDesc")}
+              />
+              <Switch
+                mt="sm"
+                color="orange"
+                checked={attackOpen && hasPatricia && attack}
+                disabled={!attackOpen || !hasPatricia}
+                onChange={(e) => setAttack(e.currentTarget.checked)}
+                label={
+                  <>
+                    {t("Coach.Game.Attack")}
+                    {!attackOpen && (
+                      <Badge ml={6} size="xs" variant="light" color="gray">
+                        {t("Coach.Game.AttackLocked", { level: ATTACK_LEVEL })}
+                      </Badge>
+                    )}
+                  </>
+                }
+                description={
+                  attackOpen && !hasPatricia
+                    ? t("Coach.Game.AttackNoEngine")
+                    : t("Coach.Game.AttackDesc")
+                }
+              />
+            </>
+          )}
         </Box>
         {!hasEngine && (
           <Alert color="orange" w="100%" maw={360}>

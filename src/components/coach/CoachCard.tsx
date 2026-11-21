@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import CoachBirthday from "./CoachBirthday";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
+import { RivalBar } from "./CoachDuel";
 import { CoachLevel } from "./CoachPage";
 import { useCoach } from "./useCoach";
 
@@ -13,7 +14,7 @@ let greeted = false;
 export default function CoachCard({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
-  const { next, dueCount, actions, lock, streak } = useCoach(id);
+  const { next, dueCount, actions, lock, streak, boss } = useCoach(id);
 
   useEffect(() => {
     if (greeted) return;
@@ -37,17 +38,20 @@ export default function CoachCard({ id }: { id: string }) {
         <Box style={{ textAlign: "center", width: "100%" }}>
           <Text fw={500}>{t("Coach.Card.Title")}</Text>
           <CoachLevel size="xs" streak={streak} />
+          <RivalBar />
           <Text size="xs" c="dimmed" mt={6}>
             {t("Coach.Card.NextLabel")}
           </Text>
           <Text size="sm" fw={500}>
             {lock > 0
               ? t("Coach.Card.Locked", { count: lock })
-              : next === "done"
-                ? t("Coach.Card.AllDone")
-                : next === "repertoire"
-                  ? t("Coach.Task.repertoire.Desc", { count: dueCount })
-                  : t(`Coach.Task.${next}.Title`)}
+              : boss
+                ? t("Coach.Boss.Card")
+                : next === "done"
+                  ? t("Coach.Card.AllDone")
+                  : next === "repertoire"
+                    ? t("Coach.Task.repertoire.Desc", { count: dueCount })
+                    : t(`Coach.Task.${next}.Title`)}
           </Text>
         </Box>
 

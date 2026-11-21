@@ -10,6 +10,7 @@ import {
 import {
     coachBestEstimateAtom,
     coachBonusTrackAtom,
+    coachDuelChampionAtom,
     coachExtraFramesAtom,
     coachExtraItemsAtom,
     coachExtraTitlesAtom,
@@ -21,6 +22,7 @@ import {
     coachTrophiesAtom,
 } from "./coachRewards";
 import { coachAttackAtom, coachLambruscoDayAtom, coachPatriciaWinsAtom } from "./coachEggs";
+import { coachBossAtom } from "./coachBoss";
 import { coachDayAtom, coachStrengthAtom, coachXpOthersAtom, coachXpOwnAtom } from "./coachState";
 
 // Abgleich des Coach-Stands zwischen den Rechnern eines Kontos.
@@ -56,6 +58,8 @@ const BUNDLE_ATOMS = {
     patriciaWins: coachPatriciaWinsAtom,
     lambrusco: coachLambruscoDayAtom,
     mateDrill: coachMateDrillAtom,
+    boss: coachBossAtom,
+    duelChampion: coachDuelChampionAtom,
 } as const;
 
 export type CoachSets = Record<keyof typeof SET_ATOMS, string[]>;

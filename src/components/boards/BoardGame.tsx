@@ -73,6 +73,13 @@ import CoachGameSetup from "@/components/coach/CoachGameSetup";
 import CoachGamePanel from "@/components/coach/CoachGamePanel";
 import { findStockfish, jblEngineSetup, jblEngineSettings } from "@/components/coach/coachGame";
 import {
+  BOSS_ELO,
+  BOSS_NAME,
+  bossEngineSetup,
+  coachBossAtom,
+  coachBossBookAtom,
+} from "@/components/coach/coachBoss";
+import {
   ATTACK_LEVEL,
   coachAttackAtom,
   findPatricia,
@@ -143,6 +150,10 @@ function BoardGame() {
   const coachLevel = levelProgress(useAtomValue(coachXpAtom)).level;
   const attackNow = coachAttack && coachLevel >= ATTACK_LEVEL && patricia !== null;
   const [coachGameAttack, setCoachGameAttack] = useState(false);
+  // Boss-Challenge: statt JBL spielt „Jannick“
+  const bossPending = useAtomValue(coachBossAtom).pending;
+  const bossBook = useAtomValue(coachBossBookAtom);
+  const [coachGameBoss, setCoachGameBoss] = useState(false);
 
   function getPlayers() {
     let isPlayer1White = inputColor === "white";
@@ -154,8 +165,19 @@ function BoardGame() {
     if (isCoachGame && stockfish) {
       const human: OpponentSettings = { type: "human", name: t("Coach.Game.You") };
       const elo = COACH_STRENGTHS.find((s) => s.id === coachStrength)?.elo ?? null;
-      const jbl: OpponentSettings =
-        attackNow && patricia
+      const jbl: OpponentSettings = bossPending
+        ? {
+            type: "engine",
+            engine: { ...stockfish, name: BOSS_NAME, elo: BOSS_ELO },
+            go: bossEngineSetup().go,
+            engineSettings: [
+              ...(stockfish.settings ?? []).filter(
+                (s) => !["UCI_LimitStrength", "UCI_Elo", "Skill Level", "MultiPV"].includes(s.name),
+              ),
+              ...bossEngineSetup().options,
+            ],
+          }
+        : attackNow && patricia
           ? {
               type: "engine",
               engine: { ...patricia, name: "JBL", elo },
@@ -369,8 +391,9 @@ function BoardGame() {
 
   async function startGame() {
     const playerSettings = getPlayers();
-    setCoachGameStrength(coachStrength);
-    setCoachGameAttack(isCoachGame && attackNow);
+    setCoachGameStrength(isCoachGame && bossPending ? "fairlyHard" : coachStrength);
+    setCoachGameAttack(isCoachGame && attackNow && !bossPending);
+    setCoachGameBoss(isCoachGame && bossPending);
     setCoachTakebacks(0);
     setPlayers(playerSettings);
 
@@ -387,7 +410,9 @@ function BoardGame() {
     let plan: CoachPlan | null = null;
     if (isCoachGame) {
       const humanColor = playerSettings.white.type === "human" ? "white" : "black";
-      plan = await prepareCoachGame(humanColor, coachDiary, coachSparring);
+      plan = bossPending
+        ? { book: bossBook, announce: [], sparring: false, repertoire: null, index: null }
+        : await prepareCoachGame(humanColor, coachDiary, coachSparring);
     }
     setCoachPlan(plan);
 
@@ -748,6 +773,7 @@ function BoardGame() {
                 <CoachGameSetup
                   hasEngine={stockfish !== null}
                   hasPatricia={patricia !== null}
+                  boss={bossPending}
                   canStart={error === null}
                   onStart={startGame}
                 />
@@ -870,6 +896,7 @@ function BoardGame() {
                       plan={coachPlan}
                       root={root}
                       attack={coachGameAttack}
+                      boss={coachGameBoss}
                     />
                   )}
                   <Box flex={1}>
