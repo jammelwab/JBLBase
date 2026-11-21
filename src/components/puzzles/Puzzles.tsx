@@ -36,7 +36,7 @@ import {
 } from "@tabler/icons-react";
 import { isNormal, makeSquare, makeUci, parseUci } from "chessops";
 import { parseFen } from "chessops/fen";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
@@ -74,7 +74,8 @@ import AddPuzzle from "./AddPuzzle";
 import PuzzleBoard from "./PuzzleBoard";
 import PuzzleStatsModal from "./PuzzleStatsModal";
 import { getPuzzleStats, recordPuzzleAttempt, usePuzzleStats } from "./usePuzzleStats";
-import { coachPuzzleDoneAtom } from "@/components/coach/coachProgress";
+import { coachMateDrillAtom, coachPuzzleDoneAtom } from "@/components/coach/coachProgress";
+import { MATE_DRILL_THEME } from "@/components/coach/coachEggs";
 import { ReportedPuzzlesModal, ReportPuzzleModal } from "./PuzzleReports";
 import GameTacticSearchModal from "./GameTacticSearchModal";
 
@@ -117,6 +118,14 @@ function Puzzles({ id }: { id: string }) {
   const [ratingRange, setRatingRange] = useAtom(puzzleRatingRangeAtom);
 
   const [selectedTheme, setSelectedTheme] = useAtom(puzzleThemeAtom);
+  // Nach den Matt-in-1-Strafaufgaben des Coaches wieder alle Themen
+  const mateDrill = useAtomValue(coachMateDrillAtom);
+  const wasDrill = useRef(mateDrill);
+  useEffect(() => {
+    if (wasDrill.current && !mateDrill && selectedTheme === MATE_DRILL_THEME)
+      setSelectedTheme(null);
+    wasDrill.current = mateDrill;
+  }, [mateDrill, selectedTheme, setSelectedTheme]);
   const [availableThemes, setAvailableThemes] = useState<string[]>([]);
   const [themesTableMissing, setThemesTableMissing] = useState(false);
   const effectiveSelectedTheme =

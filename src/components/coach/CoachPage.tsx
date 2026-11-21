@@ -56,6 +56,8 @@ import {
 } from "./coachRewards";
 import CoachShowcase from "./CoachShowcase";
 import CoachHints from "./CoachHints";
+import { CarrotBadge } from "./CoachEggArt";
+import { PatriciaEars, PatriciaPopup, usePatriciaPeek } from "./PatriciaPeek";
 import { useCoach } from "./useCoach";
 
 const TASK_ICONS: Record<string, ReactNode> = {
@@ -119,6 +121,7 @@ export function CoachLevel({ size = "sm", streak = 0 }: { size?: "xs" | "sm"; st
 export default function CoachPage({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
+  const [bunny, setBunny] = usePatriciaPeek();
   const { next, tasks, dueCount, actions, lock, streak } = useCoach(id);
   const isAdmin = useIsAdmin();
   const { level } = levelProgress(useAtomValue(coachXpAtom));
@@ -148,19 +151,28 @@ export default function CoachPage({ id }: { id: string }) {
             <Stack align="center" gap={6} style={{ flexShrink: 0 }}>
               <Box
                 p="sm"
+                pos="relative"
                 style={{
                   border: `${frame === "standard" ? 2 : 5}px solid ${frameColor(frame)}`,
                   borderRadius: "var(--mantine-radius-lg)",
                 }}
               >
+                <PatriciaEars stage={bunny} setStage={setBunny} figure={figure} />
                 <UnstyledButton
                   onClick={() => figure.current?.play(next === "done" ? "win" : "hello")}
                   aria-label={t("Coach.Card.Poke.Label")}
-                  style={{ lineHeight: 0 }}
+                  pos="relative"
+                  style={{ lineHeight: 0, zIndex: 1 }}
                 >
                   <CoachFigure ref={figure} size={180} title={t("Coach.Card.Title")} />
                 </UnstyledButton>
+                {frame === "carrot" && (
+                  <Box pos="absolute" right={-14} bottom={-14} style={{ lineHeight: 0, zIndex: 2 }}>
+                    <CarrotBadge />
+                  </Box>
+                )}
               </Box>
+              <PatriciaPopup stage={bunny} />
               <Text size="xs" c="dimmed">
                 {t("Coach.Showcase.Frame", { name: t(`Coach.Frame.${frame}`) })}
               </Text>

@@ -1,6 +1,7 @@
 import { Box, Button, Group, Paper, Text } from "@mantine/core";
 import { IconArrowBackUp } from "@tabler/icons-react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { makeUci } from "chessops";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Outcome } from "@/bindings";
@@ -23,6 +24,18 @@ import {
 } from "./coachDiary";
 import type { CoachPlan } from "./coachPlan";
 import { today } from "./coachState";
+import {
+  coachEggsAtom,
+  coachLambruscoDayAtom,
+  finishCoachEggsAtom,
+  humanKingMate,
+  humanKnightPromotion,
+  isEnPassant,
+  MATE_DRILL_TASKS,
+  repertoireToMate,
+} from "./coachEggs";
+import { BunnyBlast, CoachDog, LambruscoCart, PenaltyTicket } from "./CoachEggArt";
+import { coachProfileAtom } from "./coachProfile";
 
 const SIGN_COLOR: Record<string, string> = {
   "!!": "#1baca6",
@@ -52,6 +65,7 @@ export default function CoachGamePanel({
   takebacks,
   plan,
   root,
+  attack = false,
 }: {
   comment: CoachComment | null;
   gameState: "settingUp" | "playing" | "gameOver";
@@ -65,6 +79,8 @@ export default function CoachGamePanel({
   takebacks: number;
   plan: CoachPlan | null;
   root: TreeNode;
+  // JBL im Angriffsmodus: Patricia spielt
+  attack?: boolean;
 }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
@@ -81,11 +97,23 @@ export default function CoachGamePanel({
     lock: number;
   } | null>(null);
 
+  const profile = useAtomValue(coachProfileAtom);
   const line = (lineKey: string, extra = "") => {
     const key = pickLine(lineKey, recent.current);
     recent.current = [key, ...recent.current].slice(0, 20);
-    return `${t(`Coach.Line.${key}`)}${extra ? ` ${extra}` : ""}`;
+    return `${t(`Coach.Line.${key}`, { name: profile.name ?? "" })}${extra ? ` ${extra}` : ""}`;
   };
+
+  // Easter Eggs während der Partie
+  const eggs = useAtomValue(coachEggsAtom);
+  const finishEggs = useSetAtom(finishCoachEggsAtom);
+  const [lambruscoDay, setLambruscoDay] = useAtom(coachLambruscoDayAtom);
+  const lambrusco = useRef(false);
+  const [dog, setDog] = useState(false);
+  const [cart, setCart] = useState(false);
+  const [blast, setBlast] = useState(false);
+  const [penalty, setPenalty] = useState(false);
+  const checkedPly = useRef(0);
 
   // Erst die Bewegung, dann der Satz: die Blase kommt 300 ms nach dem Start
   // der Animation und bleibt so lange, wie man zum Lesen braucht. Mehrere
@@ -134,7 +162,24 @@ export default function CoachGamePanel({
   useEffect(() => {
     if (!comment || comment.id === lastComment.current) return;
     lastComment.current = comment.id;
-    if (comment.reaction === "brilliant") stats.current.brilliants++;
+    if (comment.reaction === "brilliant") {
+      stats.current.brilliants++;
+      // Aaron: sein Hund kommt und schaut für den Rest der Partie zu
+      if (eggs.aaron && !dog) setDog(true);
+      // Ben: Lambrusco, höchstens einmal am Tag (+10 % XP)
+      if (eggs.ben && !lambrusco.current && lambruscoDay !== today()) {
+        lambrusco.current = true;
+        setLambruscoDay(today());
+        setCart(true);
+        timers.current.push(setTimeout(() => setCart(false), 5600));
+        speak([
+          { anim: "bril", text: line("brilliant"), sign: "!!" },
+          { anim: "good", text: line("lambrusco"), sign: null },
+        ]);
+        marks.current[comment.ply] = "!!";
+        return;
+      }
+    }
     if (comment.reaction === "good") stats.current.goods++;
     marks.current[comment.ply] = REACTION_SIGN[comment.reaction];
     if (comment.reaction === "blunder" || comment.reaction === "missedMate")
@@ -188,6 +233,23 @@ export default function CoachGamePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [root, plan, gameState]);
 
+  // En passant: JBL macht einen Salto
+  useEffect(() => {
+    if (gameState !== "playing" || !humanColor) return;
+    let prev = root;
+    let n = root;
+    while (n.children.length > 0) {
+      prev = n;
+      n = n.children[0];
+    }
+    if (!n.move || n.halfMoves <= checkedPly.current) return;
+    checkedPly.current = n.halfMoves;
+    const mover = n.halfMoves % 2 === 1 ? "white" : "black";
+    if (mover === humanColor && isEnPassant(prev.fen, makeUci(n.move)))
+      speak([{ anim: "salto", text: line("enPassant"), sign: null }]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [root, gameState]);
+
   const addLine = async () => {
     if (!plan?.repertoire || !departure || departure.kind !== "gap") return;
     setAdded("busy");
@@ -216,8 +278,15 @@ export default function CoachGamePanel({
       setDeparture(null);
       setAdded("no");
       setReceipt(null);
+      setDog(false);
+      setCart(false);
+      setBlast(false);
+      setPenalty(false);
+      lambrusco.current = false;
+      checkedPly.current = 0;
       speak([
         { anim: "hello", text: line("start"), sign: null },
+        ...(attack ? [{ anim: "think" as const, text: line("attack"), sign: null }] : []),
         ...(plan?.announce ?? []).map((key) => ({ anim: null, text: line(key), sign: null })),
         ...(bonusTrack ? [{ anim: "bril" as const, text: line("bonusTrack"), sign: null }] : []),
       ]);
@@ -237,7 +306,20 @@ export default function CoachGamePanel({
         takebacks,
         ...stats.current,
         mistake: worst.current?.mistake ?? null,
+        lambrusco: lambrusco.current,
       });
+      const egg = finishEggs({
+        result: outcome,
+        attack,
+        brilliants: stats.current.brilliants,
+        blunders: stats.current.blunders,
+        takebacks,
+        missedMate: worst.current?.severity === SEVERITY.missedMate,
+        kingMate: humanKingMate(root, humanColor),
+        knightPromotion: humanKnightPromotion(root, humanColor),
+        repertoireMate: !!plan?.index && repertoireToMate(root, humanColor, plan.index),
+      });
+      const lock = egg.penalty ? MATE_DRILL_TASKS : done.lock;
       // Erst die Reaktion, dann der Kassenzettel, danach was neu ist
       const after: Say[] = [];
       if (done.levelAfter > done.levelBefore) {
@@ -253,7 +335,37 @@ export default function CoachGamePanel({
             sign: null,
           });
       }
-      for (const trophy of done.trophies)
+      for (const key of egg.lines)
+        after.push({
+          anim:
+            key === "aaronMate"
+              ? "facepalm"
+              : key === "bassBeatsBunny"
+                ? "bril"
+                : key === "patriciaLoss"
+                  ? "dub"
+                  : "good",
+          text: line(key),
+          sign: null,
+        });
+      for (const title of egg.titles)
+        after.push({
+          anim: null,
+          text: t("Coach.Game.NewTitle", { title: t(`Coach.Title.${title}`) }),
+          sign: null,
+        });
+      for (const frame of egg.frames)
+        after.push({
+          anim: null,
+          text: t("Coach.Game.NewFrame", { frame: t(`Coach.Frame.${frame}`) }),
+          sign: null,
+        });
+      if (egg.bunnyBlast) {
+        timers.current.push(setTimeout(() => setBlast(true), 900));
+        timers.current.push(setTimeout(() => setBlast(false), 3400));
+      }
+      if (egg.penalty) timers.current.push(setTimeout(() => setPenalty(true), 1800));
+      for (const trophy of [...done.trophies, ...egg.trophies])
         after.push({
           anim: "good",
           text: t("Coach.Game.Trophy", { trophy: t(`Coach.Trophy.${trophy}.Title`) }),
@@ -279,9 +391,7 @@ export default function CoachGamePanel({
           : { anim: outcome, text: line(outcome), sign: null },
         ...after,
       ]);
-      timers.current.push(
-        setTimeout(() => setReceipt({ lines: done.lines, lock: done.lock }), 2400),
-      );
+      timers.current.push(setTimeout(() => setReceipt({ lines: done.lines, lock }), 2400));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, result]);
@@ -298,7 +408,14 @@ export default function CoachGamePanel({
       <Group wrap="nowrap" align="flex-start" gap="sm">
         <Box style={{ flexShrink: 0, lineHeight: 0 }}>
           <CoachFigure ref={figure} size={96} title={t("Coach.Card.Title")} />
+          {dog && (
+            <Box mt={4} ta="center">
+              <CoachDog size={64} />
+            </Box>
+          )}
         </Box>
+        {cart && <LambruscoCart />}
+        {blast && <BunnyBlast />}
         <Box
           style={{ flex: 1, minWidth: 0, minHeight: 72 }}
           onMouseEnter={() => setHover(true)}
@@ -320,6 +437,14 @@ export default function CoachGamePanel({
             <Text size="sm" c="dimmed">
               {t("Coach.Game.Watching")}
             </Text>
+          )}
+          {penalty && (
+            <Box mt="xs">
+              <PenaltyTicket
+                title={t("Coach.Egg.TicketTitle")}
+                text={t("Coach.Egg.TicketText", { count: MATE_DRILL_TASKS })}
+              />
+            </Box>
           )}
           {receipt && <CoachReceipt lines={receipt.lines} lock={receipt.lock} />}
           {receipt && departure && (

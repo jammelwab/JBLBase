@@ -70,6 +70,8 @@ export default defineConfig({
             "Coach.Quest.*",
             "Coach.Birthday.*",
             "Coach.Hint.*",
+            "Coach.Egg.*",
+            "Coach.Diary.*",
         ],
         sort: true,
     },

@@ -3,6 +3,7 @@ import { atomWithStorage } from "jotai/utils";
 import {
     type CoachStreak,
     coachLockAtom,
+    coachMateDrillAtom,
     coachMistakeAtom,
     coachStreakAtom,
 } from "./coachProgress";
@@ -19,6 +20,7 @@ import {
     coachShownTitleAtom,
     coachTrophiesAtom,
 } from "./coachRewards";
+import { coachAttackAtom, coachLambruscoDayAtom, coachPatriciaWinsAtom } from "./coachEggs";
 import { coachDayAtom, coachStrengthAtom, coachXpOthersAtom, coachXpOwnAtom } from "./coachState";
 
 // Abgleich des Coach-Stands zwischen den Rechnern eines Kontos.
@@ -50,6 +52,10 @@ const BUNDLE_ATOMS = {
     quest: coachQuestAtom,
     day: coachDayAtom,
     results: coachResultsAtom,
+    attack: coachAttackAtom,
+    patriciaWins: coachPatriciaWinsAtom,
+    lambrusco: coachLambruscoDayAtom,
+    mateDrill: coachMateDrillAtom,
 } as const;
 
 export type CoachSets = Record<keyof typeof SET_ATOMS, string[]>;

@@ -2,6 +2,8 @@ import { atomWithStorage } from "jotai/utils";
 import type { BookMove } from "@/bindings";
 import { getDocumentDir } from "@/utils/directories";
 import { getMainOwner, listRepertoires, type Repertoire } from "@/utils/repertoires";
+import { aprilFoolsBook, isAprilFools } from "./coachEggs";
+import { today } from "./coachState";
 import { type DiaryGame, epdIndex, repertoireBook, steeringBook, varietyBook } from "./coachDiary";
 
 // Eröffnungs-Sparring: JBL spielt die Gegnerzüge aus deinem Repertoire.
@@ -13,7 +15,7 @@ export const STEER_CHANCE = 0.5;
 export type CoachPlan = {
     book: BookMove[];
     // Was JBL zu Beginn ansagt
-    announce: ("sparring" | "variety" | "noRepertoire")[];
+    announce: ("sparring" | "variety" | "noRepertoire" | "aprilFools")[];
     sparring: boolean;
     repertoire: Repertoire | null;
     // Stellung -> Repertoire-Züge (EPD-Schlüssel wie im Tagebuch)
@@ -48,6 +50,7 @@ export function planCoachGame(
     repertoire: Repertoire | null,
     sparring: boolean,
     rand: () => number = Math.random,
+    day: string = today(),
 ): CoachPlan {
     const index = repertoire ? epdIndex(repertoire.root) : null;
     if (sparring && repertoire) {
@@ -69,6 +72,11 @@ export function planCoachGame(
     }
     // Heimlich: manchmal steuert JBL in Linien, die dir früher Probleme gemacht haben
     if (rand() < STEER_CHANCE) book.push(...steeringBook(diary, humanColor));
+    // Am 1. April: 1.e4 e5 2.Ke2, und JBL tut, als wäre nichts
+    if (humanColor === "black" && isAprilFools(day)) {
+        book.unshift(...aprilFoolsBook());
+        announce.push("aprilFools");
+    }
     return { book, announce, sparring: false, repertoire, index };
 }
 

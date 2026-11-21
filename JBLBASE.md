@@ -551,6 +551,24 @@ Seit 1.2.5 führt JBL ein verborgenes **Tagebuch** über die Partien gegen ihn: 
 
 Technisch bekommt die Partie-Engine ein eigenes Zugbuch (`moveBook` in `GameConfig`), das vor dem Polyglot-Buch gefragt wird. Der Code: `coachDiary.ts`, `coachPlan.ts`, `CoachHints.tsx` und `src-tauri/src/game.rs`.
 
+### Angriffsmodus und Easter Eggs
+
+Seit 1.2.6 gibt es ab Level 5 den **Angriffsmodus**: ein Schalter beim Partiestart, dann spielt Patricia statt Stockfish, mit mehr Opfern und Gambits. Die Stärke stellt JBL über Patricias `Skill_Level` ein (Stufe 1 bis 20, ca. 500 bis 3000 Elo). Ist Patricia nicht eingerichtet, bleibt der Schalter aus. Siege gegen Patricia werden gezählt.
+
+**Für alle:**
+
+- **Hasenohren:** Etwa bei jedem 50. Öffnen der Coach-Seite schauen hinter JBL zwei Hasenohren hervor. Wer sie in 3 Sekunden anklickt, sieht Patricia: erst süß, dann die Reißzähne. JBL erschrickt. Belohnung: die Verzierung „Hasenohren“.
+- **Bass schlägt Hase:** Sieg im Angriffsmodus mit einem !!: Bass-Drop, ein Hase fliegt über den Bildschirm, Trophäe.
+- **Hasenjäger:** 10 Siege im Angriffsmodus: Trophäe, Titel und Karottenrahmen.
+- Gewinnende Unterverwandlung in einen Springer, en passant (Salto), Matt mit dem König (geheimer Titel „Königswanderer“) und am 1. April 1.e4 e5 2.Ke2, wenn JBL Weiß hat.
+
+**Persönlich** (über `eggs` im Coach-Profil):
+
+- **Aaron:** Bei einem !! kommt sein Hund und schaut für den Rest der Partie zu. Eine Partie aus dem Repertoire fehlerfrei bis zum eigenen Matt bringt Titel und Rahmen „OberBoss“. Wer ein Matt in 1 übersieht, bekommt einen Strafzettel und 5 Matt-in-1-Aufgaben statt 3 (die Puzzles öffnen dann mit dem Thema Matt in 1).
+- **Ben:** Bei einem !! (immer ein Opfer) rollt höchstens einmal am Tag die Lambrusco-Schubkarre herein: +10 % XP auf die Partie.
+
+Der Code: `coachEggs.ts`, `CoachEggArt.tsx`, `PatriciaPeek.tsx` und `CoachEggs.module.css`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten
