@@ -1,5 +1,6 @@
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
+import { isBirthdayAtom } from "./coachBirthday";
 import {
     advanceQuest,
     awardTrophyAtom,
@@ -281,6 +282,7 @@ export type CoachGameSummary = {
     bonusNext: boolean;
     estimate: number | null;
     newBest: boolean;
+    lock: number;
 };
 
 // Eine Partie gegen JBL ist zu Ende: XP gutschreiben, Serie, Tageszähler,
@@ -305,12 +307,24 @@ export const finishCoachGameAtom = atom(
         for (const e of events) questXp += set(questEventAtom, e);
 
         const bonusTrack = get(coachBonusTrackAtom);
-        const receipt = computeReceipt({ ...game, streakDays, gameOfDay, bonusTrack, questXp });
+        const birthday = get(isBirthdayAtom);
+        const receipt = computeReceipt({
+            ...game,
+            streakDays,
+            gameOfDay,
+            bonusTrack,
+            questXp,
+            birthday,
+        });
         const xpBefore = get(coachXpAtom);
         const xpAfter = xpBefore + receipt.total;
         set(coachXpAtom, xpAfter);
-        set(coachLockAtom, lockAfter(game.result));
-        set(coachMistakeAtom, game.result !== "win" && game.mistake ? game.mistake : null);
+        // Am Geburtstag gibt es keine Pflichtaufgaben
+        set(coachLockAtom, birthday ? 0 : lockAfter(game.result));
+        set(
+            coachMistakeAtom,
+            !birthday && game.result !== "win" && game.mistake ? game.mistake : null,
+        );
 
         const bonusNext = random() < BONUS_TRACK_CHANCE;
         set(coachBonusTrackAtom, bonusNext);
@@ -345,6 +359,7 @@ export const finishCoachGameAtom = atom(
             bonusNext,
             estimate,
             newBest: newBest && best > 0,
+            lock: get(coachLockAtom),
         };
     },
 );

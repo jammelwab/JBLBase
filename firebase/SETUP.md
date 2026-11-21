@@ -333,3 +333,23 @@ Firebase-Konsole → **Analytics**:
 
 Bei wenigen Nutzern blendet Analytics manche Zahlen aus (Schwellenwerte).
 Die Ereigniszahlen stimmen trotzdem.
+
+## JBL Coach: Sync und Coach-Profile (1.2.4)
+
+Nach dem Merge die Regeln deployen (wie in Schritt 10). Danach gleicht die App
+den Coach-Stand (XP, Trophäen, Serie, Outfit) über `users/{uid}/coach/state`
+zwischen den Rechnern ab.
+
+Geburtstage und persönliche Easter Eggs trägst nur du ein:
+
+1. Firebase-Konsole → **Authentication** → Nutzer suchen → **Nutzer-UID** kopieren.
+2. **Firestore Database** → Sammlung `coachProfiles` (beim ersten Mal **Sammlung starten**),
+   Dokument-ID = die UID.
+3. Felder:
+   - `birthday` (String, `MM-TT`, ohne Jahr), z. B. `11-21`
+   - `eggs` (Array von Strings), z. B. `aaron` oder `ben`
+   - `name` (String), wie JBL den Spieler anspricht, z. B. `Aaron`
+   - `rival` (String, optional), die UID des Rivalen im Duell
+
+Der Spieler kann sein Profil lesen, aber weder sehen noch ändern, was darin
+steht; die App zeigt es nirgends an.

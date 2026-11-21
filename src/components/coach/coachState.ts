@@ -1,3 +1,4 @@
+import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 // Sieben Stärkestufen. Unter 1320 Elo kann Stockfish nicht begrenzen,
@@ -19,8 +20,20 @@ export const coachStrengthAtom = atomWithStorage<CoachStrengthId>(
     "fairlyEasy",
 );
 
-// Gesamt-XP aus Partien gegen JBL und gelösten Puzzles.
-export const coachXpAtom = atomWithStorage<number>("jbl-coach-xp", 0);
+// XP, die auf diesem Rechner gesammelt wurden, und die der anderen Rechner
+// desselben Kontos (aus dem Coach-Sync). Jeder Rechner schreibt nur seinen
+// eigenen Anteil, so geht beim Abgleich nichts verloren.
+export const coachXpOwnAtom = atomWithStorage<number>("jbl-coach-xp", 0);
+export const coachXpOthersAtom = atomWithStorage<number>("jbl-coach-xp-others", 0);
+
+// Gesamt-XP aus Partien gegen JBL, Puzzles und Training. Schreiben setzt die
+// Summe; der Unterschied landet im eigenen Anteil.
+export const coachXpAtom = atom(
+    (get) => get(coachXpOwnAtom) + get(coachXpOthersAtom),
+    (get, set, total: number) => {
+        set(coachXpOwnAtom, get(coachXpOwnAtom) + (total - get(coachXpAtom)));
+    },
+);
 
 // XP, die man insgesamt braucht, um Level n zu erreichen (Level 1 ab 0 XP).
 export function xpForLevel(level: number): number {

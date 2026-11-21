@@ -68,6 +68,7 @@ export default defineConfig({
             "Coach.Frame.*",
             "Coach.Trophy.*",
             "Coach.Quest.*",
+            "Coach.Birthday.*",
         ],
         sort: true,
     },

@@ -530,6 +530,14 @@ Nach 5 Partien schätzt JBL eine **Spielstärke** aus den letzten 30 Ergebnissen
 
 Der Code: `coachRewards.ts` (Verzierungen, Rahmen, Titel, Trophäen, Bonus-Track, Tagesaufgabe, Schätzung), `CoachShowcase.tsx` und `CoachMistakeTask.tsx`.
 
+### Coach in der Cloud und Geburtstag
+
+Seit 1.2.4 gleicht der Cloud-Sync auch den Coach ab, im Dokument `users/{uid}/coach/state`. Jeder Rechner schreibt nur seine eigenen XP (`xpByDevice`), die Summe ist das Level; so gehen XP nie verloren, wenn auf zwei Rechnern gespielt wird. Trophäen, Verzierungen, Rahmen und Titel werden vereinigt, die Serie mit dem späteren letzten Tag gewinnt, und für Stärke, Sperre, eigenen Fehler, Outfit, Tagesaufgabe und Ergebnisse gilt die letzte Änderung. Ein Fehler beim Coach-Abgleich hält den übrigen Sync nicht auf.
+
+Das **Coach-Profil** `coachProfiles/{uid}` trägt nur der Admin in der Firebase-Konsole ein (siehe `firebase/SETUP.md`): Geburtstag (`MM-TT`), persönliche Easter Eggs (`eggs`), Name und Rivale. Die App liest es beim Sync und merkt es sich lokal.
+
+**Geburtstag:** Beim ersten Öffnen des Startbildschirms am Geburtstag kommt JBL mit Partyhütchen und Torte. Ein Klick auf die Torte pustet die Kerzen aus: 250 XP und das Partyhütchen zum Behalten. Den ganzen Tag trägt JBL das Hütchen, Partien bringen doppelte XP, und nach einer Niederlage gibt es keine Pflichtaufgaben. War die App am Geburtstag nicht offen, gibt es bis zu 3 Tage später ein „Nachträglich alles Gute!“. Der Code: `coachSync.ts`, `coachProfile.ts`, `coachBirthday.ts`, `CoachBirthday.tsx` und `src/utils/cloud/coachCloud.ts`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten

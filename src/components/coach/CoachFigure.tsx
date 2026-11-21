@@ -1,7 +1,8 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef } from "react";
 import { useAtomValue } from "jotai";
 import classes from "./CoachFigure.module.css";
-import { type CoachItemId, coachOutfitAtom } from "./coachRewards";
+import { isBirthdayAtom } from "./coachBirthday";
+import { type CoachItemId, coachOutfitAtom, itemSlot } from "./coachRewards";
 
 // Die JBL-Figur: Bohnenkörper, Kopf ist die JBL-Box aus dem Logo.
 // Gezeichnet mit den Füßen bei (0,0), Hüfte bei y -46, Hals bei y -130.
@@ -73,7 +74,13 @@ const CoachFigure = forwardRef<
   ref,
 ) {
   const storedOutfit = useAtomValue(coachOutfitAtom);
-  const outfit = outfitProp ?? storedOutfit;
+  const birthday = useAtomValue(isBirthdayAtom);
+  // Am Geburtstag trägt JBL den ganzen Tag das Partyhütchen
+  const outfit =
+    outfitProp ??
+    (birthday
+      ? [...storedOutfit.filter((i) => itemSlot(i) !== "head"), "partyHat" as const]
+      : storedOutfit);
   const wears = (item: CoachItemId) => outfit.includes(item);
   const lift = Math.max(0, ...outfit.map((i) => HAT_LIFT[i] ?? 0));
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
