@@ -1547,6 +1547,8 @@
     "Settings.SnapArrows": "Ajustar Flechas",
     "Settings.SnapArrows.Desc": "Las flechas se ajustan a movimientos válidos",
     "Settings.Sound": "Sonido",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Colección de sonidos",
     "Settings.Sound.Collection.Desc": "Colección de sonidos utilizada",
     "Settings.Sound.Desc": "Personalizar la configuración de sonido",

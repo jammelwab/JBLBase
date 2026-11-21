@@ -1495,6 +1495,8 @@
     "Settings.SnapArrows": "Okları Kısıtla",
     "Settings.SnapArrows.Desc": "Okları sadece geçerli hamlelerle kısıtla",
     "Settings.Sound": "Ses",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Ses koleksiyonu",
     "Settings.Sound.Collection.Desc": "Kullanılan seslerin koleksiyonu",
     "Settings.Sound.Desc": "Ses ayarlarını düzenleyin",

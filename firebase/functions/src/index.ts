@@ -12,6 +12,18 @@ import { getFirestore } from "firebase-admin/firestore";
 import { budgetExceeded, parseNotification } from "./budget.js";
 import { type MailKind, maySend, parseEmail, parseLang, renderMail } from "./mail.js";
 import { lichessListed, lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
+import Anthropic from "@anthropic-ai/sdk";
+import {
+    EXPLAIN_MAX_TOKENS,
+    EXPLAIN_MODEL,
+    EXPLAIN_SYSTEM,
+    explainPrompt,
+    isMember,
+    nextUsage,
+    parseExplainRequest,
+    trimAnswer,
+} from "./explain.js";
+import { cacheKey } from "./explainKey.js";
 
 // All functions run in Frankfurt with at most one instance, so a bug or an
 // attack can never scale up costs.
@@ -241,5 +253,82 @@ export const sendPasswordResetMail = onCall(
         const link = await getAuth().generatePasswordResetLink(email);
         await sendMail("reset", request.data, email, link);
         return { sent: true };
+    },
+);
+
+// ---------- JBL Coach: „Warum?“ (1.2.9) ----------
+//
+// Claude Haiku formuliert die Fakten aus Stockfish. Der Schlüssel liegt als
+// Secret in Firebase, nie in der App:
+//   firebase functions:secrets:set ANTHROPIC_API_KEY
+// Antworten werden in coachExplanations/{key} gemerkt (Stellung, Zug,
+// Lernstufe, Sprache), das Tageslimit steht in coachExplainUsage/{uid}.
+// Beide Sammlungen sind für die App gesperrt, nur diese Funktion schreibt.
+
+const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
+
+export const coachExplain = onCall(
+    { cors: true, timeoutSeconds: 30, secrets: [ANTHROPIC_API_KEY] },
+    async (request) => {
+        const auth = request.auth;
+        if (!auth) throw new HttpsError("unauthenticated", "Not signed in");
+        const req = parseExplainRequest(request.data);
+        if (!req) throw new HttpsError("invalid-argument", "Bad request");
+
+        const db = getFirestore();
+        const access = await db.doc("config/access").get();
+        if (!isMember(auth.token, access.data())) {
+            throw new HttpsError("permission-denied", "Not a member");
+        }
+
+        const key = cacheKey(req);
+        const cached = await db.doc(`coachExplanations/${key}`).get();
+        const cachedText = cached.data()?.text;
+        if (typeof cachedText === "string" && cachedText) {
+            return { text: cachedText, cached: true };
+        }
+
+        // Nur neue Antworten zählen zum Tageslimit
+        const day = new Date().toISOString().slice(0, 10);
+        const usageRef = db.doc(`coachExplainUsage/${auth.uid}`);
+        const allowed = await db.runTransaction(async (tx) => {
+            const next = nextUsage((await tx.get(usageRef)).data(), day);
+            if (next.allowed) tx.set(usageRef, next.usage);
+            return next.allowed;
+        });
+        if (!allowed) throw new HttpsError("resource-exhausted", "Daily limit reached");
+
+        const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+        const response = await client.messages.create({
+            model: EXPLAIN_MODEL,
+            max_tokens: EXPLAIN_MAX_TOKENS,
+            // Wenig Denkaufwand: nur formulieren, nicht rechnen
+            thinking: { type: "disabled" },
+            output_config: { effort: "low" },
+            system: EXPLAIN_SYSTEM,
+            messages: [{ role: "user", content: explainPrompt(req) }],
+        });
+        if (response.stop_reason === "refusal") {
+            throw new HttpsError("unavailable", "No explanation");
+        }
+        const text = trimAnswer(
+            response.content
+                .filter((b) => b.type === "text")
+                .map((b) => b.text)
+                .join(" "),
+        );
+        if (!text) throw new HttpsError("unavailable", "No explanation");
+
+        await db.doc(`coachExplanations/${key}`).set({
+            text,
+            model: EXPLAIN_MODEL,
+            createdAt: new Date(),
+        });
+        logger.info("Coach explanation", {
+            uid: auth.uid,
+            input: response.usage.input_tokens,
+            output: response.usage.output_tokens,
+        });
+        return { text, cached: false };
     },
 );

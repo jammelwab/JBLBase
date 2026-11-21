@@ -20,6 +20,7 @@ import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, sanToSquares } from "@/utils/gamesTree";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { coachIntroAtom } from "./coachIntro";
+import { playCoachTone } from "./coachSound";
 import {
   coachLessonAnnouncedAtom,
   coachLessonsDoneAtom,
@@ -142,7 +143,10 @@ function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }
   }, [finished]);
 
   const solved = () => {
-    if (step + 1 >= lesson.tasks.length) setXp(complete(lesson.id));
+    if (step + 1 >= lesson.tasks.length) {
+      setXp(complete(lesson.id));
+      playCoachTone("lesson");
+    }
     setStep(step + 1);
   };
 

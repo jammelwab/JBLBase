@@ -1432,6 +1432,8 @@
     "Settings.SnapArrows": "화살표 맞추기",
     "Settings.SnapArrows.Desc": "화살표를 유효한 수에 맞춥니다",
     "Settings.Sound": "소리",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "소리 모음",
     "Settings.Sound.Collection.Desc": "사용할 소리 모음",
     "Settings.Sound.Desc": "소리를 설정합니다",

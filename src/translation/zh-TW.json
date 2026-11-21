@@ -1418,6 +1418,8 @@
     "Settings.SnapArrows": "對齊箭頭",
     "Settings.SnapArrows.Desc": "將箭頭對齊到合法著手",
     "Settings.Sound": "聲音",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "音效集",
     "Settings.Sound.Collection.Desc": "使用的音效集",
     "Settings.Sound.Desc": "自訂聲音設定",

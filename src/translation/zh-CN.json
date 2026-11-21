@@ -1485,6 +1485,8 @@
     "Settings.SnapArrows": "吸附箭头",
     "Settings.SnapArrows.Desc": "将箭头吸附到有效着法上",
     "Settings.Sound": "声音",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "声音合集",
     "Settings.Sound.Collection.Desc": "使用的声音合集",
     "Settings.Sound.Desc": "自定义声音设置",

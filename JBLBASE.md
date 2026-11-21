@@ -594,6 +594,14 @@ Offen sind die erste Lektion des Einstiegspfads und alles davor; jedes Coach-Lev
 
 Der Code: `coachLessons.ts`, `CoachLessons.tsx`, `coachIntro.ts` und `CoachIntro.tsx`.
 
+### „Warum?“ und Töne
+
+Seit 1.2.9 steht in der Partie gegen JBL unter der Sprechblase ein kleiner Knopf „Warum ?? für Qxf7?“. Erst ein Klick fragt die KI: Die App schickt die Fakten aus Stockfish (Stellung, dein Zug, bester Zug, die Folgevariante, Bewertung vorher und nachher aus deiner Sicht, erkannte Motive) und deine Lernstufe aus der Einführung an die Cloud Function `coachExplain`. Dort formuliert Claude Haiku 5.5 daraus 2 bis 4 Sätze im Ton des Coaches; selbst bewertet die KI nichts. Antworten werden gemerkt (Stellung, Zug, Lernstufe, Sprache), pro Spieler gibt es höchstens 20 neue am Tag. Einrichtung: `firebase/SETUP.md`.
+
+Dazu spielt JBL **leise Töne**: ein Dur-Arpeggio bei !!, zwei Töne nach oben bei !, ein Misston bei ?, ein schräger tiefer Akkord bei ??, eine kleine Fanfare beim Sieg und eine traurige Posaune bei einer Niederlage. Die Töne entstehen im Programm, ohne Tondateien, mit einem Viertel der eingestellten Lautstärke. Abschalten: **Einstellungen → Ton → Coach-Töne**.
+
+Der Code: `coachExplain.ts`, `CoachWhy.tsx`, `coachSound.ts` und `firebase/functions/src/explain.ts`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten

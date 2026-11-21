@@ -1547,6 +1547,8 @@
     "Settings.SnapArrows": "Vincola frecce",
     "Settings.SnapArrows.Desc": "Vincola le frecce alle mosse valide",
     "Settings.Sound": "Suono",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Collezione di suoni",
     "Settings.Sound.Collection.Desc": "Collezione di suoni utilizzati",
     "Settings.Sound.Desc": "Personalizza le impostazioni del suono",

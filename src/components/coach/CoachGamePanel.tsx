@@ -8,6 +8,8 @@ import type { Outcome } from "@/bindings";
 import CoachFigure, { type CoachAnimation, type CoachFigureHandle } from "./CoachFigure";
 import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coachGame";
 import CoachReceipt from "./CoachReceipt";
+import CoachWhy from "./CoachWhy";
+import { playCoachTone } from "./coachSound";
 import { type CoachMistake, finishCoachGameAtom, type ReceiptLine } from "./coachProgress";
 import { coachBonusTrackAtom, DAILY_QUEST_XP } from "./coachRewards";
 import type { CoachStrengthId } from "./coachState";
@@ -177,6 +179,7 @@ export default function CoachGamePanel({
         setLambruscoDay(today());
         setCart(true);
         timers.current.push(setTimeout(() => setCart(false), 5600));
+        playCoachTone("brilliant");
         speak([
           { anim: "bril", text: line("brilliant"), sign: "!!" },
           { anim: "good", text: line("lambrusco"), sign: null },
@@ -204,6 +207,7 @@ export default function CoachGamePanel({
       comment.best && ["dubious", "mistake", "blunder"].includes(comment.reaction)
         ? t("Coach.Line.Better", { move: comment.best })
         : "";
+    playCoachTone(comment.reaction === "missedMate" ? "blunder" : comment.reaction);
     deliver(REACTION_ANIMATION[comment.reaction], comment.reaction, sign, better);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comment]);
@@ -305,6 +309,7 @@ export default function CoachGamePanel({
           : (result === "1-0") === (humanColor === "white")
             ? ("win" as const)
             : ("loss" as const);
+      playCoachTone(outcome);
       setDiary((d) => addToDiary(d, diaryGame(root, humanColor, outcome, marks.current, today())));
       if (plan?.index) setDeparture(repertoireDeparture(root, humanColor, plan.index));
       const done = finishGame({
@@ -454,6 +459,7 @@ export default function CoachGamePanel({
               {t("Coach.Game.Watching")}
             </Text>
           )}
+          {gameState !== "settingUp" && <CoachWhy comment={comment} />}
           {penalty && (
             <Box mt="xs">
               <PenaltyTicket

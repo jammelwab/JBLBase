@@ -606,3 +606,21 @@ describe("JBL Coach: Boss und Duell (1.2.7)", () => {
     );
   });
 });
+
+describe("JBL Coach: Warum? (1.2.9)", () => {
+  test("explanations and the daily count belong to the function alone", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "coachExplanations/k1"), { text: "Gut." });
+      await setDoc(doc(ctx.firestore(), "coachExplainUsage/alice"), {
+        day: "2026-11-21",
+        count: 1,
+      });
+    });
+    await assertFails(getDoc(doc(user(), "coachExplanations/k1")));
+    await assertFails(setDoc(doc(user(), "coachExplanations/k2"), { text: "Frei erfunden." }));
+    await assertFails(getDoc(doc(admin(), "coachExplanations/k1")));
+    await assertFails(
+      setDoc(doc(user(), "coachExplainUsage/alice"), { day: "2026-11-21", count: 0 }),
+    );
+  });
+});

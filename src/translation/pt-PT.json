@@ -1547,6 +1547,8 @@
     "Settings.SnapArrows": "Encaixar setas",
     "Settings.SnapArrows.Desc": "Ajusta setas para movimentos válidos",
     "Settings.Sound": "Som",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Coleção de sons",
     "Settings.Sound.Collection.Desc": "Coleção de sons usados",
     "Settings.Sound.Desc": "Customizar as configurações de som",
