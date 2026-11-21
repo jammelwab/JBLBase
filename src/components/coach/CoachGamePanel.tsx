@@ -36,6 +36,7 @@ import {
 } from "./coachEggs";
 import { BunnyBlast, CoachDog, LambruscoCart, PenaltyTicket } from "./CoachEggArt";
 import { coachProfileAtom } from "./coachProfile";
+import { useIsAdmin } from "@/components/tutorial/tutorialState";
 
 const SIGN_COLOR: Record<string, string> = {
   "!!": "#1baca6",
@@ -66,6 +67,7 @@ export default function CoachGamePanel({
   plan,
   root,
   attack = false,
+  boss = false,
 }: {
   comment: CoachComment | null;
   gameState: "settingUp" | "playing" | "gameOver";
@@ -81,6 +83,8 @@ export default function CoachGamePanel({
   root: TreeNode;
   // JBL im Angriffsmodus: Patricia spielt
   attack?: boolean;
+  // Boss-Challenge: „Jannick“ spielt
+  boss?: boolean;
 }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
@@ -98,6 +102,7 @@ export default function CoachGamePanel({
   } | null>(null);
 
   const profile = useAtomValue(coachProfileAtom);
+  const isAdmin = useIsAdmin();
   const line = (lineKey: string, extra = "") => {
     const key = pickLine(lineKey, recent.current);
     recent.current = [key, ...recent.current].slice(0, 20);
@@ -285,7 +290,9 @@ export default function CoachGamePanel({
       lambrusco.current = false;
       checkedPly.current = 0;
       speak([
-        { anim: "hello", text: line("start"), sign: null },
+        boss
+          ? { anim: "think" as const, text: line("bossStart"), sign: null }
+          : { anim: "hello" as const, text: line("start"), sign: null },
         ...(attack ? [{ anim: "think" as const, text: line("attack"), sign: null }] : []),
         ...(plan?.announce ?? []).map((key) => ({ anim: null, text: line(key), sign: null })),
         ...(bonusTrack ? [{ anim: "bril" as const, text: line("bonusTrack"), sign: null }] : []),
@@ -307,6 +314,8 @@ export default function CoachGamePanel({
         ...stats.current,
         mistake: worst.current?.mistake ?? null,
         lambrusco: lambrusco.current,
+        boss,
+        isAdmin,
       });
       const egg = finishEggs({
         result: outcome,
@@ -383,6 +392,13 @@ export default function CoachGamePanel({
           text: t("Coach.Game.NewBest", { elo: done.estimate }),
           sign: null,
         });
+      if (boss)
+        after.unshift({
+          anim: outcome === "win" ? "win" : "think",
+          text: line(outcome === "win" ? "bossWin" : "bossOther"),
+          sign: null,
+        });
+      if (done.bossNext) after.push({ anim: "think", text: line("bossNext"), sign: null });
       if (done.lines.some((l) => l.key === "tired"))
         after.push({ anim: "think", text: line("tired"), sign: null });
       speak([

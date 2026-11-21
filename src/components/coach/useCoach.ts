@@ -11,6 +11,7 @@ import {
     tabsAtom,
 } from "@/state/atoms";
 import type { Tab } from "@/utils/tabs";
+import { coachBossAtom } from "./coachBoss";
 import { MATE_DRILL_THEME } from "./coachEggs";
 import {
     coachLockAtom,
@@ -83,8 +84,10 @@ export function useCoach(tabId: string) {
 
     // Zeitpunkt beim Öffnen der Karte; reicht für die Tagesaufgaben.
     const [now] = useState(() => new Date());
-    const next: CoachTaskId = nextCoachTask(dueCount, day, now, lock);
+    // Fordert der Boss heraus, ist die nächste Partie Pflicht
+    const boss = useAtomValue(coachBossAtom).pending && lock === 0;
+    const next: CoachTaskId = boss ? "play" : nextCoachTask(dueCount, day, now, lock);
     const tasks = coachTasks(dueCount, day, now, lock);
 
-    return { next, tasks, dueCount, actions, lock, streak };
+    return { next, tasks, dueCount, actions, lock, streak, boss };
 }

@@ -524,3 +524,85 @@ describe("JBL Coach (1.2.4)", () => {
     );
   });
 });
+
+describe("JBL Coach: Boss und Duell (1.2.7)", () => {
+  const rivals = async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "coachProfiles/alice"), { eggs: ["aaron"], rival: "bob" });
+      await setDoc(doc(ctx.firestore(), "coachProfiles/bob"), { eggs: ["ben"], rival: "alice" });
+    });
+  };
+  const duel = (over = {}) => ({
+    players: ["alice", "bob"],
+    white: "alice",
+    black: "bob",
+    names: { alice: "Aaron", bob: "Ben" },
+    moves: [],
+    result: "*",
+    reason: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...over,
+  });
+
+  test("members read the boss book, only admins write it", async () => {
+    const book = { moves: ["epd|e2e4|1000"], count: 1, updatedAt: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(admin(), "bossBook/main"), book));
+    await assertSucceeds(getDoc(doc(user(), "bossBook/main")));
+    await assertFails(getDoc(doc(user("mallory"), "bossBook/main")));
+    await assertFails(setDoc(doc(user(), "bossBook/main"), book));
+    await assertFails(setDoc(doc(admin(), "bossBook/other"), book));
+    await assertFails(setDoc(doc(admin(), "bossBook/main"), { ...book, extra: 1 }));
+  });
+
+  test("only the rival reads the level", async () => {
+    await rivals();
+    const level = { level: 7, xp: 900, name: "Aaron", updatedAt: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(user("alice"), "coachRivals/alice"), level));
+    await assertSucceeds(getDoc(doc(user("bob"), "coachRivals/alice")));
+    await assertFails(getDoc(doc(user("carla"), "coachRivals/alice")));
+    await assertFails(setDoc(doc(user("bob"), "coachRivals/alice"), level));
+    await assertFails(setDoc(doc(user("alice"), "coachRivals/alice"), { ...level, level: "7" }));
+  });
+
+  test("duels only between rivals, one move at a time", async () => {
+    await rivals();
+    await assertSucceeds(setDoc(doc(user("alice"), "duels/d1"), duel()));
+    await assertFails(
+      setDoc(
+        doc(user("carla"), "duels/d2"),
+        duel({ players: ["carla", "alice"], white: "carla", black: "alice" }),
+      ),
+    );
+    await assertFails(setDoc(doc(user("alice"), "duels/d3"), duel({ moves: ["e2e4"] })));
+    await assertSucceeds(getDoc(doc(user("bob"), "duels/d1")));
+    await assertFails(getDoc(doc(user("carla"), "duels/d1")));
+    const bobs = await assertSucceeds(
+      getDocs(query(collection(user("bob"), "duels"), where("players", "array-contains", "bob"))),
+    );
+    if (bobs.size !== 1) throw new Error(`expected 1 duel, got ${bobs.size}`);
+    await assertSucceeds(
+      updateDoc(doc(user("alice"), "duels/d1"), { moves: ["e2e4"], updatedAt: serverTimestamp() }),
+    );
+    await assertFails(
+      updateDoc(doc(user("bob"), "duels/d1"), {
+        moves: ["e2e4", "e7e5", "g1f3"],
+        updatedAt: serverTimestamp(),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(user("bob"), "duels/d1"), { white: "bob", updatedAt: serverTimestamp() }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(user("bob"), "duels/d1"), {
+        result: "1-0",
+        reason: "resign",
+        updatedAt: serverTimestamp(),
+      }),
+    );
+    // Fertig ist fertig
+    await assertFails(
+      updateDoc(doc(user("bob"), "duels/d1"), { result: "*", updatedAt: serverTimestamp() }),
+    );
+  });
+});

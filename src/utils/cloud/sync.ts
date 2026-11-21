@@ -1,7 +1,7 @@
 // Runs the cloud sync while someone is signed in: at start, after sign-in,
 // every few minutes, shortly after local changes, and on demand.
 
-import { fetchCoachProfile, syncCoachState } from "./coachCloud";
+import { fetchBossBook, fetchCoachProfile, syncCoachState, syncRival } from "./coachCloud";
 import { dirname, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readDir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import type * as Firestore from "firebase/firestore/lite";
@@ -637,7 +637,11 @@ async function runSync(uid: string) {
             usageMeter.read("training", coach.reads);
             if (coach.writes) usageMeter.write("training", coach.writes);
             await fetchCoachProfile(cf, uid, store).catch(() => {});
-            usageMeter.read("training", 1);
+            await fetchBossBook(cf, store).catch(() => {});
+            usageMeter.read("training", 2);
+            const rival = await syncRival(cf, uid, store).catch(() => ({ reads: 0, writes: 0 }));
+            if (rival.reads) usageMeter.read("training", rival.reads);
+            if (rival.writes) usageMeter.write("training", rival.writes);
         } catch (e) {
             console.warn("Coach not synced", e);
         }

@@ -42,7 +42,7 @@ import CoachMistakeTask from "./CoachMistakeTask";
 import { coachMistakeAtom } from "./coachProgress";
 import {
   coachBestEstimateAtom,
-  coachExtraTitlesAtom,
+  coachSpecialTitlesAtom,
   coachFrameAtom,
   coachQuestAtom,
   coachResultsAtom,
@@ -56,6 +56,7 @@ import {
 } from "./coachRewards";
 import CoachShowcase from "./CoachShowcase";
 import CoachHints from "./CoachHints";
+import CoachDuel, { RivalBar } from "./CoachDuel";
 import { CarrotBadge } from "./CoachEggArt";
 import { PatriciaEars, PatriciaPopup, usePatriciaPeek } from "./PatriciaPeek";
 import { useCoach } from "./useCoach";
@@ -122,7 +123,7 @@ export default function CoachPage({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
   const [bunny, setBunny] = usePatriciaPeek();
-  const { next, tasks, dueCount, actions, lock, streak } = useCoach(id);
+  const { next, tasks, dueCount, actions, lock, streak, boss } = useCoach(id);
   const isAdmin = useIsAdmin();
   const { level } = levelProgress(useAtomValue(coachXpAtom));
   const [showSoon, setShowSoon] = useAtom(coachShowSoonAtom);
@@ -130,7 +131,7 @@ export default function CoachPage({ id }: { id: string }) {
   const title = shownTitle(
     level,
     useAtomValue(coachShownTitleAtom),
-    useAtomValue(coachExtraTitlesAtom),
+    useAtomValue(coachSpecialTitlesAtom),
   );
   const mistake = useAtomValue(coachMistakeAtom);
   const estimate = estimateStrength(useAtomValue(coachResultsAtom));
@@ -186,10 +187,15 @@ export default function CoachPage({ id }: { id: string }) {
                 </Badge>
               </Group>
               <Text size="lg" aria-live="polite">
-                {lock > 0 ? t("Coach.Say.locked") : t(`Coach.Say.${next}`, { count: dueCount })}
+                {lock > 0
+                  ? t("Coach.Say.locked")
+                  : boss
+                    ? t("Coach.Boss.Card")
+                    : t(`Coach.Say.${next}`, { count: dueCount })}
               </Text>
               <Box maw={380}>
                 <CoachLevel streak={streak} />
+                <RivalBar />
                 {estimate !== null && (
                   <Text size="xs" c="dimmed" mt={2}>
                     {t("Coach.Page.Estimate", { elo: estimate, best: Math.max(best, estimate) })}
@@ -291,6 +297,7 @@ export default function CoachPage({ id }: { id: string }) {
         </Card>
 
         <CoachHints level={level} />
+        <CoachDuel />
 
         {isAdmin && (
           <Switch

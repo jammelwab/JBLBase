@@ -353,3 +353,23 @@ Geburtstage und persönliche Easter Eggs trägst nur du ein:
 
 Der Spieler kann sein Profil lesen, aber weder sehen noch ändern, was darin
 steht; die App zeigt es nirgends an.
+
+## JBL Coach: Boss-Challenge und Duell (1.2.7)
+
+Nach dem Merge die Regeln deployen:
+
+```
+npx -y firebase-tools@15 deploy --only firestore --project jblbase
+```
+
+**Boss-Buch:** In der App unter Einstellungen → Admin-Übersicht → **Boss-Buch → Aktualisieren**.
+Die App baut es aus deinen eigenen Repertoires und den geladenen Chess.com-Partien
+dieses Rechners (nur Stellungen mit deinen Zügen und wie oft du sie gespielt hast)
+und schreibt es nach `bossBook/main`. Alle Mitglieder dürfen es lesen, nur Admins
+schreiben. Ohne Boss-Buch spielt der Boss nur mit Stockfish (ca. 1800).
+
+**Duell:** Für Aaron und Ben in beiden Coach-Profilen das Feld `rival` setzen,
+jeweils mit der UID des anderen. Dann zeigt die Coach-Karte den zweiten Balken,
+und auf der Coach-Seite erscheint die Duell-Karte. Das Level liegt in
+`coachRivals/{uid}` (lesen darf nur der eingetragene Rivale), die Partien in
+`duels/{id}` (nur die beiden Spieler).

@@ -124,6 +124,10 @@ export const LINE_VARIANTS: Record<string, number> = {
     oberBoss: 1,
     lambrusco: 1,
     aprilFools: 1,
+    bossStart: 2,
+    bossWin: 2,
+    bossOther: 1,
+    bossNext: 1,
 };
 
 // Wählt eine Fassung und meidet die zuletzt gezeigten.

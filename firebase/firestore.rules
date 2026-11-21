@@ -250,6 +250,72 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Boss-Buch (1.2.7): Stellungen mit den Zügen des Bosses, kompakt als
+    // "epd|uci|weight". Alle Mitglieder lesen, nur Admins schreiben.
+    match /bossBook/{docId} {
+      allow read: if member();
+      allow create, update: if isAdmin()
+        && docId == 'main'
+        && request.resource.data.keys().hasOnly(['moves', 'count', 'updatedAt'])
+        && request.resource.data.moves is list
+        && request.resource.data.moves.size() <= 8000
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    // Duell (1.2.7): wer im Coach-Profil als Rivale steht
+    function rivalOf(uid) {
+      return get(/databases/$(database)/documents/coachProfiles/$(uid)).data.get('rival', null);
+    }
+
+    // Level und XP für den Rivalen. Lesen darf nur, wer diesen Spieler im
+    // eigenen Coach-Profil als Rivalen hat.
+    match /coachRivals/{uid} {
+      allow read: if isOwner(uid) || (signedIn() && rivalOf(request.auth.uid) == uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['level', 'xp', 'name', 'updatedAt'])
+        && request.resource.data.level is int
+        && request.resource.data.xp is number
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(uid);
+    }
+
+    // Duell-Partien zwischen zwei Rivalen. Nur die beiden lesen und
+    // schreiben; ein Zug pro Schreiben, fertige Partien bleiben fertig.
+    match /duels/{id} {
+      allow read: if signedIn() && request.auth.uid in resource.data.players;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(
+          ['players', 'white', 'black', 'names', 'moves', 'result', 'reason', 'createdAt', 'updatedAt'])
+        && request.resource.data.players is list
+        && request.resource.data.players.size() == 2
+        && request.resource.data.players[0] == request.auth.uid
+        && request.resource.data.players[1] == rivalOf(request.auth.uid)
+        && request.resource.data.white in request.resource.data.players
+        && request.resource.data.black in request.resource.data.players
+        && request.resource.data.white != request.resource.data.black
+        && request.resource.data.names is map
+        && request.resource.data.moves is list
+        && request.resource.data.moves.size() == 0
+        && request.resource.data.result == '*'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.players
+        && resource.data.result == '*'
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['moves', 'result', 'reason', 'updatedAt'])
+        && request.resource.data.moves is list
+        && request.resource.data.moves.size() >= resource.data.moves.size()
+        && request.resource.data.moves.size() <= resource.data.moves.size() + 1
+        && request.resource.data.moves.size() <= 600
+        && request.resource.data.result in ['*', '1-0', '0-1', '1/2-1/2']
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
     // A shared repertoire is meant for the account with this e-mail address
     // (confirmed) or this Lichess name.
     function isShareRecipient(d) {
