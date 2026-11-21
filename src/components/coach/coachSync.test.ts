@@ -19,7 +19,7 @@ import {
 
 const local = (over: Partial<CoachLocalState> = {}): CoachLocalState => ({
     xpOwn: 100,
-    sets: { trophies: ["firstWin"], items: [], frames: [], titles: [] },
+    sets: { trophies: ["firstWin"], items: [], frames: [], titles: [], lessons: [] },
     streak: { last: "2026-11-20", days: 3, bridgedWeek: null },
     best: 1200,
     bundle: { lock: 0, outfit: [] } as never,

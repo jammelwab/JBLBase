@@ -201,6 +201,16 @@ export const TUTORIALS: Tutorial[] = [
         adminOnly: true,
         steps: [{ id: "Overview", target: "set-admin" }, { id: "Links" }],
     },
+    {
+        // Schluss der Coach-Einführung: der Coach zeigt auf seine Karte und das Fragezeichen
+        id: "CoachIntro",
+        route: "/",
+        newTab: true,
+        steps: [
+            { id: "Card", target: "home-coach" },
+            { id: "Help", target: "corner-help" },
+        ],
+    },
 ];
 
 export function findTutorial(id: string): Tutorial | undefined {

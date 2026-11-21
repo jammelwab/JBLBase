@@ -1,10 +1,13 @@
-import { Box, Button, Card, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Box, Button, Card, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import CoachBirthday from "./CoachBirthday";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { RivalBar } from "./CoachDuel";
 import { CoachLevel } from "./CoachPage";
+import { coachIntroAtom, coachIntroOpenAtom } from "./coachIntro";
+import { coachLessonAnnouncedAtom, coachOpenLessonAtom } from "./coachLessons";
 import { useCoach } from "./useCoach";
 
 // Der Coach winkt nur einmal pro Programmstart, nicht bei jedem neuen Tab.
@@ -14,7 +17,14 @@ let greeted = false;
 export default function CoachCard({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
-  const { next, dueCount, actions, lock, streak, boss } = useCoach(id);
+  const { next, dueCount, actions, lock, streak, boss, lesson, unlocked, remindIntro } =
+    useCoach(id);
+  const setAnnounced = useSetAtom(coachLessonAnnouncedAtom);
+  const openLesson = useSetAtom(coachOpenLessonAtom);
+  const openIntro = useSetAtom(coachIntroOpenAtom);
+  const setIntro = useSetAtom(coachIntroAtom);
+  const showLesson = lock === 0 && lesson !== null;
+  const remindDone = () => setIntro((s) => ({ ...s, reminded: true }));
 
   useEffect(() => {
     if (greeted) return;
@@ -45,21 +55,60 @@ export default function CoachCard({ id }: { id: string }) {
           <Text size="sm" fw={500}>
             {lock > 0
               ? t("Coach.Card.Locked", { count: lock })
-              : boss
-                ? t("Coach.Boss.Card")
-                : next === "done"
-                  ? t("Coach.Card.AllDone")
-                  : next === "repertoire"
-                    ? t("Coach.Task.repertoire.Desc", { count: dueCount })
-                    : t(`Coach.Task.${next}.Title`)}
+              : showLesson
+                ? t("Coach.Lessons.New", { name: t(`Coach.Lesson.${lesson.id}.Title`) })
+                : boss
+                  ? t("Coach.Boss.Card")
+                  : next === "done"
+                    ? t("Coach.Card.AllDone")
+                    : next === "repertoire"
+                      ? t("Coach.Task.repertoire.Desc", { count: dueCount })
+                      : t(`Coach.Task.${next}.Title`)}
           </Text>
         </Box>
 
         <Stack gap={6} w="100%">
-          {next !== "done" && (
-            <Button variant="filled" color="orange" fullWidth radius="md" onClick={actions[next]}>
-              {t(`Coach.Task.${next}.Button`)}
+          {remindIntro && (
+            <Group gap={4} justify="center" wrap="nowrap">
+              <Text size="xs" c="dimmed">
+                {t("Coach.Intro.Reminder")}
+              </Text>
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                color="orange"
+                onClick={() => {
+                  remindDone();
+                  openIntro(true);
+                }}
+              >
+                {t("Coach.Intro.Start")}
+              </Button>
+              <Button size="compact-xs" variant="subtle" color="gray" onClick={remindDone}>
+                {t("Coach.Intro.NoThanks")}
+              </Button>
+            </Group>
+          )}
+          {showLesson ? (
+            <Button
+              variant="filled"
+              color="orange"
+              fullWidth
+              radius="md"
+              onClick={() => {
+                setAnnounced(unlocked);
+                openLesson(lesson.id);
+                actions.openCoach();
+              }}
+            >
+              {t("Coach.Lessons.Open")}
             </Button>
+          ) : (
+            next !== "done" && (
+              <Button variant="filled" color="orange" fullWidth radius="md" onClick={actions[next]}>
+                {t(`Coach.Task.${next}.Button`)}
+              </Button>
+            )
           )}
           <Button
             variant={next === "done" ? "filled" : "light"}

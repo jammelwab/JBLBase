@@ -34,6 +34,7 @@ import { type BugReportInfo, bugReportText, bugReportUrl } from "@/utils/bugRepo
 import { availableUpdateAtom, checkForAppUpdate } from "@/utils/updater";
 import { useIsAdmin, useStartTutorial } from "@/components/tutorial/tutorialState";
 import { tutorialsForPage } from "@/components/tutorial/tutorials";
+import { coachIntroOpenAtom } from "@/components/coach/coachIntro";
 import classes from "./CornerMenu.module.css";
 
 /** Look for a new release again every few hours while the app stays open. */
@@ -89,6 +90,7 @@ function HelpMenu() {
   const start = useStartTutorial();
   const navigate = useNavigate();
   const setSettingsTab = useSetAtom(settingsTabAtom);
+  const openIntro = useSetAtom(coachIntroOpenAtom);
   const here = tutorialsForPage(pathname, isAdmin);
 
   return (
@@ -120,6 +122,12 @@ function HelpMenu() {
           </Menu.Item>
         ))}
         <Menu.Divider />
+        <Menu.Item
+          leftSection={<IconPlayerPlay size="1rem" stroke={1.6} />}
+          onClick={() => openIntro(true)}
+        >
+          {t("Coach.Intro.Menu")}
+        </Menu.Item>
         <Menu.Item
           leftSection={<IconSchool size="1rem" stroke={1.6} />}
           onClick={() => {

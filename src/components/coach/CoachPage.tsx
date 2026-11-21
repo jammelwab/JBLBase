@@ -9,20 +9,11 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Switch,
   Text,
   Title,
   UnstyledButton,
 } from "@mantine/core";
-import {
-  IconBook,
-  IconChess,
-  IconPuzzle,
-  IconSearch,
-  IconTargetArrow,
-  IconBrain,
-  IconCalendarCheck,
-} from "@tabler/icons-react";
+import { IconChess, IconPuzzle, IconTargetArrow, IconCalendarCheck } from "@tabler/icons-react";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -30,14 +21,12 @@ import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import {
   COACH_STRENGTHS,
   type CoachStrengthId,
-  coachShowSoonAtom,
   coachStrengthAtom,
   coachTitleKey,
   coachXpAtom,
   levelProgress,
   today,
 } from "./coachState";
-import { useIsAdmin } from "@/components/tutorial/tutorialState";
 import CoachMistakeTask from "./CoachMistakeTask";
 import { coachMistakeAtom } from "./coachProgress";
 import {
@@ -56,6 +45,7 @@ import {
 } from "./coachRewards";
 import CoachShowcase from "./CoachShowcase";
 import CoachHints from "./CoachHints";
+import CoachLessons from "./CoachLessons";
 import CoachDuel, { RivalBar } from "./CoachDuel";
 import { CarrotBadge } from "./CoachEggArt";
 import { PatriciaEars, PatriciaPopup, usePatriciaPeek } from "./PatriciaPeek";
@@ -124,9 +114,7 @@ export default function CoachPage({ id }: { id: string }) {
   const figure = useRef<CoachFigureHandle>(null);
   const [bunny, setBunny] = usePatriciaPeek();
   const { next, tasks, dueCount, actions, lock, streak, boss } = useCoach(id);
-  const isAdmin = useIsAdmin();
   const { level } = levelProgress(useAtomValue(coachXpAtom));
-  const [showSoon, setShowSoon] = useAtom(coachShowSoonAtom);
   const frame = useAtomValue(coachFrameAtom);
   const title = shownTitle(
     level,
@@ -137,12 +125,6 @@ export default function CoachPage({ id }: { id: string }) {
   const estimate = estimateStrength(useAtomValue(coachResultsAtom));
   const best = useAtomValue(coachBestEstimateAtom);
   const quest = currentQuest(useAtomValue(coachQuestAtom), today());
-
-  const soon = [
-    { key: "Lessons", icon: <IconBook size={28} /> },
-    { key: "Gaps", icon: <IconSearch size={28} /> },
-    { key: "Memory", icon: <IconBrain size={28} /> },
-  ];
 
   return (
     <ScrollArea h="100%" type="auto">
@@ -296,41 +278,9 @@ export default function CoachPage({ id }: { id: string }) {
           </Group>
         </Card>
 
+        <CoachLessons />
         <CoachHints level={level} />
         <CoachDuel />
-
-        {isAdmin && (
-          <Switch
-            label={t("Coach.Page.ShowSoon")}
-            checked={showSoon}
-            onChange={(e) => setShowSoon(e.currentTarget.checked)}
-          />
-        )}
-        {isAdmin && showSoon && (
-          <>
-            <Title order={3}>{t("Coach.Page.Soon")}</Title>
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              {soon.map((s) => (
-                <Card key={s.key} withBorder radius="md" p="md" style={{ opacity: 0.7 }}>
-                  <Group wrap="nowrap" align="flex-start">
-                    <Box c="dimmed">{s.icon}</Box>
-                    <Box>
-                      <Group gap="xs">
-                        <Text fw={600}>{t(`Coach.Soon.${s.key}.Title`)}</Text>
-                        <Badge size="xs" variant="light" color="gray">
-                          {t("Coach.Page.SoonBadge")}
-                        </Badge>
-                      </Group>
-                      <Text size="sm" c="dimmed">
-                        {t(`Coach.Soon.${s.key}.Desc`)}
-                      </Text>
-                    </Box>
-                  </Group>
-                </Card>
-              ))}
-            </SimpleGrid>
-          </>
-        )}
       </Stack>
     </ScrollArea>
   );

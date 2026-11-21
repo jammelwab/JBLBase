@@ -20,7 +20,22 @@ import {
     coachStreakAtom,
     currentStreak,
 } from "./coachProgress";
-import { type CoachTaskId, coachDayAtom, coachTasks, nextCoachTask, today } from "./coachState";
+import { coachIntroAtom, introReminder } from "./coachIntro";
+import {
+    coachLessonAnnouncedAtom,
+    coachLessonsDoneAtom,
+    newLesson,
+    unlockedLessons,
+} from "./coachLessons";
+import {
+    type CoachTaskId,
+    coachDayAtom,
+    coachTasks,
+    coachXpAtom,
+    levelProgress,
+    nextCoachTask,
+    today,
+} from "./coachState";
 
 // Fällige und neue Stellungen in den zuletzt geöffneten Repertoires.
 const repertoireDueAtom = atom((get) => {
@@ -89,5 +104,16 @@ export function useCoach(tabId: string) {
     const next: CoachTaskId = boss ? "play" : nextCoachTask(dueCount, day, now, lock);
     const tasks = coachTasks(dueCount, day, now, lock);
 
-    return { next, tasks, dueCount, actions, lock, streak, boss };
+    // Neue Lektion: kommt in der Statuszeile direkt nach der Sperre
+    const intro = useAtomValue(coachIntroAtom);
+    const { level } = levelProgress(useAtomValue(coachXpAtom));
+    const unlocked = unlockedLessons(level, intro.entry);
+    const lesson = newLesson(
+        unlocked,
+        useAtomValue(coachLessonAnnouncedAtom),
+        useAtomValue(coachLessonsDoneAtom),
+    );
+    const remindIntro = introReminder(intro);
+
+    return { next, tasks, dueCount, actions, lock, streak, boss, lesson, unlocked, remindIntro };
 }
