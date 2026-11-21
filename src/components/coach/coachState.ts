@@ -114,6 +114,3 @@ export function nextCoachTask(
     if (lock > 0) return "puzzles";
     return coachTasks(dueCount, day, now, lock).find((t) => !t.done)?.id ?? "done";
 }
-
-// Vorschau „Bald beim Coach“: nur für Admins, standardmäßig aus.
-export const coachShowSoonAtom = atomWithStorage<boolean>("jbl-coach-show-soon", false);

@@ -56,7 +56,7 @@ describe("tutorials", () => {
     it("offer the right ones per page", () => {
         const ids = (path: string, admin = false) => tutorialsForPage(path, admin).map((t) => t.id);
         expect(ids("/databases/Lichess")).toEqual(["Databases"]);
-        expect(ids("/")).toEqual(["Board", "Home", "Puzzles"]);
+        expect(ids("/")).toEqual(["Board", "Home", "Puzzles", "CoachIntro"]);
         expect(ids("/settings")).toEqual(["Account", "Settings"]);
         expect(ids("/settings", true)).toEqual(["Account", "Settings", "Admin"]);
         expect(availableTutorials(false).some((t) => t.adminOnly)).toBe(false);

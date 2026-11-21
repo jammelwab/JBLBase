@@ -16,6 +16,7 @@ import CornerMenu from "@/components/corner/CornerMenu";
 import BundledEngines from "@/components/BundledEngines";
 import UsageStats from "@/components/UsageStats";
 import TutorialOverlay from "@/components/tutorial/TutorialOverlay";
+import CoachIntro from "@/components/coach/CoachIntro";
 import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -432,6 +433,7 @@ function RootLayout() {
       <UsageStats />
       <BundledEngines />
       <TutorialOverlay />
+      <CoachIntro />
     </AppShell>
   );
 }

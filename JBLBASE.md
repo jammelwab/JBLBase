@@ -577,6 +577,23 @@ Seit 1.2.7 fordert ab Level 5 manchmal **der Boss** heraus: nach einem Sieg mit 
 
 Der Code: `coachBoss.ts`, `coachBossBuild.ts`, `BossBookAdmin.tsx`, `coachDuel.ts`, `CoachDuel.tsx` und `src/utils/cloud/duelCloud.ts`.
 
+### Einführung und Lernpfad
+
+Seit 1.2.8 begrüßt der Coach beim ersten Anmelden mit einer **Einführung** in fünf Schritten: Hallo, „Wie stark bist du?“ (vier Knöpfe), das eigene Lichess- oder Chess.com-Konto (überspringbar), der Weg (Partien laden, Repertoire bauen, mit JBL wiederholen und spielen) und zum Schluss ein Hinweis auf die Coach-Karte und das Fragezeichen. Ab Schritt 2 lässt sie sich mit „Später“ verschieben; die Coach-Karte erinnert dann einmal daran, und im Fragezeichen-Menü steht jederzeit „Coach-Einführung“. „Gesehen“ wird mit dem Coach-Stand am Konto gespeichert, auf dem zweiten Rechner kommt sie nicht noch einmal.
+
+Die Antwort auf „Wie stark bist du?“ setzt die Stärke von JBL und den Einstieg in den **Lernpfad** auf der Coach-Seite: vier Pfade mit je drei Lektionen.
+
+| Pfad                     | Einstieg bei                  | Lektionen                                             |
+| ------------------------ | ----------------------------- | ----------------------------------------------------- |
+| 1. Das Spiel             | „Ich lerne gerade die Regeln“ | Schach und Matt, Matt mit der Dame, Matt mit dem Turm |
+| 2. Motive und Prinzipien | „Ich kenne die Regeln“        | Hängende Figuren, Figurenwerte, König in Sicherheit   |
+| 3. Taktik                | „Ich spiele regelmäßig“       | Gabel, Fesselung, Grundreihenmatt                     |
+| 4. Fortgeschritten       | „Ich spiele im Verein“        | Spieß, Abzugsschach, Ersticktes Matt                  |
+
+Offen sind die erste Lektion des Einstiegspfads und alles davor; jedes Coach-Level schaltet eine weitere frei. Eine Lektion hat ein paar Sätze vom Coach, ein Beispiel mit Pfeilen und drei Aufgaben am Brett („Zeig's mir“ hilft nach einem Fehlversuch). Wer fertig ist, bekommt 150 XP und ein Abzeichen, beim Wiederholen gibt es keine XP mehr. Eine neu freigeschaltete Lektion meldet die Coach-Karte direkt nach der Sperre. Die Tests in `coachLessons.test.ts` prüfen jede Aufgabe: Matt ist Matt, eine Gabel greift zwei Figuren an, eine Fesselung fesselt.
+
+Der Code: `coachLessons.ts`, `CoachLessons.tsx`, `coachIntro.ts` und `CoachIntro.tsx`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten
