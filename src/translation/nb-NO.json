@@ -1481,6 +1481,8 @@
     "Settings.SnapArrows": "Lås piler",
     "Settings.SnapArrows.Desc": "Lås piller til lovelige trekk",
     "Settings.Sound": "Lyd",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Lyd",
     "Settings.Sound.Collection.Desc": "Velg mellom flere lydprofiler",
     "Settings.Sound.Desc": "Tilpass lydinnstillingene",

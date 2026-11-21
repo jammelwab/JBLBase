@@ -373,3 +373,28 @@ jeweils mit der UID des anderen. Dann zeigt die Coach-Karte den zweiten Balken,
 und auf der Coach-Seite erscheint die Duell-Karte. Das Level liegt in
 `coachRivals/{uid}` (lesen darf nur der eingetragene Rivale), die Partien in
 `duels/{id}` (nur die beiden Spieler).
+
+## JBL Coach: „Warum?“ mit Claude (1.2.9)
+
+Neben jedem Zeichen in der Partie gegen JBL steht ein kleiner Knopf
+„Warum?“. Erst ein Klick fragt die Cloud Function `coachExplain`, die Claude
+Haiku 5.5 die Fakten aus Stockfish (Stellung, Zug, bester Zug, Folgevariante,
+Bewertung vorher und nachher, erkannte Motive, Lernstufe) in 2 bis 4 Sätzen
+formulieren lässt. Die KI bewertet nichts selbst.
+
+1. In der [Claude Console](https://platform.claude.com/) einen API-Schlüssel
+   anlegen und unter **Limits** ein Monatsbudget setzen (z. B. 5 $).
+2. In der Cloud Shell (den Schlüssel nur dort eingeben, nie ins Repository):
+   ```
+   cd ~/JBLBase && git pull && cd firebase/functions && npm ci && cd ..
+   npx -y firebase-tools@15 functions:secrets:set ANTHROPIC_API_KEY --project jblbase
+   npx -y firebase-tools@15 deploy --only functions:coachExplain --project jblbase
+   ```
+
+Kosten: eine Erklärung braucht rund 800 Tokens Eingabe und 150 Ausgabe.
+Jede Antwort wird in `coachExplanations/{key}` gemerkt (Stellung, Zug,
+Lernstufe, Sprache); fragt jemand dasselbe noch einmal, kommt sie ohne KI.
+Pro Spieler gibt es höchstens 20 neue Erklärungen am Tag
+(`coachExplainUsage/{uid}`). Beide Sammlungen sind für die App gesperrt.
+Ohne Schlüssel oder ohne die Function zeigt der Knopf nur „Gerade kann ich
+das nicht erklären“.

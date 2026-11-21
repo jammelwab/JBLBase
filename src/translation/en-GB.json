@@ -1495,6 +1495,8 @@
     "Settings.SnapArrows": "Snap Arrows",
     "Settings.SnapArrows.Desc": "Snap arrows to valid moves",
     "Settings.Sound": "Sound",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Sound collection",
     "Settings.Sound.Collection.Desc": "Collection of sounds used",
     "Settings.Sound.Desc": "Customise the sound settings",

@@ -91,6 +91,7 @@ import classes from "./SettingsPage.module.css";
 import { LegalLinks } from "@/components/cloud/LegalText";
 import { usageStatsConfigured } from "@/utils/usageStats";
 import SettingsSwitch from "./SettingsSwitch";
+import { coachSoundAtom } from "@/components/coach/coachSound";
 import SoundSelect from "./SoundSelect";
 import ThemeButton from "./ThemeButton";
 import VolumeSlider from "./VolumeSlider";
@@ -655,6 +656,14 @@ export default function Page() {
         description: t("Settings.Sound.Collection.Desc"),
         keywords: ["sound", "collection", "audio", "effects"],
         render: () => <SoundSelect />,
+      },
+      {
+        id: "coach-sound",
+        category: "sound",
+        title: t("Settings.Sound.Coach"),
+        description: t("Settings.Sound.Coach.Desc"),
+        keywords: ["coach", "jbl", "ton", "sound", "musik"],
+        render: () => <SettingsSwitch atom={coachSoundAtom} />,
       },
       // Directories settings
       {

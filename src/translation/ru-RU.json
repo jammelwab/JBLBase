@@ -1627,6 +1627,8 @@
     "Settings.SnapArrows": "Закрепить стрелки",
     "Settings.SnapArrows.Desc": "Закрепить стрелки на допустимые ходы",
     "Settings.Sound": "Звук",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Коллекция звуков",
     "Settings.Sound.Collection.Desc": "Используемая коллекция звуков",
     "Settings.Sound.Desc": "Настроить параметры звука",

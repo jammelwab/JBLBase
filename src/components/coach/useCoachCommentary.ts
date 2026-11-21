@@ -5,6 +5,7 @@ import { commands } from "@/bindings";
 import { enginesAtom } from "@/state/atoms";
 import { normalizeScore, getAnnotation } from "@/utils/score";
 import type { TreeNode } from "@/utils/treeReducer";
+import { evalText, explainMotifs } from "./coachExplain";
 import { type CoachReaction, findStockfish, reactionFor } from "./coachGame";
 
 // Wie tief JBL die Züge des Spielers prüft: schnell genug, dass der Kommentar
@@ -23,6 +24,12 @@ export type CoachComment = {
     // Stellung vor dem Zug und die Züge, die dort gut gewesen wären
     fen: string;
     solutions: string[];
+    // Fakten für „Warum?“: Bewertung vorher und nachher aus Sicht des
+    // Spielers, die Folgevariante der Engine und erkannte Motive
+    before: string;
+    after: string;
+    line: string[];
+    motifs: string[];
 };
 
 // Zweitbester Zug zählt mit, wenn er höchstens so viel schlechter ist.
@@ -120,6 +127,10 @@ export function useCoachCommentary(
                 best: engineMove && engineMove !== last.san ? engineMove : null,
                 fen: before.fen,
                 solutions,
+                before: evalText(preBest.score.value, humanColor),
+                after: evalText(postBest.score.value, humanColor),
+                line: postBest.sanMoves.slice(0, 6),
+                motifs: explainMotifs({ allowsMateInOne, sacrifice: post.is_sacrifice }),
             }));
         })().catch(() => {});
 

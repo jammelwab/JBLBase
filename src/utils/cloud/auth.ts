@@ -328,3 +328,20 @@ export function cloudErrorKey(error: unknown): string {
             return "Settings.Cloud.Error.Unknown";
     }
 }
+
+/**
+ * JBL Coach „Warum?“ (Cloud Function `coachExplain`): Claude formuliert die
+ * Fakten aus Stockfish. Fehler kommen als Firebase-Code zurück, z. B.
+ * "functions/resource-exhausted" beim Tageslimit.
+ */
+export async function askCoachExplain(facts: Record<string, unknown>): Promise<string> {
+    const app = await firebaseApp();
+    const { getFunctions, httpsCallable } = await import("firebase/functions");
+    const explain = httpsCallable<Record<string, unknown>, { text: string }>(
+        getFunctions(app, FIREBASE_REGION),
+        "coachExplain",
+        { timeout: 30_000 },
+    );
+    const { data } = await explain(facts);
+    return data.text;
+}

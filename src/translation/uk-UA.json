@@ -1613,6 +1613,8 @@
     "Settings.SnapArrows": "Закріпити стрілки",
     "Settings.SnapArrows.Desc": "Закріпити стрілки на допустимі ходи",
     "Settings.Sound": "Звук",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Колекція звуків",
     "Settings.Sound.Collection.Desc": "Використовувана колекція звуків",
     "Settings.Sound.Desc": "Налаштувати параметри звуку",

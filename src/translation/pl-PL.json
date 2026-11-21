@@ -1613,6 +1613,8 @@
     "Settings.SnapArrows": "Zablokuj strzałki",
     "Settings.SnapArrows.Desc": "Zablokuj strzałki na prawidłowych ruchach",
     "Settings.Sound": "Dźwięk",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Kolekcja dźwięków",
     "Settings.Sound.Collection.Desc": "Kolekcja używanych dźwięków",
     "Settings.Sound.Desc": "Dostosuj ustawienia dźwięku",

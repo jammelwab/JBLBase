@@ -1600,6 +1600,8 @@
     "Settings.SnapArrows": "Flèches magnétiques",
     "Settings.SnapArrows.Desc": "Les flèches s'arrêtent sur les coups valides",
     "Settings.Sound": "Son",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Collection de sons",
     "Settings.Sound.Collection.Desc": "Collection de sons utilisés",
     "Settings.Sound.Desc": "Personnalisation des paramètres de son",

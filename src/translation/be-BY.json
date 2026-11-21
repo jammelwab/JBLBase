@@ -1613,6 +1613,8 @@
     "Settings.SnapArrows": "Замкнуць стрэлкі",
     "Settings.SnapArrows.Desc": "Замкнуць стрэлкі на дапушчальныя хады",
     "Settings.Sound": "Гук",
+    "Settings.Sound.Coach": "",
+    "Settings.Sound.Coach.Desc": "",
     "Settings.Sound.Collection": "Калекцыя гукаў",
     "Settings.Sound.Collection.Desc": "Выкарыстоўваная калекцыя гукаў",
     "Settings.Sound.Desc": "Наладзіць параметры гуку",
