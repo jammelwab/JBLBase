@@ -67,7 +67,7 @@ import { getTabFile, getTabGameNumber } from "@/utils/tabs";
 import { findFen, getNodeAtPath } from "@/utils/treeReducer";
 import LineTrainer from "./LineTrainer";
 import RepertoireInfo from "./RepertoireInfo";
-import { autoGrade } from "@/utils/practiceGrade";
+import { autoGrade, knownOnFirstTry } from "@/utils/practiceGrade";
 
 function PracticePanel() {
   const { t } = useTranslation();
@@ -195,7 +195,7 @@ function PracticePanel() {
   // JBL Coach: 2 XP für jeden richtig gewussten Zug
   const coachRepertoireMove = useSetAtom(coachRepertoireMoveAtom);
   useEffect(() => {
-    if (practiceState.phase === "correct" && practiceState.wrongTries === 0) coachRepertoireMove();
+    if (knownOnFirstTry(practiceState.phase, practiceState.wrongTries)) coachRepertoireMove();
   }, [practiceState.phase, practiceState.wrongTries, coachRepertoireMove]);
 
   useEffect(() => {
