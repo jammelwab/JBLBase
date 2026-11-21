@@ -43,6 +43,14 @@ jobs:
           fi
           id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
             --jq "map(select(.tag_name == \"$TAG\")) | .[0].id // empty")
+          if [ -n "$id" ]; then
+            # A draft left by a failed run: build it from this commit, not the old one
+            draft=$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq .draft)
+            if [ "$draft" = "true" ]; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
+                -f target_commitish="$GITHUB_SHA" > /dev/null
+            fi
+          fi
           if [ -z "$id" ]; then
             id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
               -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" \
