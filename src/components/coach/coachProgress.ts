@@ -90,6 +90,8 @@ export function streakBonusPercent(days: number): number {
 // Aufgaben, die nach einer Niederlage (3) oder einem Remis (1) noch fehlen,
 // bevor man wieder gegen JBL spielen darf.
 export const coachLockAtom = atomWithStorage<number>("jbl-coach-lock", 0);
+// Die Aufgaben der Sperre sind Matt-in-1-Puzzles (Easter Egg für Aaron)
+export const coachMateDrillAtom = atomWithStorage<boolean>("jbl-coach-mate-drill", false);
 
 export function lockAfter(result: "win" | "draw" | "loss"): number {
     return result === "loss" ? 3 : result === "draw" ? 1 : 0;
@@ -235,6 +237,7 @@ export const questEventAtom = atom(
 const finishLockTaskAtom = atom(null, (get, set, correct: boolean) => {
     const lock = get(coachLockAtom);
     if (lock > 0) set(coachLockAtom, lock - 1);
+    if (lock <= 1 && get(coachMateDrillAtom)) set(coachMateDrillAtom, false);
     let xp = correct ? XP.puzzle : 0;
     if (correct) xp += set(questEventAtom, "puzzles");
     if (xp) set(coachXpAtom, get(coachXpAtom) + xp);

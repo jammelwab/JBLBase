@@ -27,7 +27,7 @@ function tree(...lines: string[][]): TreeNode {
         const pos = Chess.default();
         for (const san of line) {
             const move = parseSan(pos, san)!;
-            expect(move, san).toBeTruthy();
+            expect(move).toBeTruthy();
             const s = makeSan(pos, move);
             pos.play(move);
             let child = node.children.find((c) => c.san === s);

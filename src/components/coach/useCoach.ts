@@ -3,9 +3,22 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getStats } from "@/components/files/opening";
 import { useOpenRecentFile } from "@/components/tabs/useOpenRecentFile";
-import { deckAtomFamily, type RecentFile, recentFilesAtom, tabsAtom } from "@/state/atoms";
+import {
+    deckAtomFamily,
+    puzzleThemeAtom,
+    type RecentFile,
+    recentFilesAtom,
+    tabsAtom,
+} from "@/state/atoms";
 import type { Tab } from "@/utils/tabs";
-import { coachLockAtom, coachMistakeAtom, coachStreakAtom, currentStreak } from "./coachProgress";
+import { MATE_DRILL_THEME } from "./coachEggs";
+import {
+    coachLockAtom,
+    coachMateDrillAtom,
+    coachMistakeAtom,
+    coachStreakAtom,
+    currentStreak,
+} from "./coachProgress";
 import { type CoachTaskId, coachDayAtom, coachTasks, nextCoachTask, today } from "./coachState";
 
 // Fällige und neue Stellungen in den zuletzt geöffneten Repertoires.
@@ -31,6 +44,8 @@ export function useCoach(tabId: string) {
     const streak = currentStreak(useAtomValue(coachStreakAtom), today());
     const { total: dueCount, best } = useAtomValue(repertoireDueAtom);
     const openRecentFile = useOpenRecentFile();
+    const mateDrill = useAtomValue(coachMateDrillAtom);
+    const setPuzzleTheme = useSetAtom(puzzleThemeAtom);
 
     const turnTabInto = useCallback(
         (type: Tab["type"], name: string, coach = false) =>
@@ -53,15 +68,17 @@ export function useCoach(tabId: string) {
                 turnTabInto("play", t("Coach.Game.TabName"), true);
             },
             // Der eigene Fehler wird auf der Coach-Seite gelöst, danach Puzzles
-            puzzles: () =>
-                lock > 0 && hasMistake
-                    ? turnTabInto("coach", t("Coach.Card.Title"))
-                    : turnTabInto("puzzles", t("Home.PuzzleTraining")),
+            puzzles: () => {
+                if (lock > 0 && hasMistake) return turnTabInto("coach", t("Coach.Card.Title"));
+                // Aarons Strafaufgaben: nur Matt in 1
+                if (lock > 0 && mateDrill) setPuzzleTheme(MATE_DRILL_THEME);
+                turnTabInto("puzzles", t("Home.PuzzleTraining"));
+            },
             repertoire: () => {
                 if (best) openRecentFile(best.file);
             },
         }),
-        [turnTabInto, lock, hasMistake, t, best, openRecentFile],
+        [turnTabInto, lock, hasMistake, mateDrill, setPuzzleTheme, t, best, openRecentFile],
     );
 
     // Zeitpunkt beim Öffnen der Karte; reicht für die Tagesaufgaben.

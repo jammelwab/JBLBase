@@ -72,7 +72,18 @@ import { OpponentForm, type OpponentSettings } from "./OpponentForm";
 import CoachGameSetup from "@/components/coach/CoachGameSetup";
 import CoachGamePanel from "@/components/coach/CoachGamePanel";
 import { findStockfish, jblEngineSetup, jblEngineSettings } from "@/components/coach/coachGame";
-import { COACH_STRENGTHS, coachStrengthAtom } from "@/components/coach/coachState";
+import {
+  ATTACK_LEVEL,
+  coachAttackAtom,
+  findPatricia,
+  patriciaEngineSetup,
+} from "@/components/coach/coachEggs";
+import {
+  COACH_STRENGTHS,
+  coachStrengthAtom,
+  coachXpAtom,
+  levelProgress,
+} from "@/components/coach/coachState";
 import { useCoachCommentary } from "@/components/coach/useCoachCommentary";
 import { coachDiaryAtom } from "@/components/coach/coachDiary";
 import { type CoachPlan, coachSparringAtom, prepareCoachGame } from "@/components/coach/coachPlan";
@@ -124,7 +135,14 @@ function BoardGame() {
   const [coachPlan, setCoachPlan] = useState<CoachPlan | null>(null);
   const coachDiary = useAtomValue(coachDiaryAtom);
   const coachSparring = useAtomValue(coachSparringAtom);
-  const stockfish = findStockfish(useAtomValue(enginesAtom));
+  const allEngines = useAtomValue(enginesAtom);
+  const stockfish = findStockfish(allEngines);
+  // Angriffsmodus: ab Level 5 spielt Patricia statt Stockfish
+  const patricia = findPatricia(allEngines);
+  const coachAttack = useAtomValue(coachAttackAtom);
+  const coachLevel = levelProgress(useAtomValue(coachXpAtom)).level;
+  const attackNow = coachAttack && coachLevel >= ATTACK_LEVEL && patricia !== null;
+  const [coachGameAttack, setCoachGameAttack] = useState(false);
 
   function getPlayers() {
     let isPlayer1White = inputColor === "white";
@@ -135,16 +153,26 @@ function BoardGame() {
 
     if (isCoachGame && stockfish) {
       const human: OpponentSettings = { type: "human", name: t("Coach.Game.You") };
-      const jbl: OpponentSettings = {
-        type: "engine",
-        engine: {
-          ...stockfish,
-          name: "JBL",
-          elo: COACH_STRENGTHS.find((s) => s.id === coachStrength)?.elo ?? null,
-        },
-        go: jblEngineSetup(coachStrength).go,
-        engineSettings: jblEngineSettings(stockfish, coachStrength),
-      };
+      const elo = COACH_STRENGTHS.find((s) => s.id === coachStrength)?.elo ?? null;
+      const jbl: OpponentSettings =
+        attackNow && patricia
+          ? {
+              type: "engine",
+              engine: { ...patricia, name: "JBL", elo },
+              go: patriciaEngineSetup(coachStrength).go,
+              engineSettings: [
+                ...(patricia.settings ?? []).filter(
+                  (s) => s.name !== "Skill_Level" && s.name !== "MultiPV",
+                ),
+                ...patriciaEngineSetup(coachStrength).options,
+              ],
+            }
+          : {
+              type: "engine",
+              engine: { ...stockfish, name: "JBL", elo },
+              go: jblEngineSetup(coachStrength).go,
+              engineSettings: jblEngineSettings(stockfish, coachStrength),
+            };
       return isPlayer1White ? { white: human, black: jbl } : { white: jbl, black: human };
     }
 
@@ -342,6 +370,7 @@ function BoardGame() {
   async function startGame() {
     const playerSettings = getPlayers();
     setCoachGameStrength(coachStrength);
+    setCoachGameAttack(isCoachGame && attackNow);
     setCoachTakebacks(0);
     setPlayers(playerSettings);
 
@@ -718,6 +747,7 @@ function BoardGame() {
               {gameState === "settingUp" && isCoachGame && (
                 <CoachGameSetup
                   hasEngine={stockfish !== null}
+                  hasPatricia={patricia !== null}
                   canStart={error === null}
                   onStart={startGame}
                 />
@@ -839,6 +869,7 @@ function BoardGame() {
                       takebacks={coachTakebacks}
                       plan={coachPlan}
                       root={root}
+                      attack={coachGameAttack}
                     />
                   )}
                   <Box flex={1}>

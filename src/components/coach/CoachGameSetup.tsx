@@ -1,19 +1,33 @@
-import { Alert, Box, Button, SegmentedControl, Stack, Switch, Text, Title } from "@mantine/core";
-import { useAtom } from "jotai";
+import {
+  Alert,
+  Badge,
+  Box,
+  Button,
+  SegmentedControl,
+  Stack,
+  Switch,
+  Text,
+  Title,
+} from "@mantine/core";
+import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { gameInputColorAtom } from "@/state/atoms";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { StrengthSelect } from "./CoachPage";
 import { coachSparringAtom } from "./coachPlan";
+import { ATTACK_LEVEL, coachAttackAtom } from "./coachEggs";
+import { coachXpAtom, levelProgress } from "./coachState";
 
 // Vor der Partie gegen JBL: Farbe und Stärke wählen, dann los.
 export default function CoachGameSetup({
   hasEngine,
+  hasPatricia,
   canStart,
   onStart,
 }: {
   hasEngine: boolean;
+  hasPatricia: boolean;
   canStart: boolean;
   onStart: () => void;
 }) {
@@ -21,6 +35,9 @@ export default function CoachGameSetup({
   const figure = useRef<CoachFigureHandle>(null);
   const [color, setColor] = useAtom(gameInputColorAtom);
   const [sparring, setSparring] = useAtom(coachSparringAtom);
+  const [attack, setAttack] = useAtom(coachAttackAtom);
+  const level = levelProgress(useAtomValue(coachXpAtom)).level;
+  const attackOpen = level >= ATTACK_LEVEL;
 
   useEffect(() => {
     const timer = setTimeout(() => figure.current?.play("hello"), 300);
@@ -62,6 +79,28 @@ export default function CoachGameSetup({
             onChange={(e) => setSparring(e.currentTarget.checked)}
             label={t("Coach.Game.Sparring")}
             description={t("Coach.Game.SparringDesc")}
+          />
+          <Switch
+            mt="sm"
+            color="orange"
+            checked={attackOpen && hasPatricia && attack}
+            disabled={!attackOpen || !hasPatricia}
+            onChange={(e) => setAttack(e.currentTarget.checked)}
+            label={
+              <>
+                {t("Coach.Game.Attack")}
+                {!attackOpen && (
+                  <Badge ml={6} size="xs" variant="light" color="gray">
+                    {t("Coach.Game.AttackLocked", { level: ATTACK_LEVEL })}
+                  </Badge>
+                )}
+              </>
+            }
+            description={
+              attackOpen && !hasPatricia
+                ? t("Coach.Game.AttackNoEngine")
+                : t("Coach.Game.AttackDesc")
+            }
           />
         </Box>
         {!hasEngine && (

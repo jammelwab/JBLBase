@@ -17,7 +17,10 @@ export type CoachAnimation =
   | "int"
   | "dub"
   | "mis"
-  | "blu";
+  | "blu"
+  | "salto"
+  | "scared"
+  | "facepalm";
 
 export type CoachFigureHandle = {
   play: (name: CoachAnimation) => Promise<void>;
@@ -787,6 +790,128 @@ const CoachFigure = forwardRef<
               ],
               T,
             ),
+          );
+          await wait(T);
+        } else if (name === "salto") {
+          // Rückwärtssalto um die Körpermitte (en passant)
+          const T = 1200;
+          const at = (y: number, a: number) =>
+            `translateY(${y}px) translate(0px,-120px) rotate(${a}deg) translate(0px,120px)`;
+          tl(
+            jumpRef.current,
+            [
+              [0, at(0, 0), OUT],
+              [160, at(6, 0), OUT],
+              [560, at(-80, -180), IN],
+              [960, at(0, -360), OUT],
+              [T, at(0, -360)],
+            ],
+            T,
+          );
+          tl(
+            squash,
+            [
+              [0, "scale(1,1)", OUT],
+              [160, "scale(1.1,.88)", OUT],
+              [300, "scale(.95,1.06)"],
+              [960, "scale(1,1)", OUT],
+              [1060, "scale(1.08,.92)", OUT],
+              [T, "scale(1,1)"],
+            ],
+            T,
+          );
+          tl(
+            shadowRef.current,
+            [
+              [0, "scale(1)", OUT],
+              [560, "scale(.55)", IN],
+              [960, "scale(1)"],
+              [T, "scale(1)"],
+            ],
+            T,
+          );
+          await wait(T);
+        } else if (name === "scared") {
+          // Erschrickt und fällt fast nach hinten um
+          const T = 1700;
+          tl(
+            jumpRef.current,
+            [
+              [0, "translate(0px,0px) rotate(0deg)", OUT],
+              [160, "translate(10px,-34px) rotate(-8deg)", IN],
+              [420, "translate(22px,0px) rotate(-24deg)", OUT],
+              [700, "translate(22px,0px) rotate(-14deg)", INOUT],
+              [950, "translate(22px,0px) rotate(-20deg)", INOUT],
+              [1350, "translate(8px,0px) rotate(-3deg)", INOUT],
+              [T, "translate(0px,0px) rotate(0deg)"],
+            ],
+            T,
+          );
+          [eyeLRef.current, eyeRRef.current].forEach((e) =>
+            tl(
+              e,
+              [
+                [0, "scale(1)", BACK],
+                [160, "scale(1.5)"],
+                [1200, "scale(1.4)", INOUT],
+                [T, "scale(1)"],
+              ],
+              T,
+            ),
+          );
+          tl(
+            armL,
+            [
+              [0, "rotate(0deg)", BACK],
+              [200, "rotate(120deg)"],
+              [1200, "rotate(110deg)", INOUT],
+              [T, "rotate(0deg)"],
+            ],
+            T,
+          );
+          tl(
+            armR,
+            [
+              [0, "rotate(0deg)", BACK],
+              [200, "rotate(-120deg)"],
+              [1200, "rotate(-110deg)", INOUT],
+              [T, "rotate(0deg)"],
+            ],
+            T,
+          );
+          await wait(T);
+        } else if (name === "facepalm") {
+          // Hand vor die Box
+          const T = 2000;
+          tl(
+            armR,
+            [
+              [0, "rotate(0deg)", OUT],
+              [350, "rotate(-165deg)"],
+              [1600, "rotate(-160deg)", INOUT],
+              [T, "rotate(0deg)"],
+            ],
+            T,
+          );
+          tl(
+            head,
+            [
+              [0, "rotate(0deg)", OUT],
+              [380, "rotate(9deg)"],
+              [1600, "rotate(7deg)", INOUT],
+              [T, "rotate(0deg)"],
+            ],
+            T,
+          );
+          tl(
+            squash,
+            [
+              [0, "scale(1,1)", OUT],
+              [380, "scale(1.03,.95)"],
+              [1600, "scale(1.03,.95)", INOUT],
+              [T, "scale(1,1)"],
+            ],
+            T,
           );
           await wait(T);
         }

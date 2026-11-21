@@ -113,6 +113,17 @@ export const LINE_VARIANTS: Record<string, number> = {
     sparring: 1,
     variety: 2,
     noRepertoire: 1,
+    attack: 2,
+    patriciaWin: 1,
+    patriciaLoss: 1,
+    bassBeatsBunny: 1,
+    knightPromo: 1,
+    kingMate: 1,
+    enPassant: 2,
+    aaronMate: 2,
+    oberBoss: 1,
+    lambrusco: 1,
+    aprilFools: 1,
 };
 
 // Wählt eine Fassung und meidet die zuletzt gezeigten.
