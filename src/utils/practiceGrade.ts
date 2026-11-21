@@ -20,3 +20,11 @@ export function autoGrade(
     }
     return Number(setting) as 1 | 2 | 3 | 4;
 }
+
+/**
+ * A correct move counts for the JBL Coach (XP and the daily quest) when it
+ * came on the first try. wrongTries is unset after a first-try answer.
+ */
+export function knownOnFirstTry(phase: string, wrongTries: number | undefined): boolean {
+    return phase === "correct" && !wrongTries;
+}
