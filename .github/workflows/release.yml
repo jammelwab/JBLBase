@@ -43,13 +43,19 @@ jobs:
           fi
           id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
             --jq "map(select(.tag_name == \"$TAG\")) | .[0].id // empty")
-          if [ -n "$id" ]; then
-            # A draft left by a failed run: build it from this commit, not the old one
-            draft=$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq .draft)
-            if [ "$draft" = "true" ]; then
+          if [ -z "$id" ]; then
+            # A release that lost its tag (shows as untagged-...): give it the tag back
+            id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq "map(select(.name == \"JBLBase ${TAG#v}\" and (.tag_name | startswith(\"untagged-\")))) | .[0].id // empty")
+            if [ -n "$id" ]; then
               gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
-                -f target_commitish="$GITHUB_SHA" > /dev/null
+                -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" > /dev/null
             fi
+          elif [ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq .draft)" = "true" ]; then
+            # A draft left by a failed run: build it from this commit, not the old one.
+            # Always send tag_name too, or GitHub drops the draft's tag.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
+              -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" > /dev/null
           fi
           if [ -z "$id" ]; then
             id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
@@ -130,4 +136,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ID: ${{ needs.prepare.outputs.release_id }}
-        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" -F draft=false -f make_latest=true
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" \
+            -f tag_name="$TAG" -F draft=false -f make_latest=true
