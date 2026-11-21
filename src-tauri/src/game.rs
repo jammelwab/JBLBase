@@ -65,6 +65,19 @@ pub struct GameConfig {
     #[serde(default)]
     pub initial_moves: Vec<String>,
     pub opening_book: Option<OpeningBookConfig>,
+    /// Moves the engine side plays instead of searching, chosen by weight
+    /// (JBL Coach: diary, opening sparring). Keyed by the position's EPD.
+    #[serde(default)]
+    pub move_book: Vec<BookMove>,
+}
+
+#[derive(Clone, Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BookMove {
+    /// Position as the first four FEN fields (pieces, turn, castling, en passant)
+    pub epd: String,
+    pub uci: String,
+    pub weight: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Type)]
@@ -1357,7 +1370,40 @@ async fn game_loop(
     info!("Game loop ended for {}", game_id);
 }
 
+/// The first four FEN fields, the same for a position however it was reached.
+fn position_epd(position: &Chess) -> String {
+    let fen = Fen::from_position(position, EnPassantMode::Legal).to_string();
+    fen.split(' ').take(4).collect::<Vec<_>>().join(" ")
+}
+
+fn try_move_book(controller: &GameController) -> Option<String> {
+    if controller.config.move_book.is_empty() {
+        return None;
+    }
+    let epd = position_epd(&controller.position);
+    let legal: Vec<(String, u16)> = controller
+        .config
+        .move_book
+        .iter()
+        .filter(|m| m.epd == epd && m.weight > 0)
+        .filter_map(|m| {
+            let parsed = UciMove::from_ascii(m.uci.as_bytes()).ok()?;
+            parsed.to_move(&controller.position).ok()?;
+            Some((m.uci.clone(), m.weight))
+        })
+        .collect();
+    if legal.is_empty() {
+        return None;
+    }
+    let weights = legal.iter().map(|(_, w)| *w).collect::<Vec<_>>();
+    let selected = choose_weighted_index(&weights, &mut rand::thread_rng());
+    Some(legal[selected].0.clone())
+}
+
 fn try_polyglot_book_move(controller: &GameController) -> Option<String> {
+    if let Some(uci) = try_move_book(controller) {
+        return Some(uci);
+    }
     let book = controller.polyglot_book.as_ref()?;
 
     if controller.moves.len() >= controller.polyglot_max_ply {

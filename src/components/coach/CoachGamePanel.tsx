@@ -11,6 +11,18 @@ import { type CoachMistake, finishCoachGameAtom, type ReceiptLine } from "./coac
 import { coachBonusTrackAtom, DAILY_QUEST_XP } from "./coachRewards";
 import type { CoachStrengthId } from "./coachState";
 import type { CoachComment } from "./useCoachCommentary";
+import type { TreeNode } from "@/utils/treeReducer";
+import { addLineToRepertoire } from "@/utils/repertoires";
+import {
+  addToDiary,
+  coachDiaryAtom,
+  diaryGame,
+  epdOf,
+  type RepertoireDeparture,
+  repertoireDeparture,
+} from "./coachDiary";
+import type { CoachPlan } from "./coachPlan";
+import { today } from "./coachState";
 
 const SIGN_COLOR: Record<string, string> = {
   "!!": "#1baca6",
@@ -38,6 +50,8 @@ export default function CoachGamePanel({
   rootHalfMoves,
   strength,
   takebacks,
+  plan,
+  root,
 }: {
   comment: CoachComment | null;
   gameState: "settingUp" | "playing" | "gameOver";
@@ -49,6 +63,8 @@ export default function CoachGamePanel({
   // Stärke, mit der diese Partie gestartet wurde
   strength: CoachStrengthId;
   takebacks: number;
+  plan: CoachPlan | null;
+  root: TreeNode;
 }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
@@ -107,12 +123,20 @@ export default function CoachGamePanel({
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   // Zugkommentare
+  const setDiary = useSetAtom(coachDiaryAtom);
+  // Zeichen der eigenen Züge (Ply -> "?", "??", ...) fürs Tagebuch
+  const marks = useRef<Record<number, string>>({});
+  const reported = useRef({ own: false, end: false });
+  const [departure, setDeparture] = useState<RepertoireDeparture | null>(null);
+  const [added, setAdded] = useState<"no" | "busy" | "done" | "failed">("no");
+
   const lastComment = useRef(0);
   useEffect(() => {
     if (!comment || comment.id === lastComment.current) return;
     lastComment.current = comment.id;
     if (comment.reaction === "brilliant") stats.current.brilliants++;
     if (comment.reaction === "good") stats.current.goods++;
+    marks.current[comment.ply] = REACTION_SIGN[comment.reaction];
     if (comment.reaction === "blunder" || comment.reaction === "missedMate")
       stats.current.blunders++;
     const severity = SEVERITY[comment.reaction] ?? 0;
@@ -134,6 +158,50 @@ export default function CoachGamePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comment]);
 
+  // Eröffnungs-Sparring: JBL sagt sofort, wenn du dein Repertoire verlässt
+  // oder es zu Ende ist.
+  useEffect(() => {
+    if (!plan?.sparring || !plan.index || gameState !== "playing" || !humanColor) return;
+    if (!reported.current.own) {
+      const d = repertoireDeparture(root, humanColor, plan.index);
+      if (d?.kind === "own") {
+        reported.current.own = true;
+        speak([
+          {
+            anim: "dub",
+            text: line("offBook", t("Coach.Game.Expected", { moves: d.expected.join(", ") })),
+            sign: null,
+          },
+        ]);
+        return;
+      }
+    }
+    if (!reported.current.end && !reported.current.own) {
+      let n = root;
+      while (n.children.length > 0) n = n.children[0];
+      const known = plan.index.get(epdOf(n.fen));
+      if (n !== root && known && known.length === 0) {
+        reported.current.end = true;
+        speak([{ anim: "think", text: line("repEnd"), sign: null }]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [root, plan, gameState]);
+
+  const addLine = async () => {
+    if (!plan?.repertoire || !departure || departure.kind !== "gap") return;
+    setAdded("busy");
+    try {
+      const r = await addLineToRepertoire(plan.repertoire.file, root, departure.path, {
+        withVariations: false,
+        label: "JBL Coach",
+      });
+      setAdded(r.ok ? "done" : "failed");
+    } catch {
+      setAdded("failed");
+    }
+  };
+
   // Start und Ende der Partie
   const lastState = useRef(gameState);
   useEffect(() => {
@@ -143,9 +211,14 @@ export default function CoachGamePanel({
     if (gameState === "playing") {
       stats.current = { brilliants: 0, goods: 0, blunders: 0 };
       worst.current = null;
+      marks.current = {};
+      reported.current = { own: false, end: false };
+      setDeparture(null);
+      setAdded("no");
       setReceipt(null);
       speak([
         { anim: "hello", text: line("start"), sign: null },
+        ...(plan?.announce ?? []).map((key) => ({ anim: null, text: line(key), sign: null })),
         ...(bonusTrack ? [{ anim: "bril" as const, text: line("bonusTrack"), sign: null }] : []),
       ]);
     }
@@ -156,6 +229,8 @@ export default function CoachGamePanel({
           : (result === "1-0") === (humanColor === "white")
             ? ("win" as const)
             : ("loss" as const);
+      setDiary((d) => addToDiary(d, diaryGame(root, humanColor, outcome, marks.current, today())));
+      if (plan?.index) setDeparture(repertoireDeparture(root, humanColor, plan.index));
       const done = finishGame({
         result: outcome,
         strength,
@@ -247,6 +322,37 @@ export default function CoachGamePanel({
             </Text>
           )}
           {receipt && <CoachReceipt lines={receipt.lines} lock={receipt.lock} />}
+          {receipt && departure && (
+            <Paper withBorder radius="md" p="xs" mt="xs">
+              <Text size="sm">
+                {departure.kind === "own"
+                  ? t("Coach.Game.LeftOwn", {
+                      move: departure.played,
+                      expected: departure.expected.join(", "),
+                    })
+                  : departure.played
+                    ? t("Coach.Game.LeftGap", { move: departure.jbl, reply: departure.played })
+                    : t("Coach.Game.LeftGapNoReply", { move: departure.jbl })}
+              </Text>
+              {departure.kind === "gap" && departure.played && (
+                <Button
+                  mt={6}
+                  size="xs"
+                  variant="light"
+                  color="orange"
+                  loading={added === "busy"}
+                  disabled={added === "done"}
+                  onClick={addLine}
+                >
+                  {added === "done"
+                    ? t("Coach.Game.LineAdded")
+                    : added === "failed"
+                      ? t("Coach.Game.LineFailed")
+                      : t("Coach.Game.AddLine")}
+                </Button>
+              )}
+            </Paper>
+          )}
           {offerTakeBack && (
             <Button
               mt="xs"

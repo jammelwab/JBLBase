@@ -1044,7 +1044,17 @@ export type EngineOptions = { fen: string; moves: string[]; extraOptions: Engine
 export type EvalCacheStats = { path: string; positions: number; entries: number; sizeBytes: number; engines: EngineCacheStats[]; sessionLookups: number; sessionHits: number; sessionSaved: number }
 export type Event = { name: string | null; games_count: number }
 export type FileMetadata = { last_modified: number }
-export type GameConfig = { white: PlayerConfig; black: PlayerConfig; whiteTimeControl: TimeControl | null; blackTimeControl: TimeControl | null; initialFen: string | null; initialMoves?: string[]; openingBook: OpeningBookConfig | null }
+export type GameConfig = { white: PlayerConfig; black: PlayerConfig; whiteTimeControl: TimeControl | null; blackTimeControl: TimeControl | null; initialFen: string | null; initialMoves?: string[]; openingBook: OpeningBookConfig | null; 
+/**
+ * Moves the engine side plays instead of searching, chosen by weight
+ * (JBL Coach: diary, opening sparring). Keyed by the position's EPD.
+ */
+moveBook?: BookMove[] }
+export type BookMove = { 
+/**
+ * Position as the first four FEN fields (pieces, turn, castling, en passant)
+ */
+epd: string; uci: string; weight: number }
 export type GameEndReason = "checkmate" | "timeout" | "resignation" | "abandonment"
 export type GameMove = { uci: string; san: string; fenAfter: string; clock: bigint | null; whiteTime: bigint | null; blackTime: bigint | null }
 export type GameMoveEvent = { gameId: string; moves: GameMove[]; fen: string; whiteTime: bigint | null; blackTime: bigint | null }

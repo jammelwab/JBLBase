@@ -108,6 +108,11 @@ export const LINE_VARIANTS: Record<string, number> = {
     levelUp: 1,
     bonusTrack: 2,
     tired: 2,
+    offBook: 2,
+    repEnd: 1,
+    sparring: 1,
+    variety: 2,
+    noRepertoire: 1,
 };
 
 // Wählt eine Fassung und meidet die zuletzt gezeigten.

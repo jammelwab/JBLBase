@@ -538,6 +538,19 @@ Das **Coach-Profil** `coachProfiles/{uid}` trägt nur der Admin in der Firebase-
 
 **Geburtstag:** Beim ersten Öffnen des Startbildschirms am Geburtstag kommt JBL mit Partyhütchen und Torte. Ein Klick auf die Torte pustet die Kerzen aus: 250 XP und das Partyhütchen zum Behalten. Den ganzen Tag trägt JBL das Hütchen, Partien bringen doppelte XP, und nach einer Niederlage gibt es keine Pflichtaufgaben. War die App am Geburtstag nicht offen, gibt es bis zu 3 Tage später ein „Nachträglich alles Gute!“. Der Code: `coachSync.ts`, `coachProfile.ts`, `coachBirthday.ts`, `CoachBirthday.tsx` und `src/utils/cloud/coachCloud.ts`.
 
+### Gedächtnis und Training
+
+Seit 1.2.5 führt JBL ein verborgenes **Tagebuch** über die Partien gegen ihn: die ersten 30 Halbzüge der letzten 200 Partien, wer welchen Zug gespielt hat und welche eigenen Züge schlecht waren. Schlüssel ist die Stellung, nicht der Zugweg. Das Tagebuch bleibt auf dem Rechner und geht nicht in die Cloud.
+
+- **Steuern:** In jeder zweiten Partie steuert JBL heimlich in Linien, in denen du früher mit ? oder ?? danebengegriffen hast. Weichst du ab, rechnet wieder Stockfish.
+- **Abwechslung:** Spielst du dreimal hintereinander dieselbe Eröffnung, sagt JBL es an und probiert etwas anderes.
+- **Eröffnungs-Sparring:** Ein Schalter beim Partiestart. JBL spielt die Gegnerzüge aus deinem Hauptrepertoire (sonst dem größten eigenen), gewichtet nach der Zahl der Linien. Verlässt du dein Repertoire, sagt JBL, was dort steht.
+- **Nach der Partie:** JBL zeigt, wo die Partie dein Repertoire verlassen hat, und bietet an, die Linie mit einem Klick ins Repertoire zu übernehmen.
+- **Hinweise auf der Coach-Seite:** fehlendes Repertoire für eine Farbe, oder eine Stellung, die in mindestens zwei Partien vorkam und für die dein Repertoire keine Antwort hat.
+- **Tagebuch lesen:** Ab Level 10 darf man nachschauen, was JBL über einen weiß: Bilanz, häufigste Eröffnungen und Problemstellen.
+
+Technisch bekommt die Partie-Engine ein eigenes Zugbuch (`moveBook` in `GameConfig`), das vor dem Polyglot-Buch gefragt wird. Der Code: `coachDiary.ts`, `coachPlan.ts`, `CoachHints.tsx` und `src-tauri/src/game.rs`.
+
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
 ## Engines einrichten

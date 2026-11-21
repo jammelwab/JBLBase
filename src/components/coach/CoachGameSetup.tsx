@@ -1,10 +1,11 @@
-import { Alert, Box, Button, SegmentedControl, Stack, Text, Title } from "@mantine/core";
+import { Alert, Box, Button, SegmentedControl, Stack, Switch, Text, Title } from "@mantine/core";
 import { useAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { gameInputColorAtom } from "@/state/atoms";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { StrengthSelect } from "./CoachPage";
+import { coachSparringAtom } from "./coachPlan";
 
 // Vor der Partie gegen JBL: Farbe und Stärke wählen, dann los.
 export default function CoachGameSetup({
@@ -19,6 +20,7 @@ export default function CoachGameSetup({
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
   const [color, setColor] = useAtom(gameInputColorAtom);
+  const [sparring, setSparring] = useAtom(coachSparringAtom);
 
   useEffect(() => {
     const timer = setTimeout(() => figure.current?.play("hello"), 300);
@@ -53,6 +55,14 @@ export default function CoachGameSetup({
             {t("Coach.Strength.Label")}
           </Text>
           <StrengthSelect />
+          <Switch
+            mt="md"
+            color="orange"
+            checked={sparring}
+            onChange={(e) => setSparring(e.currentTarget.checked)}
+            label={t("Coach.Game.Sparring")}
+            description={t("Coach.Game.SparringDesc")}
+          />
         </Box>
         {!hasEngine && (
           <Alert color="orange" w="100%" maw={360}>
