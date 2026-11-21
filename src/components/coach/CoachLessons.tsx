@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, sanToSquares } from "@/utils/gamesTree";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
-import { coachIntroAtom } from "./coachIntro";
+import { coachIntroAtom } from "./coachIntroState";
 import { playCoachTone } from "./coachSound";
 import {
   coachLessonAnnouncedAtom,
@@ -31,7 +31,7 @@ import {
   LESSONS,
   type Lesson,
   unlockedLessons,
-} from "./coachLessons";
+} from "./coachLessonsData";
 import { coachXpAtom, levelProgress } from "./coachState";
 
 const arrowShapes = (arrows: [string, string][], brush = "green") =>

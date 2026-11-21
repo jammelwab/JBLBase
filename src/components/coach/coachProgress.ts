@@ -1,6 +1,6 @@
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { isBirthdayAtom } from "./coachBirthday";
+import { isBirthdayAtom } from "./coachBirthdayState";
 import { bossChallenge, coachBossAtom } from "./coachBoss";
 import {
     advanceQuest,

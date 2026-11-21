@@ -34,7 +34,7 @@ import { type BugReportInfo, bugReportText, bugReportUrl } from "@/utils/bugRepo
 import { availableUpdateAtom, checkForAppUpdate } from "@/utils/updater";
 import { useIsAdmin, useStartTutorial } from "@/components/tutorial/tutorialState";
 import { tutorialsForPage } from "@/components/tutorial/tutorials";
-import { coachIntroOpenAtom } from "@/components/coach/coachIntro";
+import { coachIntroOpenAtom } from "@/components/coach/coachIntroState";
 import classes from "./CornerMenu.module.css";
 
 /** Look for a new release again every few hours while the app stays open. */

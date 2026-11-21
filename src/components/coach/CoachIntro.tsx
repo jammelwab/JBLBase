@@ -27,8 +27,8 @@ import {
   INTRO_LATER_FROM,
   INTRO_STEPS,
   introDue,
-} from "./coachIntro";
-import { COACH_ENTRIES, type CoachEntry, ENTRY_STRENGTH } from "./coachLessons";
+} from "./coachIntroState";
+import { COACH_ENTRIES, type CoachEntry, ENTRY_STRENGTH } from "./coachLessonsData";
 import { coachStrengthAtom } from "./coachState";
 
 // Die Einführung beim ersten Start: fünf Schritte mit je einem Satz. Sie

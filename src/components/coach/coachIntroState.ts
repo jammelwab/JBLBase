@@ -1,6 +1,6 @@
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import type { CoachEntry } from "./coachLessons";
+import type { CoachEntry } from "./coachLessonsData";
 
 // Einführung beim ersten Start (1.2.8): fünf kurze Schritte. „Gesehen“ und
 // die Antwort auf „Wie stark bist du?“ wandern mit dem Coach-Stand ans Konto.

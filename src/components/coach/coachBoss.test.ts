@@ -25,7 +25,7 @@ import {
     parseRival,
     playDuelMove,
     settleDuelAtom,
-} from "./coachDuel";
+} from "./coachDuelState";
 import { computeReceipt, finishCoachGameAtom } from "./coachProgress";
 import {
     coachDuelChampionAtom,
