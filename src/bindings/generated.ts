@@ -794,6 +794,30 @@ async trainingRenameRepertoire(from: string, to: string) : Promise<Result<null, 
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Schlüssel des aktiven Profils
+ */
+async activeProfile() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("active_profile") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Wechselt das Profil: speichert `snapshot` (die Einstellungen der App) beim
+ * bisherigen Profil, öffnet die Speicher des neuen und gibt dessen
+ * gespeicherte Einstellungen zurück (None: neues Profil).
+ */
+async switchProfile(key: string, snapshot: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_profile", { key, snapshot }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async syncMetaGet(key: string) : Promise<Result<string | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sync_meta_get", { key }) };

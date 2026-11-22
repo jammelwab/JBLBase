@@ -21,6 +21,7 @@ mod lexer;
 mod oauth;
 mod opening;
 mod pgn;
+mod profile;
 mod progress;
 mod puzzle;
 mod sound;
@@ -243,6 +244,8 @@ fn main() {
             training::training_mark_synced,
             training::training_apply_remote,
             training::training_rename_repertoire,
+            profile::active_profile,
+            profile::switch_profile,
             training::sync_meta_get,
             training::sync_meta_set,
             backup::backup_create,
@@ -332,16 +335,10 @@ fn main() {
                     std::thread::spawn(move || {
                         handle.state::<AppState>().eval_cache.open(cache_path);
                     });
-                    state.training.open(dir.join(training::TRAINING_FILE_NAME));
-                    state
-                        .insight
-                        .open(dir.join(insight::store::INSIGHT_FILE_NAME));
-                    state
-                        .rating
-                        .open(dir.join(tactics::calibration::RATING_FILE_NAME));
-                    state
-                        .reports
-                        .open(dir.join(tactics::review::REPORTS_FILE_NAME));
+                    // Training, Statistik und Puzzle-Bewertung gehören zum
+                    // Profil des Kontos; der Analyse-Speicher bleibt gemeinsam.
+                    let profile_dir = profile::data_dir_for(&dir, &profile::read_active(&dir));
+                    profile::open_stores(&state, &profile_dir);
                 }
                 Err(err) => log::warn!(
                     "No app data dir, evaluation cache and training store disabled: {err}"
