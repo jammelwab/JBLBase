@@ -11,8 +11,26 @@ import { coachXpAtom } from "./coachState";
 // Beispiel mit Pfeilen und drei Aufgaben. Die Texte stehen in den
 // Übersetzungen unter Coach.Lesson.<id>.
 
-export type LessonPath = "game" | "principles" | "tactics" | "advanced";
-export const LESSON_PATHS: LessonPath[] = ["game", "principles", "tactics", "advanced"];
+export type LessonPath =
+    | "game"
+    | "principles"
+    | "tactics"
+    | "advanced"
+    // Ab 1.2.15: weitere Reihen nach den ersten zwölf Lektionen
+    | "mates"
+    | "combos"
+    | "deep"
+    | "endgame";
+export const LESSON_PATHS: LessonPath[] = [
+    "game",
+    "principles",
+    "tactics",
+    "advanced",
+    "mates",
+    "combos",
+    "deep",
+    "endgame",
+];
 
 // Was eine richtige Lösung ausmacht. Bei "mate" zählt jedes Matt, sonst die
 // angegebenen Züge; die Tests prüfen, dass sie das Motiv wirklich zeigen.
@@ -24,7 +42,17 @@ export type LessonCheck =
     | "fork"
     | "pin"
     | "skewer"
-    | "discovered";
+    | "discovered"
+    // Ab 1.2.15
+    | "doubleCheck"
+    | "underpromotion"
+    | "check"
+    | "decoy"
+    | "overload"
+    | "removeDefender"
+    | "opposition"
+    | "breakthrough"
+    | "square";
 
 export type LessonTask = { fen: string; solutions: string[] };
 
@@ -224,6 +252,220 @@ export const LESSONS: Lesson[] = [
             { fen: "kr6/pp6/8/1N6/8/8/8/6K1 w - - 0 1", solutions: ["Nc7#"] },
         ],
     },
+    // ---------- 5. Mattbilder (ab 1.2.15) ----------
+    {
+        id: "arabianMate",
+        path: "mates",
+        check: "mate",
+        example: {
+            fen: "7k/R7/5N2/8/8/8/8/6K1 w - - 0 1",
+            arrows: [
+                ["a7", "h7"],
+                ["f6", "h7"],
+            ],
+        },
+        tasks: [
+            { fen: "7k/1R6/5N2/8/8/8/8/6K1 w - - 0 1", solutions: ["Rh7#"] },
+            { fen: "k7/8/2N5/8/8/8/8/1R4K1 w - - 0 1", solutions: ["Rb8#"] },
+            { fen: "6rk/1R6/5N2/8/8/8/8/K7 w - - 0 1", solutions: ["Rh7#"] },
+        ],
+    },
+    {
+        id: "anastasiaMate",
+        path: "mates",
+        check: "mate",
+        example: {
+            fen: "7k/4N1p1/8/8/8/4R3/8/6K1 w - - 0 1",
+            arrows: [
+                ["e3", "h3"],
+                ["e7", "g8"],
+            ],
+        },
+        tasks: [
+            { fen: "7k/4N1p1/8/8/8/4R3/8/6K1 w - - 0 1", solutions: ["Rh3#"] },
+            { fen: "7k/4N1p1/8/8/8/8/1Q6/6K1 w - - 0 1", solutions: ["Qh2#"] },
+            { fen: "k7/1p1N4/8/8/8/8/8/1R4K1 w - - 0 1", solutions: ["Ra1#"] },
+        ],
+    },
+    {
+        id: "bodenMate",
+        path: "mates",
+        check: "mate",
+        example: {
+            fen: "2kr4/3p4/8/8/5B2/8/8/5BK1 w - - 0 1",
+            arrows: [
+                ["f1", "a6"],
+                ["f4", "b8"],
+            ],
+        },
+        tasks: [
+            { fen: "2kr4/3p4/8/8/5B2/8/8/5BK1 w - - 0 1", solutions: ["Ba6#"] },
+            { fen: "2kr3r/3pq3/8/8/8/3B4/7B/6K1 w - - 0 1", solutions: ["Ba6#"] },
+            { fen: "4rk2/4p3/8/8/2B5/8/8/1KB5 w - - 0 1", solutions: ["Bh6#"] },
+        ],
+    },
+    // ---------- 6. Kombinationen ----------
+    {
+        id: "decoy",
+        path: "combos",
+        check: "decoy",
+        example: {
+            fen: "5r1k/6pp/7N/8/2Q5/8/8/6K1 w - - 0 1",
+            arrows: [
+                ["c4", "g8"],
+                ["f8", "g8"],
+                ["h6", "f7"],
+            ],
+        },
+        tasks: [
+            { fen: "5r1k/6pp/7N/8/2Q5/8/8/6K1 w - - 0 1", solutions: ["Qg8+"] },
+            { fen: "6k1/6pp/8/2N1q3/8/8/6PP/5RK1 w - - 0 1", solutions: ["Rf8+"] },
+            { fen: "k1r5/pp6/N7/8/8/8/7Q/6K1 w - - 0 1", solutions: ["Qb8+"] },
+        ],
+    },
+    {
+        id: "overload",
+        path: "combos",
+        check: "overload",
+        example: {
+            fen: "4r1k1/3q1ppp/8/8/8/8/4QPPP/4R1K1 w - - 0 1",
+            arrows: [
+                ["e2", "e8"],
+                ["d7", "e8"],
+                ["e1", "e8"],
+            ],
+        },
+        tasks: [
+            { fen: "4r1k1/3q1ppp/8/8/8/8/4QPPP/4R1K1 w - - 0 1", solutions: ["Qxe8+"] },
+            { fen: "3r2k1/5ppp/1q6/8/8/8/3Q1PPP/3R2K1 w - - 0 1", solutions: ["Qxd8+"] },
+            { fen: "1r4k1/3n1ppp/8/8/8/8/1Q3PPP/1R4K1 w - - 0 1", solutions: ["Qxb8+"] },
+        ],
+    },
+    {
+        id: "removeDefender",
+        path: "combos",
+        check: "removeDefender",
+        example: {
+            fen: "5rk1/5ppp/5n2/6B1/8/3B3Q/5PPP/6K1 w - - 0 1",
+            arrows: [
+                ["g5", "f6"],
+                ["h3", "h7"],
+                ["d3", "h7"],
+            ],
+        },
+        tasks: [
+            { fen: "5rk1/5ppp/5n2/6B1/8/3B3Q/5PPP/6K1 w - - 0 1", solutions: ["Bxf6"] },
+            { fen: "5rk1/5ppp/5n2/8/8/2BB3Q/5PPP/6K1 w - - 0 1", solutions: ["Bxf6"] },
+            { fen: "5rk1/5ppp/5n2/3N4/8/3B3Q/5PPP/6K1 w - - 0 1", solutions: ["Nxf6+"] },
+        ],
+    },
+    // ---------- 7. Tiefe Taktik ----------
+    {
+        id: "doubleCheck",
+        path: "deep",
+        check: "doubleCheck",
+        example: {
+            fen: "4k3/8/5q2/8/4N3/8/8/4R1K1 w - - 0 1",
+            arrows: [
+                ["e4", "f6"],
+                ["f6", "e8"],
+                ["e1", "e8"],
+            ],
+        },
+        tasks: [
+            { fen: "4k3/8/5q2/8/4N3/8/8/4R1K1 w - - 0 1", solutions: ["Nxf6+"] },
+            { fen: "4k3/8/8/7q/8/8/4B3/4R1K1 w - - 0 1", solutions: ["Bxh5+"] },
+            { fen: "7k/7p/8/8/3R4/8/1B6/6K1 w - - 0 1", solutions: ["Rd8#"] },
+        ],
+    },
+    {
+        id: "underpromotion",
+        path: "deep",
+        check: "underpromotion",
+        example: {
+            fen: "8/1q1P1k2/8/8/8/8/P7/6K1 w - - 0 1",
+            arrows: [
+                ["d7", "d8"],
+                ["d8", "f7"],
+                ["d8", "b7"],
+            ],
+        },
+        tasks: [
+            { fen: "8/1q1P1k2/8/8/8/8/P7/6K1 w - - 0 1", solutions: ["d8=N+"] },
+            { fen: "8/4P1k1/3q4/8/8/8/P7/6K1 w - - 0 1", solutions: ["e8=N+"] },
+            { fen: "8/2P1q3/1k6/8/8/8/7P/6K1 w - - 0 1", solutions: ["c8=N+"] },
+        ],
+    },
+    {
+        id: "desperado",
+        path: "deep",
+        check: "check",
+        example: {
+            fen: "8/7k/8/8/8/7p/5q1P/6RK w - - 0 1",
+            arrows: [
+                ["g1", "g7"],
+                ["h7", "g7"],
+            ],
+        },
+        tasks: [
+            { fen: "8/7k/8/8/8/7p/5q1P/6RK w - - 0 1", solutions: ["Rg7+"] },
+            { fen: "k7/8/8/8/8/7p/5q1P/1R5K w - - 0 1", solutions: ["Rb8+", "Ra1+"] },
+            { fen: "7k/8/8/8/8/p7/P1q5/KR6 w - - 0 1", solutions: ["Rh1+", "Rb8+"] },
+        ],
+    },
+    // ---------- 8. Endspiel-Muster ----------
+    {
+        id: "opposition",
+        path: "endgame",
+        check: "opposition",
+        example: {
+            fen: "8/8/8/4k3/8/3K4/4P3/8 w - - 0 1",
+            arrows: [
+                ["d3", "e3"],
+                ["e3", "e5"],
+            ],
+        },
+        tasks: [
+            { fen: "8/8/8/4k3/8/3K4/4P3/8 w - - 0 1", solutions: ["Ke3"] },
+            { fen: "8/8/8/3k4/8/8/3PK3/8 w - - 0 1", solutions: ["Kd3"] },
+            { fen: "8/8/8/5k2/8/4K3/5P2/8 w - - 0 1", solutions: ["Kf3"] },
+        ],
+    },
+    {
+        id: "breakthrough",
+        path: "endgame",
+        check: "breakthrough",
+        example: {
+            fen: "8/ppp5/8/PPP5/8/8/8/k6K w - - 0 1",
+            arrows: [
+                ["b5", "b6"],
+                ["a5", "b6"],
+                ["c5", "b6"],
+            ],
+        },
+        tasks: [
+            { fen: "8/ppp5/8/PPP5/8/8/8/k6K w - - 0 1", solutions: ["b6"] },
+            { fen: "8/5ppp/8/5PPP/8/8/8/K6k w - - 0 1", solutions: ["g6"] },
+            { fen: "8/1ppp4/8/1PPP4/8/8/8/k6K w - - 0 1", solutions: ["c6"] },
+        ],
+    },
+    {
+        id: "square",
+        path: "endgame",
+        check: "square",
+        example: {
+            fen: "7k/8/8/p7/8/8/7P/5K2 w - - 0 1",
+            arrows: [
+                ["a5", "a1"],
+                ["f1", "e2"],
+            ],
+        },
+        tasks: [
+            { fen: "7k/8/8/p7/8/8/7P/5K2 w - - 0 1", solutions: ["Ke2", "Ke1"] },
+            { fen: "k7/8/8/7p/8/8/P7/2K5 w - - 0 1", solutions: ["Kd2", "Kd1"] },
+            { fen: "7k/8/p7/8/8/8/7P/6K1 w - - 0 1", solutions: ["Kf2", "Kf1"] },
+        ],
+    },
 ];
 
 export function findLesson(id: string): Lesson | undefined {
@@ -250,11 +492,49 @@ export const ENTRY_STRENGTH: Record<CoachEntry, CoachStrengthId> = {
     club: "medium",
 };
 
+// Die ersten zwölf Lektionen (vier Pfade); alles danach kommt Reihe für Reihe
+export const BASE_LESSONS = 12;
+// Ab diesem Level öffnen sich die weiteren Lektionen, eine pro Level
+export const EXTRA_FROM_LEVEL = 10;
+
+// Sichtbare Lektionen: die ersten zwölf, dann jede weitere Reihe erst, wenn
+// die Reihe davor geschafft ist (1.2.15)
+export function visibleLessons(done: readonly string[] = []): number {
+    let count = BASE_LESSONS;
+    for (let i = BASE_LESSONS; i < LESSONS.length; i += 3) {
+        const before = LESSONS.slice(i - 3, i);
+        if (!before.every((l) => done.includes(l.id))) break;
+        count = Math.min(LESSONS.length, i + 3);
+    }
+    return count;
+}
+
 // Die erste Lektion des Einstiegspfads und alles davor ist offen; jedes
-// Level schaltet eine weitere frei.
-export function unlockedLessons(level: number, entry: CoachEntry | null): number {
+// Level schaltet eine weitere frei. Die weiteren Lektionen öffnen sich ab
+// Level 10 eine nach der anderen: wenn die vorige geschafft ist und das
+// Level reicht.
+export function unlockedLessons(
+    level: number,
+    entry: CoachEntry | null,
+    done: readonly string[] = [],
+): number {
     const start = LESSONS.findIndex((l) => l.path === ENTRY_PATH[entry ?? "knows"]);
-    return Math.max(1, Math.min(LESSONS.length, start + Math.max(1, level)));
+    const base = Math.max(1, Math.min(BASE_LESSONS, start + Math.max(1, level)));
+    if (base < BASE_LESSONS) return base;
+    const visible = visibleLessons(done);
+    let count = BASE_LESSONS;
+    while (
+        count < visible &&
+        level >= extraLessonLevel(count) &&
+        done.includes(LESSONS[count - 1].id)
+    )
+        count++;
+    return count;
+}
+
+// Ab welchem Level die weitere Lektion (Index ab 12) aufgeht
+export function extraLessonLevel(index: number): number {
+    return EXTRA_FROM_LEVEL + index - BASE_LESSONS;
 }
 
 // Die zuletzt freigeschaltete Lektion, wenn sie neu und noch offen ist

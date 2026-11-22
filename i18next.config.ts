@@ -63,6 +63,7 @@ export default defineConfig({
             "Coach.Say.*",
             "Coach.Lesson.*",
             "Coach.Lessons.*",
+            "Coach.Path.*",
             "Coach.Intro.*",
             "Coach.Why.*",
             "Coach.Deep.*",

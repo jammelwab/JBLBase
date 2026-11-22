@@ -7,7 +7,9 @@ import {
   IconConfetti,
   IconCrown,
   IconLock,
+  IconBolt,
   IconPuzzle,
+  IconRoute,
   IconTargetArrow,
 } from "@tabler/icons-react";
 import { useSetAtom } from "jotai";
@@ -16,6 +18,13 @@ import { useTranslation } from "react-i18next";
 import { StrengthSelect } from "./CoachPage";
 import CoachMistakeTask from "./CoachMistakeTask";
 import { coachLessonAnnouncedAtom, coachOpenLessonAtom } from "./coachLessonsData";
+import {
+  PATH_STEP_XP,
+  type PathStep,
+  type PathStepId,
+  pathStep,
+  skipPathStepAtom,
+} from "./coachPath";
 import type { CoachMistake } from "./coachProgress";
 import { DAILY_QUEST_XP, questTarget } from "./coachRewards";
 import { type CoachStepId, REPS_PER_DAY } from "./coachState";
@@ -32,8 +41,61 @@ const ICONS: Record<CoachStepId, ReactNode> = {
   play: <IconChess size={40} />,
   puzzles: <IconPuzzle size={40} />,
   quest: <IconCalendarCheck size={40} />,
+  path: <IconRoute size={40} />,
   done: <IconConfetti size={40} />,
 };
+
+const PATH_ICONS: Record<PathStepId, ReactNode> = {
+  puzzles: <IconPuzzle size={28} />,
+  play: <IconChess size={28} />,
+  tactic: <IconBolt size={28} />,
+  addLine: <IconBook2 size={28} />,
+};
+
+// Ein Schritt des weiteren Pfads: Text und Knopf
+function usePathStepView(coach: Coach) {
+  const { t } = useTranslation();
+  const { actions } = coach;
+  return (
+    step: PathStep,
+  ): { title: string; desc: string; button: string | null; onClick: (() => void) | null } => {
+    switch (step.id) {
+      case "puzzles":
+        return {
+          title: t("Coach.Path.Step.puzzles", { count: step.target }),
+          desc: t("Coach.Path.Desc.puzzles"),
+          button: t("Coach.Task.puzzles.Button"),
+          onClick: actions.puzzles,
+        };
+      case "play":
+        return {
+          title: t("Coach.Path.Step.play"),
+          desc: t("Coach.Path.Desc.play"),
+          button: t("Coach.Task.play.Button"),
+          onClick: actions.play,
+        };
+      case "tactic": {
+        const theme = step.theme ?? "fork";
+        return {
+          title: t("Coach.Path.Step.tactic", {
+            count: step.target,
+            theme: t(`Coach.Path.Theme.${theme}`),
+          }),
+          desc: t("Coach.Path.Desc.tactic"),
+          button: t("Coach.Task.puzzles.Button"),
+          onClick: () => actions.tactic(theme),
+        };
+      }
+      case "addLine":
+        return {
+          title: t("Coach.Path.Step.addLine"),
+          desc: t(actions.addLine ? "Coach.Path.Desc.addLine" : "Coach.Path.Desc.noRepertoire"),
+          button: actions.addLine ? t("Coach.Path.OpenRepertoire") : null,
+          onClick: actions.addLine,
+        };
+    }
+  };
+}
 
 export type CoachStepView = {
   title: string;
@@ -49,7 +111,8 @@ export function useCoachStepView(coach: Coach): CoachStepView {
   const { t } = useTranslation();
   const setAnnounced = useSetAtom(coachLessonAnnouncedAtom);
   const openLesson = useSetAtom(coachOpenLessonAtom);
-  const { step, actions, lock, lesson, unlocked, reps, dueCount, quest } = coach;
+  const { step, actions, lock, lesson, unlocked, reps, dueCount, quest, path } = coach;
+  const pathView = usePathStepView(coach);
 
   switch (step) {
     case "mistake":
@@ -137,6 +200,14 @@ export function useCoachStepView(coach: Coach): CoachStepView {
         progress: { value: quest.progress, target: questTarget(quest.id) },
       };
     }
+    case "path": {
+      const current = pathStep(path.index);
+      const view = pathView(current);
+      return {
+        ...view,
+        progress: current.target > 1 ? { value: path.progress, target: current.target } : null,
+      };
+    }
     case "done":
       return {
         title: t("Coach.Card.AllDone"),
@@ -175,8 +246,17 @@ export default function CoachNextStep({
       <Stack gap="md">
         <Group gap="xs">
           <Badge color={step === "done" ? "teal" : "orange"} size="lg">
-            {step === "done" ? t("Coach.Page.Done") : t("Coach.Page.Next")}
+            {step === "done"
+              ? t("Coach.Page.Done")
+              : step === "path"
+                ? t("Coach.Path.Badge")
+                : t("Coach.Page.Next")}
           </Badge>
+          {step === "path" && (
+            <Text size="sm" c="dimmed">
+              {t("Coach.Path.Intro", { xp: PATH_STEP_XP })}
+            </Text>
+          )}
           {taskIndex >= 0 && (
             <Text size="sm" c="dimmed">
               {t("Coach.Step.Of", { n: taskIndex + 1, total: tasks.length })}
@@ -186,6 +266,8 @@ export default function CoachNextStep({
 
         {step === "mistake" && mistake ? (
           <CoachMistakeTask mistake={mistake} />
+        ) : step === "path" ? (
+          <CoachPathSteps coach={coach} />
         ) : (
           <Group wrap="wrap" align="center" gap="lg">
             <Box c={step === "done" ? "teal" : "orange"} style={{ flexShrink: 0 }}>
@@ -227,5 +309,83 @@ export default function CoachNextStep({
         )}
       </Stack>
     </Card>
+  );
+}
+
+// Der weitere Pfad: der aktuelle Schritt groß, der nächste klein darunter
+function CoachPathSteps({ coach }: { coach: Coach }) {
+  const { t } = useTranslation();
+  const view = usePathStepView(coach);
+  const skip = useSetAtom(skipPathStepAtom);
+  const { path } = coach;
+  const current = pathStep(path.index);
+  const next = pathStep(path.index + 1);
+  const now = view(current);
+  const then = view(next);
+  return (
+    <Stack gap="sm">
+      <Group wrap="wrap" align="center" gap="lg">
+        <Box c="orange" style={{ flexShrink: 0 }}>
+          {PATH_ICONS[current.id]}
+        </Box>
+        <Stack gap={4} style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <Title order={3}>{now.title}</Title>
+          <Text c="dimmed">{now.desc}</Text>
+          {current.target > 1 && (
+            <Box maw={360} mt={4}>
+              <Progress
+                size="md"
+                radius="xl"
+                color="orange"
+                value={(path.progress / current.target) * 100}
+                aria-label={now.title}
+              />
+              <Text size="xs" c="dimmed" mt={2}>
+                {path.progress} / {current.target}
+              </Text>
+            </Box>
+          )}
+        </Stack>
+        <Stack gap={6} style={{ flexShrink: 0 }} w={220}>
+          {current.id === "play" && <StrengthSelect />}
+          {now.button && now.onClick && (
+            <Button
+              size="md"
+              radius="md"
+              color="orange"
+              rightSection={<IconArrowRight size={18} />}
+              onClick={now.onClick}
+            >
+              {now.button}
+            </Button>
+          )}
+          <Button size="xs" variant="subtle" color="gray" onClick={skip}>
+            {t("Coach.Path.Skip")}
+          </Button>
+        </Stack>
+      </Group>
+      <Group
+        wrap="nowrap"
+        gap="sm"
+        p="sm"
+        style={{
+          borderRadius: "var(--mantine-radius-md)",
+          border: "1px dashed var(--mantine-color-default-border)",
+          opacity: 0.75,
+        }}
+      >
+        <Box c="dimmed" style={{ flexShrink: 0 }}>
+          {PATH_ICONS[next.id]}
+        </Box>
+        <Box style={{ minWidth: 0 }}>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            {t("Coach.Path.Then")}
+          </Text>
+          <Text size="sm" fw={500}>
+            {then.title}
+          </Text>
+        </Box>
+      </Group>
+    </Stack>
   );
 }

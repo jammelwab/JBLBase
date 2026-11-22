@@ -79,12 +79,14 @@ import { getPuzzleStats, recordPuzzleAttempt, usePuzzleStats } from "./usePuzzle
 import { coachMateDrillAtom, coachPuzzleDoneAtom } from "@/components/coach/coachProgress";
 import { MATE_DRILL_THEME } from "@/components/coach/coachEggs";
 import { coachPuzzleStartAtom, puzzleSpans } from "@/components/coach/coachPuzzleStart";
+import { coachPathEventAtom } from "@/components/coach/coachPath";
 import { ReportedPuzzlesModal, ReportPuzzleModal } from "./PuzzleReports";
 import GameTacticSearchModal from "./GameTacticSearchModal";
 
 function Puzzles({ id }: { id: string }) {
   const { t } = useTranslation();
   const coachPuzzleDone = useSetAtom(coachPuzzleDoneAtom);
+  const coachPathEvent = useSetAtom(coachPathEventAtom);
   const store = useContext(TreeStateContext)!;
   const setFen = useStore(store, (s) => s.setFen);
   const goToStart = useStore(store, (s) => s.goToStart);
@@ -292,6 +294,8 @@ function Puzzles({ id }: { id: string }) {
     setTimerStart(null);
 
     if (firstResult) {
+      // Erst der weitere Pfad, dann der Tag (sonst zählt das Tagespuzzle mit)
+      if (completion === "correct") coachPathEvent("puzzle");
       coachPuzzleDone(completion === "correct");
       await recordPuzzleAttempt({
         rating: puzzle.rating,

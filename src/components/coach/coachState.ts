@@ -142,6 +142,8 @@ export type CoachStepId =
     | "play"
     | "puzzles"
     | "quest"
+    // Tagesplan geschafft: der weitere Pfad (1.2.15)
+    | "path"
     | "done";
 
 export type CoachStepInput = {
@@ -158,5 +160,5 @@ export function nextCoachStep(i: CoachStepInput): CoachStepId {
     if (i.hasLesson) return "lesson";
     if (i.boss) return "boss";
     if (i.next !== "done") return i.next;
-    return i.questDone ? "done" : "quest";
+    return i.questDone ? "path" : "quest";
 }
