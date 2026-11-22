@@ -108,6 +108,27 @@ async function getGameArchives(player: string): Promise<Archive | null> {
   return { archives: data.archives ?? [] };
 }
 
+/**
+ * The PGNs of the newest standard games of a player, straight from the
+ * Chess.com API (newest months first), without writing a file. Used for the
+ * boss book when the games are not downloaded on this computer.
+ */
+export async function fetchRecentChessComPgns(player: string, maxGames: number): Promise<string[]> {
+  const archives = await getGameArchives(player);
+  if (!archives) throw new Error(`Chess.com: ${player}`);
+  const out: string[] = [];
+  for (const archive of [...archives.archives].reverse()) {
+    if (out.length >= maxGames) break;
+    const response = await fetch(archive, { headers: apiHeaders(), method: "GET" });
+    if (!response.ok) continue;
+    const games = ChessComArchiveGames.safeParse(await response.json());
+    if (!games.success) continue;
+    // Innerhalb eines Monats stehen die neuesten Partien hinten
+    out.push(...standardGamePgns(games.data.games).reverse());
+  }
+  return out.slice(0, maxGames);
+}
+
 /** Months (archive URLs) that failed to download, to try again next time (#92). */
 function failedMonthsKey(player: string) {
   return `chesscomFailedMonths:${player.toLowerCase()}`;

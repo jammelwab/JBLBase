@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { createNode, defaultTree, type TreeNode } from "@/utils/treeReducer";
 import {
     BOSS_BOOK_MAX,
+    bossBookSummary,
     bossChallenge,
+    bossGameFromPgn,
     buildBossBook,
     coachBossAtom,
     packBossBook,
@@ -183,6 +185,45 @@ describe("Boss-Buch", () => {
         let e4 = tree(["e4"]);
         while (e4.children.length) e4 = e4.children[0];
         expect(at(epdOf(e4.fen))).toEqual([["c7c5", 1]]);
+    });
+    it("Hauptvariante zählt mehr als Nebenvarianten, Übersicht in SAN", () => {
+        const white = tree(["e4", "e5", "Nf3"]);
+        white.children.push(tree(["d4"]).children[0]);
+        const black = tree(["e4", "c5"]);
+        const d4 = tree(["d4", "Nf6"]).children[0];
+        black.children.push(d4);
+        const book = buildBossBook(
+            [
+                { root: white, color: "white" },
+                { root: black, color: "black" },
+            ],
+            [{ movetext: "1. c4 e5", color: "black" }],
+        );
+        const at = (epd: string) => book.filter((m) => m.epd === epd).map((m) => [m.uci, m.weight]);
+        expect(at(START)).toEqual([
+            ["e2e4", 1000],
+            ["d2d4", 200],
+        ]);
+        expect(bossBookSummary(book)).toEqual({
+            white: [
+                { san: "e4", share: 83 },
+                { san: "d4", share: 17 },
+            ],
+            black: [
+                { against: "e4", replies: [{ san: "c5", share: 100 }] },
+                { against: "d4", replies: [{ san: "Nf6", share: 100 }] },
+                { against: "c4", replies: [{ san: "e5", share: 100 }] },
+                { against: "Nf3", replies: [] },
+            ],
+        });
+    });
+    it("liest Chess.com-PGNs des Bosses", () => {
+        const pgn =
+            '[Event "Live"]\n[White "Gegner"]\n[Black "JBL_mix3r"]\n[Result "0-1"]\n\n1. e4 {[%clk 0:03:00]} 1... c5 0-1';
+        const g = bossGameFromPgn(pgn, "jbl_Mix3r");
+        expect(g?.color).toBe("black");
+        expect(sanTokens(g!.movetext)).toEqual(["e4", "c5"]);
+        expect(bossGameFromPgn(pgn.replace("JBL_mix3r", "Jemand"), "jbl_Mix3r")).toBeNull();
     });
     it("packt und entpackt", () => {
         const book = [{ epd: START, uci: "e2e4", weight: 3 }];

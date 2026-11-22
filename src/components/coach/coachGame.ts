@@ -199,3 +199,21 @@ export function isOnlyMove(played: string, best: { san: string | null; score: nu
     if (best.length < 2 || !best[0].san || best[0].san !== played) return false;
     return best[0].score - best[1].score >= ONLY_MOVE_MARGIN_CP;
 }
+
+// Bewertung nach dem gespielten Zug (1.2.19): Steht der Zug unter den besten
+// Zügen der Stellung davor, zählt dessen Bewertung aus derselben Suche. Sonst
+// bekommt ein bester Zug durch das Rauschen zweier Suchen schnell ein ?!.
+export function playedScore<S>(
+    played: string,
+    best: { sanMoves: string[]; score: { value: S } }[],
+    after: S,
+): S {
+    return best.find((b) => b.sanMoves[0] === played)?.score.value ?? after;
+}
+
+// Optionen der Engine für die Prüfung: ohne Stärke-Begrenzung, damit JBL mit
+// voller Stärke bewertet
+const STRENGTH_OPTIONS = new Set(["UCI_LimitStrength", "UCI_Elo", "Skill Level", "MultiPV"]);
+export function checkEngineOptions<O extends { name: string }>(options: O[]): O[] {
+    return options.filter((o) => !STRENGTH_OPTIONS.has(o.name));
+}

@@ -3,14 +3,17 @@ import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { commands } from "@/bindings";
 import { enginesAtom } from "@/state/atoms";
+import { enginePowerAtom, engineOptions } from "@/utils/enginePower";
 import { normalizeScore, getAnnotation } from "@/utils/score";
 import type { TreeNode } from "@/utils/treeReducer";
 import { evalText, explainMotifs } from "./coachExplain";
 import {
+    checkEngineOptions,
     type CoachReaction,
     findStockfish,
     isOnlyMove,
     notationSign,
+    playedScore,
     REACTION_SIGN,
     reactionFor,
 } from "./coachGame";
@@ -19,9 +22,9 @@ import { askCoachExplain } from "@/utils/cloud/auth";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
 import { useTranslation } from "react-i18next";
 
-// Wie tief JBL die Züge des Spielers prüft: schnell genug, dass der Kommentar
-// kommt, bevor man den nächsten Zug überlegt.
-const CHECK_DEPTH = 12;
+// Wie tief JBL die Züge prüft (1.2.19: 16 statt 12, Tiefe 12 schwankte zu
+// sehr). Die Stellungen davor kommen meist schon aus dem Zwischenspeicher.
+export const CHECK_DEPTH = 16;
 
 export type CoachComment = {
     // Laufende Nummer, damit dieselbe Reaktion zweimal hintereinander auffällt
@@ -80,6 +83,11 @@ export function useCoachCommentary(
     say.current = { account, stage, lang: i18n.language.startsWith("en") ? "en" : "de" };
     const engines = useAtomValue(enginesAtom);
     const engine = useMemo(() => findStockfish(engines), [engines]);
+    const power = useAtomValue(enginePowerAtom);
+    const options = useMemo(
+        () => checkEngineOptions(engineOptions(engine?.settings ?? undefined, power)),
+        [engine, power],
+    );
     const [comment, setComment] = useState<CoachComment | null>(null);
     const [signs, setSigns] = useState<Record<string, string>>({});
     const checked = useRef(new Set<string>());
@@ -125,28 +133,38 @@ export function useCoachCommentary(
             ]);
             const opening = book?.status === "ok" ? book.data : null;
             const prevInBook = prevBook?.status === "ok" && !!prevBook.data;
+            // Ab dem dritten Zug auch die Stellung vor dem Zug des Gegners, damit
+            // ein ! nur kommt, wenn man dessen Fehler wirklich bestraft
+            const prior = line.length > 2 ? line[line.length - 3] : null;
+            const start = prior && before.move ? prior : before;
+            const moves =
+                start === prior
+                    ? [makeUci(before.move!), makeUci(last.move!)]
+                    : [makeUci(last.move!)];
             const res = await commands.analyzeGame(
                 runId,
                 engine.path,
                 { t: "Depth", c: CHECK_DEPTH },
                 {
-                    fen: before.fen,
-                    moves: [makeUci(last.move!)],
+                    fen: start.fen,
+                    moves,
                     annotateNovelties: false,
                     referenceDb: null,
                     reversed: false,
                 },
-                [{ name: "MultiPV", value: "2" }],
+                [...options, { name: "MultiPV", value: "2" }],
             );
-            if (cancelled() || res.status !== "ok" || res.data.length < 2) return;
-            const [pre, post] = res.data;
+            if (cancelled() || res.status !== "ok" || res.data.length < moves.length + 1) return;
+            const [pre, post] = res.data.slice(-2);
+            const prevprev = moves.length === 2 ? (res.data[0].best[0]?.score.value ?? null) : null;
             const preBest = pre.best[0];
             const postBest = post.best[0];
             if (!preBest || !postBest) return;
+            const afterScore = playedScore(last.san ?? "", pre.best, postBest.score.value);
             const annotation = getAnnotation(
-                null,
+                prevprev,
                 preBest.score.value,
-                postBest.score.value,
+                afterScore,
                 mover,
                 pre.best,
                 post.is_sacrifice,
@@ -180,7 +198,7 @@ export function useCoachCommentary(
             const reaction = reactionFor(annotation, allowsMateInOne, opening !== null);
             const engineMove0 = preBest.sanMoves[0] ?? null;
             const beforeText = evalText(preBest.score.value, humanColor);
-            const afterText = evalText(postBest.score.value, humanColor);
+            const afterText = evalText(afterScore, humanColor);
             const followLine = postBest.sanMoves.slice(0, 6);
             const motifs = explainMotifs({ allowsMateInOne, sacrifice: post.is_sacrifice });
             // Claude formuliert den Satz zum Zug; die Partie wartet darauf
@@ -235,7 +253,7 @@ export function useCoachCommentary(
         })()
             .catch(() => {})
             .finally(() => running.current.delete(runId));
-    }, [active, engine, humanColor, line]);
+    }, [active, engine, options, humanColor, line]);
 
     // Neue Partie oder Ende: laufende Prüfungen abbrechen, alles vergessen
     const stopAll = () => {

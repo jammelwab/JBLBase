@@ -73,10 +73,23 @@ pub fn get_opening_from_fens(fens: Vec<String>) -> Result<String, Error> {
     Err(Error::NoOpeningFound)
 }
 
+/// Same position, whatever the move counters say: a transposition (1.Nf3 d5
+/// 2.d4 instead of 1.d4 d5 2.Nf3) has another halfmove clock but is the same
+/// opening.
+fn same_position(a: &Setup, b: &Setup) -> bool {
+    a.board == b.board
+        && a.turn == b.turn
+        && a.castling_rights == b.castling_rights
+        && a.ep_square == b.ep_square
+        && a.promoted == b.promoted
+        && a.pockets == b.pockets
+        && a.remaining_checks == b.remaining_checks
+}
+
 pub fn get_opening_from_setup(setup: Setup) -> Result<String, Error> {
     OPENINGS
         .iter()
-        .find(|o| o.setup == setup)
+        .find(|o| same_position(&o.setup, &setup))
         .map(|o| o.name.clone())
         .ok_or_else(|| Error::NoOpeningFound)
 }
@@ -178,5 +191,16 @@ mod tests {
             get_opening_from_fen("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPPKPPP/RNBQ1BNR b kq - 1 2")
                 .unwrap();
         assert_eq!(opening, "Bongcloud Attack");
+    }
+
+    #[test]
+    fn transposition_is_the_same_opening() {
+        let a =
+            get_opening_from_fen("rnbqkbnr/ppp1pppp/8/3p4/3P4/5N2/PPP1PPPP/RNBQKB1R b KQkq - 1 2")
+                .unwrap();
+        let b =
+            get_opening_from_fen("rnbqkbnr/ppp1pppp/8/3p4/3P4/5N2/PPP1PPPP/RNBQKB1R b KQkq - 0 2")
+                .unwrap();
+        assert_eq!(a, b);
     }
 }

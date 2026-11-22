@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import de from "@/translation/de-DE.json";
 import en from "@/translation/en-US.json";
 import {
+    checkEngineOptions,
+    playedScore,
     jblEngineSettings,
     jblEngineSetup,
     jblRandomMoveChance,
@@ -85,5 +87,37 @@ describe("jblRandomMoveChance", () => {
         expect(jblRandomMoveChance("easy")).toBeGreaterThan(jblRandomMoveChance("fairlyEasy"));
         expect(jblRandomMoveChance("medium")).toBe(0);
         expect(jblRandomMoveChance("veryHard")).toBe(0);
+    });
+});
+
+describe("Zugbewertung (1.2.19)", () => {
+    const best = [
+        { sanMoves: ["Nf3", "Nc6"], score: { value: { type: "cp", value: 40 } } },
+        { sanMoves: ["d4", "d5"], score: { value: { type: "cp", value: 25 } } },
+    ];
+    it("nimmt für einen der besten Züge die Bewertung aus derselben Suche", () => {
+        expect(playedScore("Nf3", best, { type: "cp", value: -30 })).toEqual({
+            type: "cp",
+            value: 40,
+        });
+        expect(playedScore("d4", best, { type: "cp", value: -30 })).toEqual({
+            type: "cp",
+            value: 25,
+        });
+        expect(playedScore("h4", best, { type: "cp", value: -30 })).toEqual({
+            type: "cp",
+            value: -30,
+        });
+    });
+    it("prüft ohne Stärke-Begrenzung", () => {
+        expect(
+            checkEngineOptions([
+                { name: "Threads", value: "4" },
+                { name: "UCI_LimitStrength", value: "true" },
+                { name: "UCI_Elo", value: "1500" },
+                { name: "Skill Level", value: "3" },
+                { name: "MultiPV", value: "1" },
+            ]),
+        ).toEqual([{ name: "Threads", value: "4" }]);
     });
 });
