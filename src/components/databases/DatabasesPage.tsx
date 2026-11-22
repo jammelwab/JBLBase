@@ -1,3 +1,4 @@
+import CoachTip from "@/components/coach/CoachTip";
 import {
   ActionIcon,
   Alert,
@@ -163,6 +164,9 @@ export default function DatabasesPage() {
         <Title order={2}>{t("Databases.Title")}</Title>
         <OpenFolderButton base="Database" folder={databaseDir} />
       </Group>
+      <Box px="md" pt="lg">
+        <CoachTip place="databases" />
+      </Box>
 
       <Group grow flex={1} style={{ overflow: "hidden" }} align="start" px="md" pb="md">
         <Paper withBorder h="100%" data-tour="db-list">

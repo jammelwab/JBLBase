@@ -1,5 +1,7 @@
+import CoachTip from "@/components/coach/CoachTip";
 import {
   ActionIcon,
+  Box,
   Center,
   Chip,
   Divider,
@@ -277,6 +279,9 @@ function FilesPage() {
         <Title order={2}>{t("Files.Title")}</Title>
         <OpenFolderButton folder={documentDir} />
       </Group>
+      <Box px="md" pt="lg">
+        <CoachTip place="files" />
+      </Box>
 
       <Group grow flex={1} style={{ overflow: "hidden" }} px="md" pb="md">
         <Paper withBorder h="100%">

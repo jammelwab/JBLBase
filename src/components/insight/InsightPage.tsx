@@ -1,5 +1,7 @@
+import CoachTip from "@/components/coach/CoachTip";
 import {
   Alert,
+  Box,
   Badge,
   Button,
   Collapse,
@@ -810,6 +812,9 @@ export default function InsightPage() {
         <Text c="dimmed" size="sm">
           {t("Insight.Desc")}
         </Text>
+        <Box pt="lg">
+          <CoachTip place="insight" />
+        </Box>
 
         <Group align="flex-end" data-tour="ins-player">
           <Select

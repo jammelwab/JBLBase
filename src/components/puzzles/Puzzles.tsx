@@ -1,3 +1,4 @@
+import CoachTip from "@/components/coach/CoachTip";
 import {
   Accordion,
   ActionIcon,
@@ -468,6 +469,9 @@ function Puzzles({ id }: { id: string }) {
               setDeleteModalOpened(false);
             }}
           />
+          <Box pt="lg" mb="sm">
+            <CoachTip place="puzzles" />
+          </Box>
           {reportOpened && puzzles[currentPuzzle] && (
             <ReportPuzzleModal
               puzzle={puzzles[currentPuzzle]}

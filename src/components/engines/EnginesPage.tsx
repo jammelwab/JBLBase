@@ -1,5 +1,7 @@
+import CoachTip from "@/components/coach/CoachTip";
 import {
   ActionIcon,
+  Box,
   Button,
   Center,
   Checkbox,
@@ -104,6 +106,9 @@ export default function EnginesPage() {
         <Title order={2}>{t("Engines.Title")}</Title>
         <OpenFolderButton base="Engines" folder="engines" />
       </Group>
+      <Box px="md" pt="lg">
+        <CoachTip place="engines" />
+      </Box>
       <Group grow flex={1} style={{ overflow: "hidden" }} align="start" px="md" pb="md">
         <Paper withBorder h="100%" data-tour="eng-list">
           <Stack gap={0} h="100%" style={{ overflow: "hidden" }}>

@@ -566,6 +566,8 @@ Nach 5 Partien schätzt JBL eine **Spielstärke** aus den letzten 30 Ergebnissen
 
 Der Code: `coachRewards.ts` (Verzierungen, Rahmen, Titel, Trophäen, Bonus-Track, Tagesaufgabe, Schätzung), `CoachShowcase.tsx` und `CoachMistakeTask.tsx`.
 
+Seit 1.2.24 steht JBL auch auf anderen Seiten: `CoachTip` (in `src/components/coach/CoachTip.tsx`) zeigt die Figur (96px, winkt beim Auftauchen) mit einem kurzen Tipp `Coach.Tip.<ort>.<n>` und dem Knopf „Zum Coach“ (`useOpenCoach`: vorhandenen Coach-Tab zeigen oder neuen öffnen). Orte sind Repertoires, Insight, Datenbanken, Engines, Konten, Puzzles und Dateien (`COACH_TIP_PLACES` mit der Zahl der Tipps). `tipIndex` wählt pro Tag einen Tipp, das X merkt sich den Tag in `jbl-coach-tips-hidden` und blendet den Tipp dort für `COACH_TIP_PAUSE_DAYS` (7) Tage aus. Rahmen und Verlauf nutzen `--jbl-accent`.
+
 ### Coach in der Cloud und Geburtstag
 
 Seit 1.2.4 gleicht der Cloud-Sync auch den Coach ab, im Dokument `users/{uid}/coach/state`. Jeder Rechner schreibt nur seine eigenen XP (`xpByDevice`), die Summe ist das Level; so gehen XP nie verloren, wenn auf zwei Rechnern gespielt wird. Trophäen, Verzierungen, Rahmen und Titel werden vereinigt, die Serie mit dem späteren letzten Tag gewinnt, und für Stärke, Sperre, eigenen Fehler, Outfit, Tagesaufgabe und Ergebnisse gilt die letzte Änderung. Ein Fehler beim Coach-Abgleich hält den übrigen Sync nicht auf.
