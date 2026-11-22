@@ -5,6 +5,7 @@ import {
   Input,
   localStorageColorSchemeManager,
   MantineProvider,
+  Tabs,
   Textarea,
   TextInput,
   v8CssVariablesResolver,
@@ -248,6 +249,8 @@ export default function App() {
           color: "gray",
         },
       }),
+      // The active tab is marked in JBL orange everywhere (see global.css)
+      Tabs: Tabs.extend({ defaultProps: { color: "orange" } }),
       TextInput: TextInput.extend({ defaultProps: { spellCheck } }),
       Autocomplete: Autocomplete.extend({ defaultProps: { spellCheck } }),
       Textarea: Textarea.extend({ defaultProps: { spellCheck } }),

@@ -217,16 +217,24 @@ export default function NewTabHome({ id }: { id: string }) {
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} data-tour="home-cards">
           {cards.flatMap((card, i) => [
             i === 3 && <CoachCard key="coach" id={id} />,
-            <Card shadow="sm" p="lg" radius="md" withBorder key={card.title}>
+            <Card
+              shadow="sm"
+              p="lg"
+              radius="md"
+              withBorder
+              key={card.title}
+              className={classes.homeCard}
+            >
               <Stack align="center" h="100%" justify="space-between">
-                {card.icon}
-
-                <Box style={{ textAlign: "center" }}>
-                  <Text fw={500}>{card.title}</Text>
-                  <Text size="sm" c="dimmed">
-                    {card.description}
-                  </Text>
-                </Box>
+                <Stack align="center" gap="sm">
+                  {card.icon}
+                  <Box style={{ textAlign: "center" }}>
+                    <Text fw={600}>{card.title}</Text>
+                    <Text size="sm" c="dimmed">
+                      {card.description}
+                    </Text>
+                  </Box>
+                </Stack>
 
                 <Button
                   variant="light"
@@ -244,7 +252,7 @@ export default function NewTabHome({ id }: { id: string }) {
         </SimpleGrid>
 
         <Card shadow="sm" p="md" radius="md" withBorder data-tour="home-recent">
-          <Group justify="space-between" mb="xs">
+          <Group justify="space-between" mb="xs" className={classes.recentHeader}>
             <Text fw={600} size="lg">
               {t("Home.RecentFiles.Title")}
             </Text>

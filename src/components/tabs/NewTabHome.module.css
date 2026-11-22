@@ -5,3 +5,20 @@
 [data-mantine-color-scheme="light"] .recentFileRow:hover {
   background-color: var(--mantine-color-gray-1);
 }
+
+/* Start cards: a JBL orange frame shows which one the mouse is on */
+.homeCard {
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.homeCard:hover {
+  border-color: var(--jbl-accent-frame);
+  box-shadow: var(--mantine-shadow-md);
+}
+
+.recentHeader {
+  padding-bottom: var(--mantine-spacing-xs);
+  border-bottom: 2px solid var(--jbl-accent);
+}

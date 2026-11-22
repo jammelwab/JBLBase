@@ -1,7 +1,9 @@
 import {
   ActionIcon,
+  Badge,
   Button,
   Card,
+  Collapse,
   Group,
   ScrollArea,
   Select,
@@ -11,16 +13,15 @@ import {
   Text,
   TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import { useHotkeys } from "@mantine/hooks";
 import {
   IconBook,
   IconBrush,
-  IconChartBar,
   IconChess,
-  IconDatabase,
+  IconChevronRight,
   IconDownload,
-  IconFlag,
   IconFolder,
   IconKeyboard,
   IconMouse,
@@ -28,7 +29,6 @@ import {
   IconSearch,
   IconSchool,
   IconShield,
-  IconUserCircle,
   IconVolume,
 } from "@tabler/icons-react";
 import { useLoaderData } from "@tanstack/react-router";
@@ -73,6 +73,7 @@ import {
 } from "@/state/atoms";
 import ProfileSettings from "@/components/cloud/ProfileSettings";
 import { settingsTabAtom } from "@/components/cloud/cloudUi";
+import { normalizeSettingsTab, SETTINGS_NAV } from "./settingsNav";
 import { keyMapAtom } from "@/state/keybinds";
 import { checkForAppUpdate } from "@/utils/updater";
 import FileInput from "../common/FileInput";
@@ -102,7 +103,6 @@ import type { PracticeAutoDifficulty } from "@/utils/practiceGrade";
 type SettingCategory =
   | "board"
   | "inputs"
-  | "anarchy"
   | "appearance"
   | "sound"
   | "keybinds"
@@ -111,9 +111,24 @@ type SettingCategory =
   | "tutorials"
   | "privacy";
 
+type SettingSection =
+  | "display"
+  | "arrows"
+  | "behavior"
+  | "typing"
+  | "fun"
+  | "app"
+  | "pieces"
+  | "training"
+  | "backup";
+
 interface SettingItem {
   id: string;
   category: SettingCategory;
+  /** Heading the setting is listed under inside its tab. */
+  section?: SettingSection;
+  /** Rarely changed: tucked away under "More settings" until opened. */
+  advanced?: boolean;
   title: string;
   description: string;
   keywords?: string[];
@@ -150,6 +165,38 @@ function SettingRow({
   );
 }
 
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <Text className={classes.section} size="xs" fw={700} tt="uppercase">
+      {children}
+    </Text>
+  );
+}
+
+function PanelHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className={classes.header}>
+      <Group gap="xs">
+        <Text size="lg" fw={600} className={classes.title}>
+          {title}
+        </Text>
+        {action}
+      </Group>
+      <Text size="xs" c="dimmed" mt={4}>
+        {description}
+      </Text>
+    </div>
+  );
+}
+
 export default function Page() {
   const { t, i18n } = useTranslation();
   // The admin overview (#116) exists only for admin accounts
@@ -157,7 +204,9 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom);
+  const [rawSettingsTab, setSettingsTab] = useAtom(settingsTabAtom);
+  const settingsTab = normalizeSettingsTab(rawSettingsTab);
+  const [openAdvanced, setOpenAdvanced] = useState<SettingCategory[]>([]);
   const [keyMap, setKeyMap] = useAtom(keyMapAtom);
   const [isNative, setIsNative] = useAtom(nativeBarAtom);
   const {
@@ -195,6 +244,7 @@ export default function Page() {
       {
         id: "piece-dest",
         category: "board",
+        section: "display" as SettingSection,
         title: t("Settings.PieceDest"),
         description: t("Settings.PieceDest.Desc"),
         keywords: ["destination", "moves", "highlight"],
@@ -203,6 +253,7 @@ export default function Page() {
       {
         id: "move-highlight",
         category: "board",
+        section: "display" as SettingSection,
         title: t("Settings.MoveHighlight"),
         description: t("Settings.MoveHighlight.Desc"),
         keywords: ["highlight", "last move"],
@@ -211,6 +262,7 @@ export default function Page() {
       {
         id: "arrows",
         category: "board",
+        section: "arrows" as SettingSection,
         title: t("Settings.Arrows"),
         description: t("Settings.Arrows.Desc"),
         keywords: ["arrows", "analysis"],
@@ -219,6 +271,7 @@ export default function Page() {
       {
         id: "variation-arrows",
         category: "board",
+        section: "arrows" as SettingSection,
         title: t("Settings.VariationArrows"),
         description: t("Settings.VariationArrows.Desc"),
         keywords: ["arrows", "variations", "alternative"],
@@ -227,6 +280,7 @@ export default function Page() {
       {
         id: "move-notation",
         category: "board",
+        section: "display" as SettingSection,
         title: t("Settings.MoveNotation"),
         description: t("Settings.MoveNotation.Desc"),
         keywords: ["notation", "letters", "symbols", "pieces"],
@@ -246,6 +300,7 @@ export default function Page() {
       {
         id: "move-method",
         category: "board",
+        section: "behavior" as SettingSection,
         title: t("Settings.MoveMethod"),
         description: t("Settings.MoveMethod.Desc"),
         keywords: ["drag", "click", "move", "pieces"],
@@ -265,6 +320,8 @@ export default function Page() {
       {
         id: "piece-animation",
         category: "board",
+        section: "display" as SettingSection,
+        advanced: true,
         title: t("Settings.PieceAnimation"),
         description: t("Settings.PieceAnimation.Desc"),
         keywords: ["animation", "speed", "pieces", "move", "fast", "slow"],
@@ -285,6 +342,8 @@ export default function Page() {
       {
         id: "snap-arrows",
         category: "board",
+        section: "arrows" as SettingSection,
+        advanced: true,
         title: t("Settings.SnapArrows"),
         description: t("Settings.SnapArrows.Desc"),
         keywords: ["arrows", "snap"],
@@ -293,6 +352,8 @@ export default function Page() {
       {
         id: "consecutive-arrows",
         category: "board",
+        section: "arrows" as SettingSection,
+        advanced: true,
         title: t("Settings.ConsecutiveArrows"),
         description: t("Settings.ConsecutiveArrows.Desc"),
         keywords: ["arrows", "consecutive"],
@@ -301,6 +362,8 @@ export default function Page() {
       {
         id: "erase-drawables",
         category: "board",
+        section: "arrows" as SettingSection,
+        advanced: true,
         title: t("Settings.EraseDrawablesOnClick"),
         description: t("Settings.EraseDrawablesOnClick.Desc"),
         keywords: ["erase", "drawables", "click", "arrows"],
@@ -309,6 +372,7 @@ export default function Page() {
       {
         id: "auto-promote",
         category: "board",
+        section: "behavior" as SettingSection,
         title: t("Settings.AutoPromotion"),
         description: t("Settings.AutoPromotion.Desc"),
         keywords: ["promote", "queen", "pawn"],
@@ -317,6 +381,7 @@ export default function Page() {
       {
         id: "coordinates",
         category: "board",
+        section: "display" as SettingSection,
         title: t("Settings.Coordinates"),
         description: t("Settings.Coordinates.Desc"),
         keywords: ["coordinates", "a-h", "1-8"],
@@ -336,6 +401,7 @@ export default function Page() {
       {
         id: "coach-coordinates",
         category: "board",
+        section: "display" as SettingSection,
         title: t("Settings.CoachCoordinates"),
         description: t("Settings.CoachCoordinates.Desc"),
         keywords: ["coordinates", "a-h", "1-8", "coach"],
@@ -355,6 +421,7 @@ export default function Page() {
       {
         id: "auto-save",
         category: "board",
+        section: "behavior" as SettingSection,
         title: t("Settings.AutoSave"),
         description: t("Settings.AutoSave.Desc"),
         keywords: ["save", "auto"],
@@ -363,6 +430,7 @@ export default function Page() {
       {
         id: "preview-board",
         category: "board",
+        section: "behavior" as SettingSection,
         title: t("Settings.PreviewBoard"),
         description: t("Settings.PreviewBoard.Desc"),
         keywords: ["preview", "hover"],
@@ -371,6 +439,7 @@ export default function Page() {
       {
         id: "flip-board-after-move",
         category: "board",
+        section: "behavior" as SettingSection,
         title: t("Settings.FlipBoardAfterMove"),
         description: t("Settings.FlipBoardAfterMove.Desc"),
         keywords: ["flip", "board", "move"],
@@ -379,6 +448,8 @@ export default function Page() {
       {
         id: "scroll-moves",
         category: "board",
+        section: "behavior" as SettingSection,
+        advanced: true,
         title: t("Settings.ScrollThroughMoves"),
         description: t("Settings.ScrollThroughMoves.Desc"),
         keywords: ["scroll", "moves", "wheel"],
@@ -387,6 +458,7 @@ export default function Page() {
       {
         id: "material-display",
         category: "board",
+        section: "display" as SettingSection,
         title: t("Settings.MaterialDisplay"),
         description: t("Settings.MaterialDisplay.Desc"),
         keywords: ["material", "captured", "pieces", "difference"],
@@ -406,6 +478,8 @@ export default function Page() {
       {
         id: "default-panel-tab",
         category: "board",
+        section: "behavior" as SettingSection,
+        advanced: true,
         title: t("Settings.DefaultPanelTab"),
         description: t("Settings.DefaultPanelTab.Desc"),
         keywords: ["default", "panel", "tab", "open", "analysis", "database", "annotate", "info"],
@@ -429,6 +503,7 @@ export default function Page() {
       {
         id: "text-input",
         category: "inputs",
+        section: "typing" as SettingSection,
         title: t("Settings.Inputs.TextInput"),
         description: t("Settings.Inputs.TextInput.Desc"),
         keywords: ["text", "input", "type"],
@@ -437,6 +512,7 @@ export default function Page() {
       {
         id: "spell-check",
         category: "inputs",
+        section: "typing" as SettingSection,
         title: t("Settings.Inputs.SpellCheck"),
         description: t("Settings.Inputs.SpellCheck.Desc"),
         keywords: ["spell", "check", "grammar"],
@@ -445,7 +521,9 @@ export default function Page() {
       // Anarchy settings
       {
         id: "forced-en-passant",
-        category: "anarchy",
+        category: "inputs",
+        section: "fun" as SettingSection,
+        advanced: true,
         title: t("Settings.Anarchy.ForcedEnCroissant"),
         description: t("Settings.Anarchy.ForcedEnCroissant.Desc"),
         keywords: ["en passant", "forced", "croissant"],
@@ -455,6 +533,7 @@ export default function Page() {
       {
         id: "theme",
         category: "appearance",
+        section: "app" as SettingSection,
         title: t("Settings.Appearance.Theme"),
         description: t("Settings.Appearance.Theme.Desc"),
         keywords: ["theme", "dark", "light", "color"],
@@ -463,6 +542,7 @@ export default function Page() {
       {
         id: "language",
         category: "appearance",
+        section: "app" as SettingSection,
         title: t("Settings.Appearance.Language"),
         description: t("Settings.Appearance.Language.Desc"),
         keywords: ["language", "locale", "translation"],
@@ -485,6 +565,8 @@ export default function Page() {
             {
               id: "title-bar",
               category: "appearance" as SettingCategory,
+              section: "app" as SettingSection,
+              advanced: true,
               title: t("Settings.Appearance.TitleBar"),
               description: t("Settings.Appearance.TitleBar.Desc"),
               keywords: ["title", "bar", "native", "custom"],
@@ -511,6 +593,7 @@ export default function Page() {
       {
         id: "font-size",
         category: "appearance",
+        section: "app" as SettingSection,
         title: t("Settings.Appearance.FontSize"),
         description: t("Settings.Appearance.FontSize.Desc"),
         keywords: ["font", "size", "text"],
@@ -519,6 +602,7 @@ export default function Page() {
       {
         id: "piece-set",
         category: "appearance",
+        section: "pieces" as SettingSection,
         title: t("Settings.Appearance.PieceSet"),
         description: t("Settings.Appearance.PieceSet.Desc"),
         keywords: ["piece", "set", "style"],
@@ -527,6 +611,7 @@ export default function Page() {
       {
         id: "board-image",
         category: "appearance",
+        section: "pieces" as SettingSection,
         title: t("Settings.Appearance.BoardImage"),
         description: t("Settings.Appearance.BoardImage.Desc"),
         keywords: ["board", "image", "texture"],
@@ -535,6 +620,8 @@ export default function Page() {
       {
         id: "3d-mode",
         category: "appearance",
+        section: "pieces" as SettingSection,
+        advanced: true,
         title: t("Settings.Appearance.3DMode"),
         description: t("Settings.Appearance.3DMode.Desc"),
         keywords: ["3d", "3d mode", "dimension"],
@@ -543,6 +630,7 @@ export default function Page() {
       {
         id: "accent-color",
         category: "appearance",
+        section: "app" as SettingSection,
         title: t("Settings.Appearance.AccentColor"),
         description: t("Settings.Appearance.AccentColor.Desc"),
         keywords: ["accent", "color", "primary"],
@@ -556,6 +644,7 @@ export default function Page() {
       {
         id: "repertoire-main-owner",
         category: "repertoire",
+        section: "training" as SettingSection,
         title: t("Settings.Repertoire.MainOwner"),
         description: t("Settings.Repertoire.MainOwner.Desc"),
         keywords: ["repertoire", "name", "owner", "player"],
@@ -564,6 +653,7 @@ export default function Page() {
       {
         id: "repertoire-depth",
         category: "repertoire",
+        section: "training" as SettingSection,
         title: t("Settings.Repertoire.Depth"),
         description: t("Settings.Repertoire.Depth.Desc"),
         keywords: ["repertoire", "depth", "games", "min"],
@@ -572,6 +662,7 @@ export default function Page() {
       {
         id: "repertoire-auto-difficulty",
         category: "repertoire",
+        section: "training" as SettingSection,
         title: t("Settings.Repertoire.AutoDifficulty"),
         description: t("Settings.Repertoire.AutoDifficulty.Desc"),
         keywords: ["repertoire", "auto", "difficulty", "select", "anki"],
@@ -594,6 +685,7 @@ export default function Page() {
       {
         id: "repertoire-advance-delay",
         category: "repertoire",
+        section: "training" as SettingSection,
         title: t("Settings.Repertoire.AdvanceDelay"),
         description: t("Settings.Repertoire.AdvanceDelay.Desc"),
         keywords: ["repertoire", "pause", "delay", "weiter", "zeit", "anki"],
@@ -614,6 +706,7 @@ export default function Page() {
       {
         id: "repertoire-backup",
         category: "repertoire",
+        section: "backup" as SettingSection,
         title: t("Settings.Backup"),
         description: t("Settings.Backup.Desc"),
         keywords: ["backup", "sicherung", "restore", "zip", "repertoire"],
@@ -622,6 +715,8 @@ export default function Page() {
       {
         id: "repertoire-trash",
         category: "repertoire",
+        section: "backup" as SettingSection,
+        advanced: true,
         title: t("Settings.Repertoire.Trash"),
         description: t("Settings.Repertoire.Trash.Desc"),
         keywords: ["repertoire", "trash", "delete", "restore", "papierkorb"],
@@ -829,11 +924,6 @@ export default function Page() {
         description: t("Settings.Inputs.Desc"),
         icon: <IconMouse size="1rem" />,
       },
-      anarchy: {
-        title: t("Settings.Anarchy"),
-        description: t("Settings.Anarchy.Desc"),
-        icon: <IconFlag size="1rem" />,
-      },
       appearance: {
         title: t("Settings.Appearance"),
         description: t("Settings.Appearance.Desc"),
@@ -872,6 +962,18 @@ export default function Page() {
     }),
     [t],
   );
+
+  const sectionTitles: Record<SettingSection, string> = {
+    display: t("Settings.Section.Display"),
+    arrows: t("Settings.Section.Arrows"),
+    behavior: t("Settings.Section.Behavior"),
+    typing: t("Settings.Section.Typing"),
+    fun: t("Settings.Anarchy"),
+    app: t("Settings.Section.App"),
+    pieces: t("Settings.Section.Pieces"),
+    training: t("Settings.Section.Training"),
+    backup: t("Settings.Section.Backup"),
+  };
 
   const filteredSettings = useMemo(() => {
     if (!searchQuery.trim()) return null;
@@ -912,7 +1014,7 @@ export default function Page() {
     );
 
     return (
-      <Card withBorder p="lg" className={classes.card} w="100%">
+      <Card withBorder p="lg" className={classes.card} w="100%" maw={900}>
         {Object.entries(groupedSettings).map(([category, categorySettings]) => (
           <div key={category}>
             <Group gap="xs" mt="md" mb="xs">
@@ -932,13 +1034,61 @@ export default function Page() {
     );
   };
 
-  const renderCategorySettings = (category: SettingCategory) => {
-    const categorySettings = settings.filter((s) => s.category === category);
-    return categorySettings.map((setting) => (
+  const renderRows = (items: SettingItem[]) =>
+    items.map((setting) => (
       <SettingRow key={setting.id} title={setting.title} description={setting.description}>
         {setting.render()}
       </SettingRow>
     ));
+
+  const renderSections = (items: SettingItem[]) => {
+    const order: (SettingSection | undefined)[] = [];
+    for (const item of items) if (!order.includes(item.section)) order.push(item.section);
+    return order.map((section) => (
+      <div key={section ?? "none"} className={classes.group}>
+        {section && order.length > 1 && <SectionTitle>{sectionTitles[section]}</SectionTitle>}
+        {renderRows(items.filter((item) => item.section === section))}
+      </div>
+    ));
+  };
+
+  const renderCategorySettings = (category: SettingCategory) => {
+    const categorySettings = settings.filter((s) => s.category === category);
+    const basic = categorySettings.filter((s) => !s.advanced);
+    const advanced = categorySettings.filter((s) => s.advanced);
+    const isOpen = openAdvanced.includes(category);
+    return (
+      <>
+        {renderSections(basic)}
+        {advanced.length > 0 && (
+          <div className={classes.more}>
+            <UnstyledButton
+              className={classes.moreButton}
+              onClick={() =>
+                setOpenAdvanced((prev) =>
+                  isOpen ? prev.filter((c) => c !== category) : [...prev, category],
+                )
+              }
+            >
+              <Group gap={6}>
+                <IconChevronRight
+                  size="0.9rem"
+                  className={classes.chevron}
+                  data-open={isOpen || undefined}
+                />
+                <Text size="sm" fw={500}>
+                  {isOpen ? t("Settings.LessSettings") : t("Settings.MoreSettings")}
+                </Text>
+                <Badge size="xs" variant="light" color="gray">
+                  {advanced.length}
+                </Badge>
+              </Group>
+            </UnstyledButton>
+            <Collapse expanded={isOpen}>{renderSections(advanced)}</Collapse>
+          </div>
+        )}
+      </>
+    );
   };
 
   return (
@@ -982,130 +1132,75 @@ export default function Page() {
             },
           }}
         >
-          <Tabs.List h="100%" data-tour="set-tabs">
-            <Tabs.Tab value="profile" leftSection={<IconUserCircle size="1rem" />}>
-              {t("Settings.Cloud")}
-            </Tabs.Tab>
-            <Tabs.Tab value="board" leftSection={<IconChess size="1rem" />}>
-              {t("Settings.Board")}
-            </Tabs.Tab>
-            <Tabs.Tab value="inputs" leftSection={<IconMouse size="1rem" />}>
-              {t("Settings.Inputs")}
-            </Tabs.Tab>
-            <Tabs.Tab value="anarchy" leftSection={<IconFlag size="1rem" />}>
-              {t("Settings.Anarchy")}
-            </Tabs.Tab>
-            <Tabs.Tab value="appearance" leftSection={<IconBrush size="1rem" />}>
-              {t("Settings.Appearance")}
-            </Tabs.Tab>
-            <Tabs.Tab value="sound" leftSection={<IconVolume size="1rem" />}>
-              {t("Settings.Sound")}
-            </Tabs.Tab>
-            <Tabs.Tab value="keybinds" leftSection={<IconKeyboard size="1rem" />}>
-              {t("Settings.Keybinds")}
-            </Tabs.Tab>
-            <Tabs.Tab value="directories" leftSection={<IconFolder size="1rem" />}>
-              {t("Settings.Directories")}
-            </Tabs.Tab>
-            <Tabs.Tab value="repertoire" leftSection={<IconBook size="1rem" />}>
-              {t("Settings.Repertoire")}
-            </Tabs.Tab>
-            <Tabs.Tab value="tutorials" leftSection={<IconSchool size="1rem" />}>
-              {t("Settings.Tutorials")}
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="evalcache"
-              leftSection={<IconDatabase size="1rem" />}
-              data-tour="set-tab-evalcache"
-            >
-              {t("Settings.EvalCache")}
-            </Tabs.Tab>
-            <Tabs.Tab value="privacy" leftSection={<IconShield size="1rem" />}>
-              {t("Settings.Privacy")}
-            </Tabs.Tab>
-            {isAdmin && (
-              <Tabs.Tab value="admin" leftSection={<IconChartBar size="1rem" />}>
-                {t("Settings.Admin")}
-              </Tabs.Tab>
-            )}
+          <Tabs.List h="100%" data-tour="set-tabs" className={classes.nav}>
+            {SETTINGS_NAV.map((group) => {
+              const tabs = group.tabs.filter((tab) => !tab.adminOnly || isAdmin);
+              if (tabs.length === 0) return null;
+              return (
+                <div key={group.label} className={classes.navGroup}>
+                  <Text className={classes.navLabel} size="xs" fw={700} tt="uppercase">
+                    {t(group.label)}
+                  </Text>
+                  {tabs.map(({ value, label, icon: Icon }) => (
+                    <Tabs.Tab
+                      key={value}
+                      value={value}
+                      leftSection={<Icon size="1rem" />}
+                      data-tour={value === "evalcache" ? "set-tab-evalcache" : undefined}
+                    >
+                      {t(label)}
+                    </Tabs.Tab>
+                  ))}
+                </div>
+              );
+            })}
           </Tabs.List>
           <Stack flex={1} px="md">
             <ScrollArea>
-              <Card withBorder p="lg" className={classes.card} w="100%">
+              <Card withBorder p="lg" className={classes.card} w="100%" maw={900}>
                 <Tabs.Panel value="profile">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Cloud")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Cloud.Desc")}
-                  </Text>
+                  <PanelHeader title={t("Settings.Cloud")} description={t("Settings.Cloud.Desc")} />
                   <ProfileSettings />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="board">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Board")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Board.Desc")}
-                  </Text>
+                  <PanelHeader title={t("Settings.Board")} description={t("Settings.Board.Desc")} />
                   {renderCategorySettings("board")}
                 </Tabs.Panel>
 
                 <Tabs.Panel value="inputs">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Inputs")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Inputs.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.Inputs")}
+                    description={t("Settings.Inputs.Desc")}
+                  />
                   {renderCategorySettings("inputs")}
                 </Tabs.Panel>
 
-                <Tabs.Panel value="anarchy">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Anarchy")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Anarchy.Desc")}
-                  </Text>
-                  {renderCategorySettings("anarchy")}
-                </Tabs.Panel>
-
                 <Tabs.Panel value="appearance">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Appearance")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Appearance.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.Appearance")}
+                    description={t("Settings.Appearance.Desc")}
+                  />
                   {renderCategorySettings("appearance")}
                 </Tabs.Panel>
 
                 <Tabs.Panel value="sound">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Sound")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Sound.Desc")}
-                  </Text>
+                  <PanelHeader title={t("Settings.Sound")} description={t("Settings.Sound.Desc")} />
                   {renderCategorySettings("sound")}
                 </Tabs.Panel>
 
                 <Tabs.Panel value="keybinds">
-                  <Group>
-                    <Text size="lg" fw={500} className={classes.title}>
-                      {t("Settings.Keybinds")}
-                    </Text>
-                    <Tooltip label={t("Common.Reset")}>
-                      <ActionIcon onClick={() => setKeyMap(RESET)}>
-                        <IconReload size="1rem" />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Keybinds.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.Keybinds")}
+                    description={t("Settings.Keybinds.Desc")}
+                    action={
+                      <Tooltip label={t("Common.Reset")}>
+                        <ActionIcon onClick={() => setKeyMap(RESET)}>
+                          <IconReload size="1rem" />
+                        </ActionIcon>
+                      </Tooltip>
+                    }
+                  />
                   <Table>
                     <Table.Thead>
                       <Table.Tr>
@@ -1133,63 +1228,51 @@ export default function Page() {
                 </Tabs.Panel>
 
                 <Tabs.Panel value="directories">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Directories")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Directories.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.Directories")}
+                    description={t("Settings.Directories.Desc")}
+                  />
                   {renderCategorySettings("directories")}
                 </Tabs.Panel>
 
                 <Tabs.Panel value="repertoire">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Repertoire")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Repertoire.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.Repertoire")}
+                    description={t("Settings.Repertoire.Desc")}
+                  />
                   {renderCategorySettings("repertoire")}
                 </Tabs.Panel>
 
                 <Tabs.Panel value="tutorials">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Tutorials")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Tutorials.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.Tutorials")}
+                    description={t("Settings.Tutorials.Desc")}
+                  />
                   <TutorialSettings />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="evalcache" data-tour="set-evalcache">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.EvalCache")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.EvalCache.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.EvalCache")}
+                    description={t("Settings.EvalCache.Desc")}
+                  />
                   <EvalCacheSettings />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="privacy">
-                  <Text size="lg" fw={500} className={classes.title}>
-                    {t("Settings.Privacy")}
-                  </Text>
-                  <Text size="xs" c="dimmed" mt={3} mb="lg">
-                    {t("Settings.Privacy.Desc")}
-                  </Text>
+                  <PanelHeader
+                    title={t("Settings.Privacy")}
+                    description={t("Settings.Privacy.Desc")}
+                  />
                   {renderCategorySettings("privacy")}
                 </Tabs.Panel>
 
                 {isAdmin && (
                   <Tabs.Panel value="admin" data-tour="set-admin">
-                    <Text size="lg" fw={500} className={classes.title}>
-                      {t("Settings.Admin")}
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={3} mb="lg">
-                      {t("Settings.Admin.Desc")}
-                    </Text>
+                    <PanelHeader
+                      title={t("Settings.Admin")}
+                      description={t("Settings.Admin.Desc")}
+                    />
                     <AdminOverview />
                   </Tabs.Panel>
                 )}

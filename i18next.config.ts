@@ -46,6 +46,8 @@ export default defineConfig({
             "Puzzle.Reports.Verdict.*",
             "Puzzle.Reports.Why.*",
             "Settings.Keybinds.Actions.*",
+            // Settings navigation groups, named in settingsNav.ts
+            "Settings.Group.*",
             "TimeControl.*",
             "Annotate.*",
             "Classification.*",

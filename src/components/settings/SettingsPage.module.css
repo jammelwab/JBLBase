@@ -22,3 +22,69 @@
 .title {
   line-height: 1;
 }
+
+/* Settings navigation: short groups with a small heading each */
+.nav {
+  gap: 0;
+  padding-right: var(--mantine-spacing-xs);
+  min-width: 210px;
+}
+
+.navGroup + .navGroup {
+  margin-top: var(--mantine-spacing-sm);
+}
+
+.navLabel {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md) 4px;
+  letter-spacing: 0.06em;
+  color: var(--mantine-color-dimmed);
+}
+
+.nav :global(.mantine-Tabs-tab)[data-active] {
+  border-color: var(--jbl-accent);
+  color: var(--jbl-accent-text);
+  background-color: var(--jbl-accent-soft);
+}
+
+/* Panel heading with an orange rule below */
+.header {
+  padding-bottom: var(--mantine-spacing-sm);
+  margin-bottom: var(--mantine-spacing-xs);
+  border-bottom: 2px solid var(--jbl-accent);
+}
+
+/* Small headings inside a tab */
+.group + .group,
+.more {
+  margin-top: var(--mantine-spacing-lg);
+}
+
+.section {
+  letter-spacing: 0.06em;
+  color: var(--jbl-accent-text);
+  border-left: 3px solid var(--jbl-accent);
+  padding-left: 8px;
+  line-height: 1.2;
+}
+
+.moreButton {
+  margin-bottom: var(--mantine-spacing-xs);
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--mantine-color-dimmed);
+}
+
+.moreButton:hover {
+  background-color: var(--jbl-accent-soft);
+  color: var(--jbl-accent-text);
+}
+
+.chevron {
+  transition: transform 150ms ease;
+}
+
+.chevron[data-open] {
+  transform: rotate(90deg);
+}
