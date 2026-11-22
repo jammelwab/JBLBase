@@ -47,3 +47,57 @@ export function pickReferenceDatabase(dbs: PuzzleDatabaseInfo[]): PuzzleDatabase
 export async function findReferenceDatabase(): Promise<PuzzleDatabaseInfo | null> {
     return pickReferenceDatabase(await getPuzzleDatabases());
 }
+
+// Die mitgelieferten Starter-Puzzles (1.2.14): 100 Aufgaben, damit man ohne
+// Download trainieren kann.
+export const STARTER_PUZZLE_FILE = "JBL Starter-Puzzles.duckdb";
+
+// Eigene Taktik-Dateien zählen nicht als Puzzle-Datenbank
+function isTrainingDb(db: PuzzleDatabaseInfo): boolean {
+    return (
+        db.puzzleCount > 0 && db.title !== REPERTOIRE_TACTICS_FILE && db.title !== GAME_TACTICS_FILE
+    );
+}
+
+// Legt die Starter-Puzzles an, wenn noch keine Puzzle-Datenbank da ist.
+// Gibt die Liste der Datenbanken danach zurück.
+export async function ensurePuzzleDatabase(
+    dbs: PuzzleDatabaseInfo[],
+): Promise<PuzzleDatabaseInfo[]> {
+    if (dbs.some(isTrainingDb)) return dbs;
+    const res = await commands.installStarterPuzzles(
+        await resolve(await getPuzzlesDir(), STARTER_PUZZLE_FILE),
+    );
+    if (res.status !== "ok" || !res.data) return dbs;
+    return getPuzzleDatabases();
+}
+
+// Welche Datenbank ist ausgewählt? Die Lichess-Puzzles, sobald sie da sind,
+// sonst die bisherige, sonst die erste zum Trainieren.
+export function preferredPuzzleDb(
+    dbs: PuzzleDatabaseInfo[],
+    current: string | null,
+): string | null {
+    const lichess = dbs.find((db) => db.title === LICHESS_PUZZLE_FILE);
+    const starter = dbs.find((db) => db.title === STARTER_PUZZLE_FILE);
+    if (lichess && (current === null || current === starter?.path)) return lichess.path;
+    if (current && dbs.some((db) => db.path === current)) return current;
+    return (lichess ?? dbs.find(isTrainingDb) ?? null)?.path ?? null;
+}
+
+let lichessStarted = false;
+
+// Bei der ersten Einführung: die Lichess-Puzzles im Hintergrund laden. Danach
+// wählt die Puzzle-Seite sie von selbst aus.
+export async function downloadLichessPuzzlesOnce(onDone?: (path: string) => void) {
+    if (lichessStarted) return;
+    lichessStarted = true;
+    try {
+        const dbs = await getPuzzleDatabases();
+        if (dbs.some((db) => db.title === LICHESS_PUZZLE_FILE)) return;
+        const res = await importLichessPuzzles(null);
+        if (res.status === "ok") onDone?.(await lichessPuzzlePath());
+    } catch (e) {
+        console.error("Lichess puzzle download failed", e);
+    }
+}

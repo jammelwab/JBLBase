@@ -69,6 +69,11 @@ pub struct GameConfig {
     /// (JBL Coach: diary, opening sparring). Keyed by the position's EPD.
     #[serde(default)]
     pub move_book: Vec<BookMove>,
+    /// Share of moves (0 to 1) the engine side plays like a beginner instead
+    /// of searching: a random move, as a human misses things (JBL Coach, the
+    /// easy levels).
+    #[serde(default)]
+    pub random_move_chance: Option<f32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Type)]
@@ -1400,8 +1405,31 @@ fn try_move_book(controller: &GameController) -> Option<String> {
     Some(legal[selected].0.clone())
 }
 
+/// A beginner's move: any legal move, the king only when nothing else moves.
+fn try_random_move(controller: &GameController) -> Option<String> {
+    let chance = controller.config.random_move_chance.unwrap_or(0.0);
+    // Die ersten Züge nicht: da spielen auch Anfänger aus dem Gedächtnis
+    if chance <= 0.0 || controller.moves.len() < 6 {
+        return None;
+    }
+    let mut rng = rand::thread_rng();
+    if rng.gen::<f32>() >= chance {
+        return None;
+    }
+    let legal = controller.position.legal_moves();
+    let pick = legal
+        .iter()
+        .filter(|m| m.role() != shakmaty::Role::King)
+        .choose(&mut rng)
+        .or_else(|| legal.iter().choose(&mut rng))?;
+    Some(pick.to_uci(shakmaty::CastlingMode::Standard).to_string())
+}
+
 fn try_polyglot_book_move(controller: &GameController) -> Option<String> {
     if let Some(uci) = try_move_book(controller) {
+        return Some(uci);
+    }
+    if let Some(uci) = try_random_move(controller) {
         return Some(uci);
     }
     let book = controller.polyglot_book.as_ref()?;

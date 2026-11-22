@@ -117,6 +117,8 @@ export const XP = {
     brilliant: 30,
     good: 10,
     puzzle: 10,
+    // eigener Fehler aus der Partie beim ersten Versuch gelöst (1.2.14)
+    mistakeFirstTry: 10,
     cleanPercent: 20,
     lambruscoPercent: 10,
     // ab der 4. Partie am Tag halbe Basis-XP
@@ -215,6 +217,9 @@ export type CoachMistake = {
     played: string;
     // Züge, die als richtig zählen (bester Zug und gleich gute)
     solutions: string[];
+    // Bewertung vor dem Zug aus Sicht des Spielers ("+M3", "+1.2"), für das
+    // Taktikmotiv der Lösung (1.2.14); fehlt bei älteren Aufgaben
+    before?: string;
 };
 
 export const coachMistakeAtom = atomWithStorage<CoachMistake | null>("jbl-coach-mistake", null);
@@ -241,11 +246,11 @@ export const questEventAtom = atom(
 );
 
 // Eine Aufgabe der Sperre ist erledigt (Puzzle oder eigener Fehler).
-const finishLockTaskAtom = atom(null, (get, set, correct: boolean) => {
+const finishLockTaskAtom = atom(null, (get, set, correct: boolean, bonus: number = 0) => {
     const lock = get(coachLockAtom);
     if (lock > 0) set(coachLockAtom, lock - 1);
     if (lock <= 1 && get(coachMateDrillAtom)) set(coachMateDrillAtom, false);
-    let xp = correct ? XP.puzzle : 0;
+    let xp = correct ? XP.puzzle + bonus : 0;
     if (correct) xp += set(questEventAtom, "puzzles");
     if (xp) set(coachXpAtom, get(coachXpAtom) + xp);
     set(touchStreakAtom);
@@ -259,11 +264,15 @@ export const coachPuzzleDoneAtom = atom(null, (_get, set, correct: boolean) => {
     set(finishLockTaskAtom, correct);
 });
 
-// Der eigene Fehler ist gelöst oder aufgegeben.
-export const coachMistakeDoneAtom = atom(null, (_get, set, correct: boolean) => {
-    set(coachMistakeAtom, null);
-    set(finishLockTaskAtom, correct);
-});
+// Der eigene Fehler ist gelöst oder aufgegeben. firstTry: beim ersten
+// Versuch gelöst, das gibt Extra-XP.
+export const coachMistakeDoneAtom = atom(
+    null,
+    (_get, set, correct: boolean, firstTry: boolean = false) => {
+        set(coachMistakeAtom, null);
+        set(finishLockTaskAtom, correct, correct && firstTry ? XP.mistakeFirstTry : 0);
+    },
+);
 
 // Ein richtiger Zug im Repertoire-Training: 2 XP.
 export const REPERTOIRE_XP = 2;

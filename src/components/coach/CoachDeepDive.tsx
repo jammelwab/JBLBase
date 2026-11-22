@@ -1,4 +1,14 @@
-import { Badge, Group, Loader, Modal, SegmentedControl, Stack, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Group,
+  Loader,
+  Modal,
+  SegmentedControl,
+  Stack,
+  Text,
+} from "@mantine/core";
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import type { Key } from "@lichess-org/chessground/types";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +19,7 @@ import { cloudAccountAtom } from "@/utils/cloud/sync";
 import { sanToSquares } from "@/utils/gamesTree";
 import type { CoachFigureHandle } from "./CoachFigure";
 import CoachStage from "./CoachStage";
-import { motifsFor } from "./coachDeep";
+import { lineSteps, moveNumber, motifsFor } from "./coachDeep";
 import { explainError } from "./coachExplain";
 import { REACTION_SIGN } from "./coachGame";
 import { coachIntroAtom } from "./coachIntroState";
@@ -65,6 +75,9 @@ function DeepView({ comment }: { comment: CoachComment }) {
   const figure = useRef<CoachFigureHandle>(null);
   const [view, setView] = useState<View>("answer");
   const motifs = useMemo(() => motifsFor(comment), [comment]);
+  // Die Folge bis zu 2 Zügen (4 Halbzügen) tief, Schritt für Schritt
+  const steps = useMemo(() => lineSteps(comment.fenAfter, comment.line, 4), [comment]);
+  const [step, setStep] = useState(1);
   const key = `${comment.fen}|${comment.san}|${stage}|${lang}`;
   const [text, setText] = useState<string | null>(asked.get(key) ?? null);
   const [busy, setBusy] = useState(!text && !!account);
@@ -123,10 +136,9 @@ function DeepView({ comment }: { comment: CoachComment }) {
     </>
   );
 
-  const reply = comment.line[0] ?? null;
   const played = sanToSquares(comment.fen, comment.san);
   const best = comment.best ? sanToSquares(comment.fen, comment.best) : null;
-  const answer = reply ? sanToSquares(comment.fenAfter, reply) : null;
+  const current = steps[step - 1] ?? null;
   const shapes =
     view === "move"
       ? [
@@ -134,17 +146,22 @@ function DeepView({ comment }: { comment: CoachComment }) {
           ...(best ? [{ orig: best[0] as Key, dest: best[1] as Key, brush: "green" }] : []),
         ]
       : [
-          ...(answer ? [{ orig: answer[0] as Key, dest: answer[1] as Key, brush: "red" }] : []),
+          ...(current
+            ? [{ orig: current.from as Key, dest: current.to as Key, brush: "red" }]
+            : []),
           // Was die Antwort trifft: die Ziele des Motivs
           ...motifs
-            .filter((m) => m.from)
+            .filter((m) => m.from && step === 1)
             .flatMap((m) =>
               m.targets
                 .filter((sq) => sq !== m.from)
                 .map((sq) => ({ orig: m.from as Key, dest: sq as Key, brush: "yellow" })),
             ),
         ];
-  const fen = view === "move" ? comment.fen : comment.fenAfter;
+  const fen = view === "move" ? comment.fen : (current?.fen ?? comment.fenAfter);
+  // Ply der Stellung vor deinem Zug, für die Zugnummern der Folge
+  const basePly =
+    (Number(comment.fen.split(" ")[5]) || 1) * 2 - (comment.fen.split(" ")[1] === "w" ? 1 : 0);
   const orientation = comment.fen.split(" ")[1] === "b" ? "black" : "white";
 
   return (
@@ -180,10 +197,39 @@ function DeepView({ comment }: { comment: CoachComment }) {
               ? comment.best
                 ? t("Coach.Deep.LegendMove", { move: comment.san, best: comment.best })
                 : t("Coach.Deep.LegendMoveOnly", { move: comment.san })
-              : reply
-                ? t("Coach.Deep.LegendAnswer", { move: reply })
+              : current
+                ? step === 1
+                  ? t("Coach.Deep.LegendAnswer", { move: current.san })
+                  : t("Coach.Deep.LegendStep", {
+                      move: `${moveNumber(basePly + step)}${current.san}`,
+                    })
                 : ""}
           </Text>
+          {view === "answer" && steps.length > 1 && (
+            <Group gap={6} justify="center">
+              <ActionIcon
+                variant="light"
+                color="gray"
+                disabled={step <= 1}
+                onClick={() => setStep(step - 1)}
+                aria-label={t("Coach.Deep.Prev")}
+              >
+                <IconChevronLeft size={18} />
+              </ActionIcon>
+              <Text size="sm" fw={600}>
+                {t("Coach.Deep.StepOf", { n: step, total: steps.length })}
+              </Text>
+              <ActionIcon
+                variant="light"
+                color="gray"
+                disabled={step >= steps.length}
+                onClick={() => setStep(step + 1)}
+                aria-label={t("Coach.Deep.Next")}
+              >
+                <IconChevronRight size={18} />
+              </ActionIcon>
+            </Group>
+          )}
         </Stack>
       }
     >

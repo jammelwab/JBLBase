@@ -252,6 +252,14 @@ export const showCoordinatesAtom = atomWithStorage<"no" | "edge" | "all">(
     undefined,
     { getOnInit: true },
 );
+// Brettbeschriftung (a-h, 1-8) in Partien gegen den Coach, unabhängig von
+// der allgemeinen Einstellung; standardmäßig an (1.2.14)
+export const coachCoordinatesAtom = atomWithStorage<"no" | "edge" | "all">(
+    "coach-coordinates",
+    "edge",
+    undefined,
+    { getOnInit: true },
+);
 export const soundCollectionAtom = atomWithStorage<string>(
     "sound-collection",
     "standard",

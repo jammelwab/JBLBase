@@ -91,6 +91,8 @@ interface ChessboardProps {
   enablePremoves?: boolean;
   // Drawn on top of the engine and variation arrows (e.g. explorer arrows)
   extraShapes?: DrawShape[];
+  // Überschreibt die Brettbeschriftung aus den Einstellungen
+  coordinates?: "no" | "edge" | "all";
 }
 
 function Board({
@@ -107,6 +109,7 @@ function Board({
   cgRef,
   enablePremoves = false,
   extraShapes,
+  coordinates: coordinatesOverride,
 }: ChessboardProps) {
   const { t } = useTranslation();
 
@@ -151,7 +154,8 @@ function Board({
   const eraseDrawablesOnClick = useAtomValue(eraseDrawablesOnClickAtom);
   const autoPromote = useAtomValue(autoPromoteAtom);
   const forcedEP = useAtomValue(forcedEnPassantAtom);
-  const showCoordinates = useAtomValue(showCoordinatesAtom);
+  const savedCoordinates = useAtomValue(showCoordinatesAtom);
+  const showCoordinates = coordinatesOverride ?? savedCoordinates;
   const materialDisplay = useAtomValue(materialDisplayAtom);
 
   let dests: Map<SquareName, SquareName[]> = pos ? chessgroundDests(pos) : new Map();

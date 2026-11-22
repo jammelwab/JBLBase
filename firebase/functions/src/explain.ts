@@ -218,8 +218,8 @@ export function explainPrompt(r: ExplainRequest): string {
         r.mode === "say"
             ? `Write exactly one short sentence (at most 18 words) reacting to this move right after it was played. ${r.mark === "book" ? "Say it is theory and name the opening if given." : r.mark === "solid" ? "It is a sound, ordinary move; keep it light." : `Match the rating "${r.mark}"; if a better move is given and the rating is ?!, ? or ??, name it.`}`
             : r.mode === "deep"
-              ? `Explain this mistake in depth, in 5 to 8 short sentences: first what the opponent can do now (use the engine line), then, if a motif was detected, what that tactical motif is in general and how it works here, and finally what the better move does differently. You may use one short paragraph break.`
-              : `Explain why the move deserves "${r.mark}".`,
+              ? `Explain this mistake in depth, in 5 to 8 short sentences: first what the opponent can do now, walking through the engine line move by move up to its first 4 half-moves (2 full moves) when the point only shows after a few moves, then, if a motif was detected, what that tactical motif is in general and how it works here, and finally what the better move does differently. You may use one short paragraph break.`
+              : `Explain why the move deserves "${r.mark}". If the problem only shows after a few moves, follow the engine line for up to its first 4 half-moves (2 full moves) and name those moves.`,
     ];
     return lines.filter(Boolean).join("\n");
 }

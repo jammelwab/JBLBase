@@ -8,7 +8,9 @@ import {
     coachMistakeDoneAtom,
     computeReceipt,
     finishCoachGameAtom,
+    XP,
 } from "./coachProgress";
+import { coachXpAtom } from "./coachState";
 import {
     advanceQuest,
     COACH_FRAMES,
@@ -129,9 +131,12 @@ describe("Partieende", () => {
         expect(store.get(coachMistakeAtom)).toEqual(mistake);
         expect(store.get(coachLockAtom)).toBe(3);
 
-        store.set(coachMistakeDoneAtom, true);
+        const xp = store.get(coachXpAtom);
+        store.set(coachMistakeDoneAtom, true, true);
         expect(store.get(coachMistakeAtom)).toBeNull();
         expect(store.get(coachLockAtom)).toBe(2);
+        // Erster Versuch: Puzzle-XP plus Extra-XP (die Tagesaufgabe kann dazukommen)
+        expect(store.get(coachXpAtom) - xp).toBeGreaterThanOrEqual(XP.puzzle + XP.mistakeFirstTry);
     });
 });
 

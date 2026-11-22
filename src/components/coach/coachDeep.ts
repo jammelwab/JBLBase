@@ -1,3 +1,7 @@
+import { makeSquare } from "chessops";
+import { Chess } from "chessops/chess";
+import { makeFen, parseFen } from "chessops/fen";
+import { parseSan } from "chessops/san";
 import { detectMotifs, type Motif } from "./coachMotifs";
 import type { CoachReaction } from "./coachGame";
 
@@ -54,4 +58,50 @@ export function reportMoments(moves: ReportMove[], max = 3): ReportMove[] {
 export function moveNumber(ply: number): string {
     const n = Math.ceil(ply / 2);
     return ply % 2 === 1 ? `${n}.` : `${n}...`;
+}
+
+export type LineStep = { san: string; fen: string; from: string; to: string };
+
+// Die Folgevariante Zug für Zug (höchstens max Halbzüge), für das Brett im
+// Erklärfenster. Bricht beim ersten ungültigen Zug ab.
+export function lineSteps(fenAfter: string, line: string[], max = 4): LineStep[] {
+    const setup = parseFen(fenAfter);
+    if (setup.isErr) return [];
+    const start = Chess.fromSetup(setup.value);
+    if (start.isErr) return [];
+    const pos = start.value;
+    const out: LineStep[] = [];
+    for (const san of line.slice(0, max)) {
+        const move = parseSan(pos, san);
+        if (!move || !("from" in move)) break;
+        pos.play(move);
+        out.push({
+            san,
+            fen: makeFen(pos.toSetup()),
+            from: makeSquare(move.from),
+            to: makeSquare(move.to),
+        });
+    }
+    return out;
+}
+
+// Taktikmotiv in der Lösung des eigenen Fehlers (1.2.14): was der richtige Zug
+// selbst macht. fen: Stellung vor dem Zug, san: der gefundene Zug, before:
+// Bewertung vorher aus Sicht des Spielers, best: der beste Zug der Engine.
+export type SolutionMotif = { id: Motif["id"]; square: string | null; mateIn: number | null };
+
+export function solutionMotif(
+    fen: string,
+    san: string,
+    before: string | undefined,
+    best: string | undefined,
+): SolutionMotif | null {
+    const mate = before ? /^\+M(\d{1,2})$/.exec(before) : null;
+    if (mate && san === best) return { id: "mate", square: null, mateIn: Number(mate[1]) };
+    // Die Erkennung sieht den Zug als Antwort des Gegners: hier ist der
+    // Spieler am Zug, also gehören die Ziele dem Gegner.
+    const m = detectMotifs(fen, [san], null)[0];
+    if (!m) return null;
+    const square = m.id === "fork" ? (m.from ?? null) : (m.targets[0] ?? null);
+    return { id: m.id, square, mateIn: null };
 }

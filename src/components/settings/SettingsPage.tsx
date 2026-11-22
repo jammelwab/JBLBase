@@ -59,6 +59,7 @@ import {
   flipBoardAfterMoveAtom,
   showArrowsAtom,
   showConsecutiveArrowsAtom,
+  coachCoordinatesAtom,
   showCoordinatesAtom,
   showDestsAtom,
   showVariationArrowsAtom,
@@ -181,6 +182,7 @@ export default function Page() {
   const [pieceAnimation, setPieceAnimation] = useAtom(pieceAnimationAtom);
   const [moveNotationType, setMoveNotationType] = useAtom(moveNotationTypeAtom);
   const [showCoordinates, setShowCoordinates] = useAtom(showCoordinatesAtom);
+  const [coachCoordinates, setCoachCoordinates] = useAtom(coachCoordinatesAtom);
   const [materialDisplay, setMaterialDisplay] = useAtom(materialDisplayAtom);
   const [defaultPanelTab, setDefaultPanelTab] = useAtom(defaultPanelTabAtom);
   const [practiceAutoDifficulty, setPracticeAutoDifficulty] = useAtom(practiceAutoDifficultyAtom);
@@ -328,6 +330,25 @@ export default function Page() {
             allowDeselect={false}
             value={showCoordinates}
             onChange={(val) => setShowCoordinates(val as "no" | "edge" | "all")}
+          />
+        ),
+      },
+      {
+        id: "coach-coordinates",
+        category: "board",
+        title: t("Settings.CoachCoordinates"),
+        description: t("Settings.CoachCoordinates.Desc"),
+        keywords: ["coordinates", "a-h", "1-8", "coach"],
+        render: () => (
+          <Select
+            data={[
+              { label: t("Settings.Coordinates.None"), value: "no" },
+              { label: t("Settings.Coordinates.Edge"), value: "edge" },
+              { label: t("Settings.Coordinates.All"), value: "all" },
+            ]}
+            allowDeselect={false}
+            value={coachCoordinates}
+            onChange={(val) => setCoachCoordinates(val as "no" | "edge" | "all")}
           />
         ),
       },
@@ -764,6 +785,7 @@ export default function Page() {
       setPieceAnimation,
       isNative,
       showCoordinates,
+      coachCoordinates,
       materialDisplay,
       filesDirectory,
       databasesDirectory,
@@ -777,6 +799,7 @@ export default function Page() {
       setEnginesDirectory,
       setPuzzlesDirectory,
       setShowCoordinates,
+      setCoachCoordinates,
       setMaterialDisplay,
       defaultPanelTab,
       setDefaultPanelTab,

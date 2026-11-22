@@ -4,6 +4,7 @@ import en from "@/translation/en-US.json";
 import {
     jblEngineSettings,
     jblEngineSetup,
+    jblRandomMoveChance,
     LINE_VARIANTS,
     pickLine,
     reactionFor,
@@ -75,5 +76,14 @@ describe("JBLs Kommentare", () => {
                     expect(t[`Coach.Line.${key}.${i}`], `${key}.${i}`).toBeTruthy();
             }
         }
+    });
+});
+
+describe("jblRandomMoveChance", () => {
+    it("lets the easy levels play like beginners, the strong ones not", () => {
+        expect(jblRandomMoveChance("veryEasy")).toBeGreaterThan(jblRandomMoveChance("easy"));
+        expect(jblRandomMoveChance("easy")).toBeGreaterThan(jblRandomMoveChance("fairlyEasy"));
+        expect(jblRandomMoveChance("medium")).toBe(0);
+        expect(jblRandomMoveChance("veryHard")).toBe(0);
     });
 });

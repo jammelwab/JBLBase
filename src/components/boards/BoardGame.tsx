@@ -20,6 +20,7 @@ import {
   IconFileText,
   IconPlus,
   IconX,
+  IconArrowLeft,
   IconLock,
   IconZoomCheck,
 } from "@tabler/icons-react";
@@ -34,6 +35,8 @@ import { match } from "ts-pattern";
 import { useStore } from "zustand";
 import type { Annotation } from "@/utils/annotation";
 import { coachMoveMarksAtom } from "@/components/coach/coachMoveMarks";
+import { coachLockAtom } from "@/components/coach/coachProgress";
+import { coachAnalyzeAtom, coachReportOpenAtom } from "@/components/coach/coachReportState";
 import type { Outcome } from "@/bindings";
 import {
   commands,
@@ -46,6 +49,7 @@ import {
 import type { ChessgroundRef } from "@/chessground/Chessground";
 import {
   activeTabAtom,
+  coachCoordinatesAtom,
   enginesAtom,
   flipBoardAfterMoveAtom,
   currentGameIdAtom,
@@ -79,6 +83,7 @@ import {
   findStockfish,
   jblEngineSetup,
   jblEngineSettings,
+  jblRandomMoveChance,
   REACTION_SIGN,
 } from "@/components/coach/coachGame";
 import {
@@ -106,7 +111,12 @@ import { type CoachPlan, coachSparringAtom, prepareCoachGame } from "@/component
 
 // So lange hält die Partie JBLs Antwortzug höchstens zurück, bis der
 // Kommentar zu deinem Zug fertig ist.
-const COACH_WAIT_MAX_MS = 6000;
+const COACH_WAIT_MAX_MS = 7500;
+// So lange „denkt“ JBL mindestens über seinen Zug nach (zufällig dazwischen)
+const COACH_THINK_MIN_MS = 1500;
+const COACH_THINK_MAX_MS = 3500;
+const coachThinkTime = () =>
+  COACH_THINK_MIN_MS + Math.random() * (COACH_THINK_MAX_MS - COACH_THINK_MIN_MS);
 
 function gameResultToOutcome(result: GameResult): Outcome {
   if (result.type === "whiteWins") return "1-0";
@@ -126,6 +136,7 @@ function mapBackendMoves(moves: { uci: string; clock: bigint | null }[]): Backen
 function BoardGame() {
   const { t } = useTranslation();
   const activeTab = useAtomValue(activeTabAtom);
+  const coachLock = useAtomValue(coachLockAtom);
 
   const [editingMode, toggleEditingMode] = useToggle();
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
@@ -147,6 +158,7 @@ function BoardGame() {
   // Partie gegen JBL: Gegner und Stärke kommen vom Coach, nicht aus dem Formular.
   const allTabs = useAtomValue(tabsAtom);
   const isCoachGame = allTabs.find((x) => x.value === activeTab)?.coach === true;
+  const coachCoordinates = useAtomValue(coachCoordinatesAtom);
   const coachStrength = useAtomValue(coachStrengthAtom);
   // Stärke und Rücknahmen der laufenden Coach-Partie (für den Kassenzettel)
   const [coachGameStrength, setCoachGameStrength] = useState(coachStrength);
@@ -260,28 +272,34 @@ function BoardGame() {
         ? ("black" as const)
         : null
     : null;
-  const { comment: coachComment, enabled: coachCommenting } = useCoachCommentary(
-    root,
-    coachHumanColor,
-    isCoachGame && gameState === "playing",
-  );
+  const {
+    comment: coachComment,
+    enabled: coachCommenting,
+    signs: coachSigns,
+  } = useCoachCommentary(root, coachHumanColor, isCoachGame && gameState === "playing");
   // Das Zeichen des Coaches (!!, ?, ...) steht auch in der Zugliste, Theorie
   // und solide Züge werden dort eingefärbt.
   const setAnnotationAt = useStore(store, (s) => s.setAnnotationAt);
   const setCoachMarks = useSetAtom(coachMoveMarksAtom);
   useEffect(() => {
     if (!coachComment) return;
-    const sign = REACTION_SIGN[coachComment.reaction];
-    if (!sign) {
-      const r = coachComment.reaction;
-      if (r === "book" || r === "solid")
-        setCoachMarks((m) => ({ ...m, [coachComment.fenAfter]: r }));
-      return;
-    }
-    const depth = coachComment.ply - root.halfMoves;
-    if (depth > 0) setAnnotationAt(Array(depth).fill(0), sign as Annotation);
+    const r = coachComment.reaction;
+    if (r === "book" || r === "solid") setCoachMarks((m) => ({ ...m, [coachComment.fenAfter]: r }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coachComment?.id]);
+  // Zeichen für beide Seiten (!!, !, !?, ?!, ?, ??, N, □) an die Züge schreiben
+  useEffect(() => {
+    let n = root;
+    const path: number[] = [];
+    while (n.children.length > 0) {
+      n = n.children[0];
+      path.push(0);
+      const sign = coachSigns[n.fen];
+      if (sign && !n.annotations.includes(sign as Annotation))
+        setAnnotationAt([...path], sign as Annotation);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachSigns]);
   const lastPly = useMemo(() => {
     let n = root;
     while (n.children.length > 0) n = n.children[0];
@@ -362,6 +380,27 @@ function BoardGame() {
     },
     [root, setFen, appendMove],
   );
+
+  // Nach der Partie zurück zur Coach-Übersicht (im selben Tab)
+  function backToCoach() {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.value === activeTab
+          ? { ...tab, type: "coach", name: t("Coach.Card.Title"), coach: undefined }
+          : tab,
+      ),
+    );
+  }
+
+  const openCoachReport = useSetAtom(coachReportOpenAtom);
+  const coachAnalyze = useAtomValue(coachAnalyzeAtom);
+  const seenAnalyze = useRef(coachAnalyze);
+  useEffect(() => {
+    if (coachAnalyze === seenAnalyze.current) return;
+    seenAnalyze.current = coachAnalyze;
+    if (isCoachGame) changeToAnalysisMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachAnalyze]);
 
   function changeToAnalysisMode() {
     setTabs((prev) =>
@@ -468,6 +507,8 @@ function BoardGame() {
           ? { path: openingBookPath, maxPly: Math.max(1, openingBookMaxPly) }
           : null,
       moveBook: plan?.book ?? [],
+      // Die leichten Stufen machen echte Anfängerfehler (nicht der Boss)
+      randomMoveChance: isCoachGame && !bossPending ? jblRandomMoveChance(coachStrength) : null,
     } as GameConfig;
 
     try {
@@ -601,6 +642,7 @@ function BoardGame() {
     rootHalf: root.halfMoves,
   };
   const coachWaitRef = useRef(0);
+  const coachThinkRef = useRef({ ply: -1, until: 0 });
   const applyRef = useRef<() => void>(() => {});
 
   const applyPendingUpdates = useCallback(() => {
@@ -609,9 +651,15 @@ function BoardGame() {
       const plies = gate.rootHalf + pendingMovesRef.current.length;
       const humanLast = (plies % 2 === 1) === (gate.human === "white");
       const lastHuman = humanLast ? plies : plies - 1;
-      if (!humanLast && lastHuman > gate.rootHalf && lastHuman > gate.commented) {
-        if (!coachWaitRef.current) coachWaitRef.current = Date.now();
-        if (Date.now() - coachWaitRef.current < COACH_WAIT_MAX_MS) {
+      if (!humanLast && lastHuman > gate.rootHalf) {
+        const now = Date.now();
+        if (!coachWaitRef.current) coachWaitRef.current = now;
+        // JBL „denkt“ sichtbar nach, statt sofort zu ziehen
+        if (coachThinkRef.current.ply !== plies)
+          coachThinkRef.current = { ply: plies, until: now + coachThinkTime() };
+        const waitComment =
+          lastHuman > gate.commented && now - coachWaitRef.current < COACH_WAIT_MAX_MS;
+        if (waitComment || now < coachThinkRef.current.until) {
           throttleTimerRef.current = setTimeout(() => applyRef.current(), 100);
           return;
         }
@@ -802,6 +850,7 @@ function BoardGame() {
           selectedPiece={selectedPiece}
           cgRef={cgRef}
           enablePremoves={isPlayerVsEngine && gameState === "playing"}
+          coordinates={isCoachGame ? coachCoordinates : undefined}
         />
       </Portal>
       <Portal target="#topRight" style={{ height: "100%", overflow: "hidden" }}>
@@ -976,7 +1025,13 @@ function BoardGame() {
                         {isEngineVsEngine ? "Abort" : "Resign"}
                       </Button>
                     )}
-                    {gameState === "gameOver" && (
+                    {gameState === "gameOver" && isCoachGame && (
+                      <Button color="orange" onClick={backToCoach} leftSection={<IconArrowLeft />}>
+                        {t("Coach.Game.BackToCoach")}
+                      </Button>
+                    )}
+                    {/* Gegen JBL nach einer Niederlage: erst die Aufgaben beim Coach */}
+                    {gameState === "gameOver" && !(isCoachGame && coachLock > 0) && (
                       <Button variant="default" onClick={handleNewGame} leftSection={<IconPlus />}>
                         New Game
                       </Button>
@@ -996,7 +1051,12 @@ function BoardGame() {
                     ) : (
                       <Button
                         variant="default"
-                        onClick={() => changeToAnalysisMode()}
+                        onClick={() =>
+                          // Gegen JBL: erst der Partiebericht, von dort zur Analyse
+                          isCoachGame && gameState === "gameOver"
+                            ? openCoachReport((n) => n + 1)
+                            : changeToAnalysisMode()
+                        }
                         leftSection={<IconZoomCheck />}
                       >
                         Analyze

@@ -1,4 +1,4 @@
-import { Box, Button, Group, Paper, Text } from "@mantine/core";
+import { Box, Button, Group, Paper, ScrollArea, Stack, Text } from "@mantine/core";
 import { IconArrowBackUp, IconBulb, IconReport } from "@tabler/icons-react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { makeUci } from "chessops";
@@ -10,6 +10,7 @@ import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coac
 import CoachReceipt from "./CoachReceipt";
 import CoachDeepDive from "./CoachDeepDive";
 import CoachReport, { type CoachReportData } from "./CoachReport";
+import { coachAnalyzeAtom, coachReportOpenAtom } from "./coachReportState";
 import { askCoach, countReactions } from "./coachCloud";
 import { DEEP_REACTIONS, motifsFor, type ReportMove, reportMoments } from "./coachDeep";
 import { coachIntroAtom } from "./coachIntroState";
@@ -57,6 +58,9 @@ const SIGN_COLOR: Record<string, string> = {
 
 type Bubble = { sign: string | null; text: string; key: number };
 type Say = { anim: CoachAnimation | null; text: string; sign: string | null };
+
+// So viele Sätze bleiben im Verlauf
+const LOG_MAX = 60;
 
 // So lange warten Start und Ende höchstens auf Claude
 const EVENT_TIMEOUT_MS = 2500;
@@ -108,12 +112,31 @@ export default function CoachGamePanel({
   const opening = useRef<string | null>(null);
   const [report, setReport] = useState<CoachReportData | null>(null);
   const [reportReady, setReportReady] = useState<CoachReportData | null>(null);
+  // „Analyse“ gedrückt, bevor der Bericht fertig war: das Fenster wartet
+  const [reportPending, setReportPending] = useState(false);
+  const reportRequest = useAtomValue(coachReportOpenAtom);
+  const seenRequest = useRef(reportRequest);
+  const goAnalyze = useSetAtom(coachAnalyzeAtom);
+  useEffect(() => {
+    if (reportRequest === seenRequest.current) return;
+    seenRequest.current = reportRequest;
+    if (reportReady) setReport(reportReady);
+    else setReportPending(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportRequest]);
+  useEffect(() => {
+    if (reportPending && reportReady) {
+      setReportPending(false);
+      setReport(reportReady);
+    }
+  }, [reportPending, reportReady]);
   const [deep, setDeep] = useState<CoachComment | null>(null);
   // Jede neue Partie oder jedes Ende macht ältere Claude-Antworten ungültig
   const speechGen = useRef(0);
   const recent = useRef<string[]>([]);
-  const [bubble, setBubble] = useState<Bubble | null>(null);
-  const [hover, setHover] = useState(false);
+  // Alles, was JBL in dieser Partie gesagt hat, zum Nachlesen
+  const [log, setLog] = useState<Bubble[]>([]);
+  const logView = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const finishGame = useSetAtom(finishCoachGameAtom);
   const stats = useRef({ brilliants: 0, goods: 0, blunders: 0 });
@@ -129,7 +152,7 @@ export default function CoachGamePanel({
   const line = (lineKey: string, extra = "") => {
     const key = pickLine(lineKey, recent.current);
     recent.current = [key, ...recent.current].slice(0, 20);
-    return `${t(`Coach.Line.${key}`, { name: profile.name ?? "" })}${extra ? ` ${extra}` : ""}`;
+    return `${t(`Coach.Line.${key}`, { name: profile.name ?? "", interpolation: { escapeValue: false } })}${extra ? ` ${extra}` : ""}`;
   };
 
   // Easter Eggs während der Partie
@@ -156,7 +179,13 @@ export default function CoachGamePanel({
           if (item.anim) figure.current?.play(item.anim);
           timers.current.push(
             setTimeout(
-              () => setBubble({ sign: item.sign, text: item.text, key: Date.now() }),
+              () =>
+                setLog((l) =>
+                  [
+                    ...l,
+                    { sign: item.sign, text: item.text, key: Date.now() + Math.random() },
+                  ].slice(-LOG_MAX),
+                ),
               item.anim ? 300 : 0,
             ),
           );
@@ -184,12 +213,11 @@ export default function CoachGamePanel({
   const deliver = (anim: CoachAnimation | null, lineKey: string, sign: string | null, extra = "") =>
     speak([{ anim, text: line(lineKey, extra), sign }]);
 
-  // Ausblenden nach der Lesezeit, aber nicht, solange die Maus darauf ist.
+  // Immer den neuesten Satz zeigen
   useEffect(() => {
-    if (!bubble || hover) return;
-    const timer = setTimeout(() => setBubble(null), readingTime(bubble.text));
-    return () => clearTimeout(timer);
-  }, [bubble, hover]);
+    const el = logView.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [log]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -246,7 +274,10 @@ export default function CoachGamePanel({
       }
       const extra =
         comment.reaction === "book" && comment.opening
-          ? t("Coach.Line.BookName", { name: comment.opening })
+          ? t("Coach.Line.BookName", {
+              name: comment.opening,
+              interpolation: { escapeValue: false },
+            })
           : "";
       deliver(REACTION_ANIMATION[comment.reaction], comment.reaction, null, extra);
       return;
@@ -263,7 +294,12 @@ export default function CoachGamePanel({
     )
       worst.current = {
         severity,
-        mistake: { fen: comment.fen, played: comment.san, solutions: comment.solutions },
+        mistake: {
+          fen: comment.fen,
+          played: comment.san,
+          solutions: comment.solutions,
+          before: comment.before,
+        },
       };
     const sign = REACTION_SIGN[comment.reaction];
     const better =
@@ -353,6 +389,7 @@ export default function CoachGamePanel({
       setDeparture(null);
       setAdded("no");
       setReceipt(null);
+      setLog([]);
       setDog(false);
       setCart(false);
       setBlast(false);
@@ -363,6 +400,7 @@ export default function CoachGamePanel({
       opening.current = null;
       setReport(null);
       setReportReady(null);
+      setReportPending(false);
       setDeep(null);
       const gen = ++speechGen.current;
       const rest: Say[] = [
@@ -488,7 +526,7 @@ export default function CoachGamePanel({
       timers.current.push(setTimeout(() => setReceipt({ lines: done.lines, lock }), 2400));
       // Der Partiebericht kommt von selbst, wenn JBL fertig gesprochen hat
       const data: CoachReportData = {
-        id: gen,
+        id: Date.now(),
         outcome,
         opening: opening.current,
         counts: countReactions(history.current.map((m) => m.reaction)),
@@ -520,23 +558,33 @@ export default function CoachGamePanel({
         </Box>
         {cart && <LambruscoCart />}
         {blast && <BunnyBlast />}
-        <Box
-          style={{ flex: 1, minWidth: 0, minHeight: 72 }}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-          aria-live="polite"
-        >
-          {bubble ? (
-            <Paper key={bubble.key} radius="md" p="xs" bg="var(--mantine-color-default-hover)">
-              <Text size="sm">
-                {bubble.sign && (
-                  <Text span fw={800} mr={6} c={SIGN_COLOR[bubble.sign]}>
-                    {bubble.sign}
-                  </Text>
-                )}
-                {bubble.text}
-              </Text>
-            </Paper>
+        <Box style={{ flex: 1, minWidth: 0, minHeight: 72 }} aria-live="polite">
+          {log.length > 0 ? (
+            <ScrollArea.Autosize mah={170} viewportRef={logView} type="auto" offsetScrollbars>
+              <Stack gap={6}>
+                {log.map((b, i) => {
+                  const latest = i === log.length - 1;
+                  return (
+                    <Paper
+                      key={b.key}
+                      radius="md"
+                      p="xs"
+                      bg={latest ? "var(--mantine-color-default-hover)" : "transparent"}
+                      withBorder={!latest}
+                    >
+                      <Text size="sm" c={latest ? undefined : "dimmed"}>
+                        {b.sign && (
+                          <Text span fw={800} mr={6} c={SIGN_COLOR[b.sign]}>
+                            {b.sign}
+                          </Text>
+                        )}
+                        {b.text}
+                      </Text>
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            </ScrollArea.Autosize>
           ) : (
             <Text size="sm" c="dimmed">
               {t("Coach.Game.Watching")}
@@ -624,7 +672,19 @@ export default function CoachGamePanel({
         </Box>
       </Group>
       <CoachDeepDive comment={deep} onClose={() => setDeep(null)} />
-      <CoachReport report={report} onClose={() => setReport(null)} />
+      <CoachReport
+        report={report}
+        pending={reportPending}
+        onClose={() => {
+          setReport(null);
+          setReportPending(false);
+        }}
+        onAnalyze={() => {
+          setReport(null);
+          setReportPending(false);
+          goAnalyze((n) => n + 1);
+        }}
+      />
     </Paper>
   );
 }

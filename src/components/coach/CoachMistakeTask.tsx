@@ -1,12 +1,14 @@
-import { Box, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { Badge, Box, Button, Card, Group, Paper, Stack, Text } from "@mantine/core";
 import type { Key } from "@lichess-org/chessground/types";
 import { IconTargetArrow } from "@tabler/icons-react";
 import { useSetAtom } from "jotai";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, sanToSquares, squaresToSan } from "@/utils/gamesTree";
-import { type CoachMistake, coachMistakeDoneAtom } from "./coachProgress";
+import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
+import { lineSteps, solutionMotif } from "./coachDeep";
+import { type CoachMistake, coachMistakeDoneAtom, XP } from "./coachProgress";
 
 // Erste Aufgabe nach einer Niederlage: der schlimmste eigene Zug der Partie.
 // Zwei Versuche, danach zeigt JBL die Lösung.
@@ -19,11 +21,15 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
   // Neuer Schlüssel setzt das Brett nach einem falschen Zug zurück
   const [resetKey, setResetKey] = useState(0);
   const [lastMove, setLastMove] = useState<Key[] | undefined>(undefined);
+  // Der gefundene Zug: das Brett bleibt danach stehen
+  const [found, setFound] = useState<string | null>(null);
+  const figure = useRef<CoachFigureHandle>(null);
 
   const play = (san: string) => {
     const squares = sanToSquares(mistake.fen, san);
     if (mistake.solutions.includes(san)) {
       setState("solved");
+      setFound(san);
       if (squares) setLastMove(squares as Key[]);
       return;
     }
@@ -39,6 +45,16 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
 
   const solution = mistake.solutions[0];
   const arrow = state === "shown" ? sanToSquares(mistake.fen, solution) : null;
+  const firstTry = state === "solved" && tries === 0;
+  const fen = found ? (lineSteps(mistake.fen, [found], 1)[0]?.fen ?? mistake.fen) : mistake.fen;
+  // Steckt ein Taktikmotiv in der Lösung, erklärt JBL es
+  const motif = useMemo(
+    () => (found ? solutionMotif(mistake.fen, found, mistake.before, solution) : null),
+    [found, mistake.fen, mistake.before, solution],
+  );
+  useEffect(() => {
+    if (motif) figure.current?.play("good");
+  }, [motif]);
 
   return (
     <Card
@@ -55,7 +71,7 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
             viewOnly={state !== "open"}
             turnColor={turn}
             orientation={turn}
-            fen={mistake.fen}
+            fen={fen}
             lastMove={lastMove}
             movable={{
               free: false,
@@ -94,13 +110,39 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
           {state === "solved" && (
             <Text size="sm" c="teal">
               {t("Coach.Mistake.Solved")}
+              {firstTry && ` ${t("Coach.Mistake.FirstTry", { xp: XP.mistakeFirstTry })}`}
             </Text>
+          )}
+          {motif && (
+            <Group wrap="nowrap" align="flex-start" gap="sm">
+              <Box style={{ flexShrink: 0, lineHeight: 0 }}>
+                <CoachFigure ref={figure} size={72} title={t("Coach.Card.Title")} />
+              </Box>
+              <Paper
+                radius="md"
+                p="sm"
+                bg="var(--mantine-color-default-hover)"
+                style={{ flex: 1, minWidth: 0 }}
+              >
+                <Badge color="orange" variant="light" mb={6}>
+                  {motif.id === "mate"
+                    ? t("Coach.Mistake.MateName")
+                    : t(`Coach.Deep.Motif.${motif.id}.Name`)}
+                </Badge>
+                <Text size="sm" lh={1.5}>
+                  {t(`Coach.Mistake.Motif.${motif.id}`, {
+                    square: motif.square ?? "",
+                    n: motif.mateIn ?? 0,
+                  })}
+                </Text>
+              </Paper>
+            </Group>
           )}
           {state === "shown" && (
             <Text size="sm">{t("Coach.Mistake.Shown", { move: solution })}</Text>
           )}
           {state !== "open" ? (
-            <Button color="orange" radius="md" onClick={() => done(state === "solved")}>
+            <Button color="orange" radius="md" onClick={() => done(state === "solved", firstTry)}>
               {t("Coach.Mistake.Continue")}
             </Button>
           ) : (

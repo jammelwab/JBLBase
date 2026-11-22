@@ -15,10 +15,11 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStartTutorial } from "@/components/tutorial/tutorialState";
-import { sessionsAtom } from "@/state/atoms";
+import { selectedPuzzleDbAtom, sessionsAtom } from "@/state/atoms";
 import { getChessComAccount } from "@/utils/chess.com/api";
 import { cloudAccountAtom, cloudSyncStatusAtom } from "@/utils/cloud/sync";
 import { getLichessAccount } from "@/utils/lichess/api";
+import { downloadLichessPuzzlesOnce } from "@/utils/lichessPuzzles";
 import { addSession } from "@/utils/session";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import {
@@ -51,6 +52,14 @@ export default function CoachIntro() {
   const [notFound, setNotFound] = useState(false);
 
   const opened = forced || introDue(state, !!account, synced);
+  const setPuzzleDb = useSetAtom(selectedPuzzleDbAtom);
+
+  // Bei der ersten Einführung laden die Lichess-Puzzles im Hintergrund und
+  // sind danach ausgewählt (1.2.14)
+  useEffect(() => {
+    if (!opened || state.done) return;
+    void downloadLichessPuzzlesOnce((path) => setPuzzleDb(path));
+  }, [opened, state.done, setPuzzleDb]);
 
   useEffect(() => {
     if (!opened || step !== 0) return;
