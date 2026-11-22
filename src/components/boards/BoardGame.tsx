@@ -12,6 +12,7 @@ import {
   SegmentedControl,
   Stack,
   Text,
+  Tooltip,
 } from "@mantine/core";
 import { useToggle } from "@mantine/hooks";
 import {
@@ -19,18 +20,20 @@ import {
   IconFileText,
   IconPlus,
   IconX,
+  IconLock,
   IconZoomCheck,
 } from "@tabler/icons-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { Piece } from "chessops";
 import { makeUci, parseUci } from "chessops";
 import { INITIAL_FEN } from "chessops/fen";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { match } from "ts-pattern";
 import { useStore } from "zustand";
 import type { Annotation } from "@/utils/annotation";
+import { coachMoveMarksAtom } from "@/components/coach/coachMoveMarks";
 import type { Outcome } from "@/bindings";
 import {
   commands,
@@ -100,6 +103,10 @@ import {
 import { useCoachCommentary } from "@/components/coach/useCoachCommentary";
 import { coachDiaryAtom } from "@/components/coach/coachDiary";
 import { type CoachPlan, coachSparringAtom, prepareCoachGame } from "@/components/coach/coachPlan";
+
+// So lange hält die Partie JBLs Antwortzug höchstens zurück, bis der
+// Kommentar zu deinem Zug fertig ist.
+const COACH_WAIT_MAX_MS = 6000;
 
 function gameResultToOutcome(result: GameResult): Outcome {
   if (result.type === "whiteWins") return "1-0";
@@ -253,17 +260,24 @@ function BoardGame() {
         ? ("black" as const)
         : null
     : null;
-  const coachComment = useCoachCommentary(
+  const { comment: coachComment, enabled: coachCommenting } = useCoachCommentary(
     root,
     coachHumanColor,
     isCoachGame && gameState === "playing",
   );
-  // Das Zeichen des Coaches (!!, ?, ...) steht auch in der Zugliste
+  // Das Zeichen des Coaches (!!, ?, ...) steht auch in der Zugliste, Theorie
+  // und solide Züge werden dort eingefärbt.
   const setAnnotationAt = useStore(store, (s) => s.setAnnotationAt);
+  const setCoachMarks = useSetAtom(coachMoveMarksAtom);
   useEffect(() => {
     if (!coachComment) return;
     const sign = REACTION_SIGN[coachComment.reaction];
-    if (!sign) return;
+    if (!sign) {
+      const r = coachComment.reaction;
+      if (r === "book" || r === "solid")
+        setCoachMarks((m) => ({ ...m, [coachComment.fenAfter]: r }));
+      return;
+    }
     const depth = coachComment.ply - root.halfMoves;
     if (depth > 0) setAnnotationAt(Array(depth).fill(0), sign as Annotation);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -571,7 +585,39 @@ function BoardGame() {
   const syncTreeWithMovesRef = useRef(syncTreeWithMoves);
   syncTreeWithMovesRef.current = syncTreeWithMoves;
 
+  // JBL Coach: JBLs Antwortzug erscheint erst, wenn Bewertung und Kommentar
+  // zu deinem Zug fertig sind (höchstens COACH_WAIT_MAX_MS), damit alles
+  // zusammen kommt.
+  const coachGateRef = useRef({
+    enabled: false,
+    human: null as "white" | "black" | null,
+    commented: 0,
+    rootHalf: 0,
+  });
+  coachGateRef.current = {
+    enabled: coachCommenting,
+    human: coachHumanColor,
+    commented: coachComment?.ply ?? 0,
+    rootHalf: root.halfMoves,
+  };
+  const coachWaitRef = useRef(0);
+  const applyRef = useRef<() => void>(() => {});
+
   const applyPendingUpdates = useCallback(() => {
+    const gate = coachGateRef.current;
+    if (pendingMovesRef.current && gate.enabled && gate.human) {
+      const plies = gate.rootHalf + pendingMovesRef.current.length;
+      const humanLast = (plies % 2 === 1) === (gate.human === "white");
+      const lastHuman = humanLast ? plies : plies - 1;
+      if (!humanLast && lastHuman > gate.rootHalf && lastHuman > gate.commented) {
+        if (!coachWaitRef.current) coachWaitRef.current = Date.now();
+        if (Date.now() - coachWaitRef.current < COACH_WAIT_MAX_MS) {
+          throttleTimerRef.current = setTimeout(() => applyRef.current(), 100);
+          return;
+        }
+      }
+      coachWaitRef.current = 0;
+    }
     if (pendingMovesRef.current) {
       syncTreeWithMovesRef.current(pendingMovesRef.current);
       pendingMovesRef.current = null;
@@ -587,6 +633,7 @@ function BoardGame() {
       cgRef.current?.playPremove();
     }, 0);
   }, []);
+  applyRef.current = applyPendingUpdates;
 
   const scheduleUpdate = useCallback(() => {
     if (!throttleTimerRef.current) {
@@ -934,13 +981,27 @@ function BoardGame() {
                         New Game
                       </Button>
                     )}
-                    <Button
-                      variant="default"
-                      onClick={() => changeToAnalysisMode()}
-                      leftSection={<IconZoomCheck />}
-                    >
-                      Analyze
-                    </Button>
+                    {isCoachGame && gameState === "playing" ? (
+                      // Gegen JBL: Analyse erst nach der Partie, sonst kommt man nicht zurück
+                      <Tooltip label={t("Coach.Game.AnalyzeLocked")}>
+                        <Button
+                          variant="default"
+                          data-disabled
+                          onClick={(e) => e.preventDefault()}
+                          leftSection={<IconLock />}
+                        >
+                          Analyze
+                        </Button>
+                      </Tooltip>
+                    ) : (
+                      <Button
+                        variant="default"
+                        onClick={() => changeToAnalysisMode()}
+                        leftSection={<IconZoomCheck />}
+                      >
+                        Analyze
+                      </Button>
+                    )}
 
                     {hasEngine && (
                       <Button

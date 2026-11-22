@@ -64,6 +64,8 @@ export default defineConfig({
             "Coach.Lessons.*",
             "Coach.Intro.*",
             "Coach.Why.*",
+            "Coach.Deep.*",
+            "Coach.Report.*",
             "Coach.Showcase.*",
             "Coach.Line.*",
             "Coach.Receipt.*",

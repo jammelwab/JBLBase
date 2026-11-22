@@ -15,11 +15,12 @@ import {
 import type { Key } from "@lichess-org/chessground/types";
 import { IconCircleCheck, IconLock, IconMedal } from "@tabler/icons-react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, sanToSquares } from "@/utils/gamesTree";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
+import CoachStage from "./CoachStage";
 import { coachIntroAtom } from "./coachIntroState";
 import { playCoachTone } from "./coachSound";
 import {
@@ -181,76 +182,6 @@ export default function CoachLessons() {
 
 const BOARD = 480;
 
-// Lektions-Popup: links JBL mit Sprechblase, der alles erklärt, rechts das Brett.
-function LessonFrame({
-  figure,
-  say,
-  tone = "default",
-  actions,
-  top,
-  children,
-}: {
-  figure?: Ref<CoachFigureHandle>;
-  say: ReactNode;
-  tone?: "default" | "right" | "wrong";
-  actions?: ReactNode;
-  top?: ReactNode;
-  children: ReactNode;
-}) {
-  const { t } = useTranslation();
-  const border =
-    tone === "right"
-      ? "var(--mantine-color-teal-6)"
-      : tone === "wrong"
-        ? "var(--mantine-color-orange-6)"
-        : "var(--mantine-color-default-border)";
-  return (
-    <Group wrap="wrap" align="stretch" gap="xl" justify="center">
-      <Stack w={300} gap="md" justify="space-between">
-        <Stack gap={0}>
-          {top}
-          <Box
-            pos="relative"
-            p="md"
-            mt={top ? "sm" : 0}
-            style={{
-              border: `2px solid ${border}`,
-              borderRadius: "var(--mantine-radius-lg)",
-              background: "var(--mantine-color-body)",
-            }}
-            aria-live="polite"
-          >
-            <Text size="md" lh={1.5}>
-              {say}
-            </Text>
-            {/* Spitze der Sprechblase zu JBL hin */}
-            <Box
-              pos="absolute"
-              left={60}
-              bottom={-11}
-              w={18}
-              h={18}
-              style={{
-                background: "var(--mantine-color-body)",
-                borderRight: `2px solid ${border}`,
-                borderBottom: `2px solid ${border}`,
-                transform: "rotate(45deg)",
-              }}
-            />
-          </Box>
-          <Box mt="lg" style={{ lineHeight: 0 }}>
-            <CoachFigure ref={figure} size={170} title={t("Coach.Card.Title")} />
-          </Box>
-        </Stack>
-        {actions && <Stack gap="xs">{actions}</Stack>}
-      </Stack>
-      <Box w={BOARD} h={BOARD} style={{ flexShrink: 0 }}>
-        {children}
-      </Box>
-    </Group>
-  );
-}
-
 function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }) {
   const { t } = useTranslation();
   const complete = useSetAtom(completeLessonAtom);
@@ -278,7 +209,7 @@ function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }
     const ex = lesson.example;
     const turn = ex.fen.split(" ")[1] === "b" ? "black" : "white";
     return (
-      <LessonFrame
+      <CoachStage
         figure={figure}
         say={t(`Coach.Lesson.${lesson.id}.Text`)}
         actions={
@@ -294,7 +225,7 @@ function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }
           orientation={turn}
           drawable={{ enabled: false, visible: true, autoShapes: arrowShapes(ex.arrows) }}
         />
-      </LessonFrame>
+      </CoachStage>
     );
   }
 
@@ -366,7 +297,7 @@ function LessonTaskView({
           : `${t(`Coach.Lessons.Turn.${turn}`)} ${t(`Coach.Lessons.Check.${lesson.check}`)}`;
 
   return (
-    <LessonFrame
+    <CoachStage
       figure={figure}
       say={say}
       tone={state === "right" ? "right" : state === "wrong" ? "wrong" : "default"}
@@ -421,6 +352,6 @@ function LessonTaskView({
           autoShapes: arrow ? arrowShapes([arrow]) : [],
         }}
       />
-    </LessonFrame>
+    </CoachStage>
   );
 }

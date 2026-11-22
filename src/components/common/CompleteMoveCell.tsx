@@ -24,6 +24,13 @@ import { hasMorePriority, stripClock } from "@/utils/chess";
 import { getTabFile } from "@/utils/tabs";
 import { type TreeNode, treeIterator } from "@/utils/treeReducer";
 import MoveCell from "./MoveCell";
+import { coachMoveMarksAtom } from "@/components/coach/coachMoveMarks";
+
+// JBL Coach: Theorie blau, solide Züge grün (Zeichen färben wie gewohnt)
+const COACH_TINT: Record<string, "indigo" | "green" | undefined> = {
+  book: "indigo",
+  solid: "green",
+};
 import { TreeStateContext } from "./TreeStateContext";
 
 const transpositionCache = new WeakMap<TreeNode, Map<string, number[][]>>();
@@ -185,6 +192,7 @@ function CompleteMoveCell({
     (a, b) => equal(a, b),
   );
   const goToMove = useStore(store, (s) => s.goToMove);
+  const coachMarks = useAtomValue(coachMoveMarksAtom);
 
   const moveNumber = Math.ceil(halfMoves / 2);
   const isWhite = halfMoves % 2 === 1;
@@ -198,6 +206,7 @@ function CompleteMoveCell({
       ref={ref as RefObject<HTMLButtonElement>}
       move={move!}
       annotations={annotations}
+      tint={fen ? COACH_TINT[coachMarks[fen]] : undefined}
       isStart={isStart}
       isCurrentVariation={isCurrentVariation}
       onClick={() => goToMove(movePath)}

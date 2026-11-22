@@ -6,7 +6,11 @@ import { enginesAtom } from "@/state/atoms";
 import { normalizeScore, getAnnotation } from "@/utils/score";
 import type { TreeNode } from "@/utils/treeReducer";
 import { evalText, explainMotifs } from "./coachExplain";
-import { type CoachReaction, findStockfish, reactionFor } from "./coachGame";
+import { type CoachReaction, findStockfish, REACTION_SIGN, reactionFor } from "./coachGame";
+import { coachIntroAtom } from "./coachIntroState";
+import { askCoachExplain } from "@/utils/cloud/auth";
+import { cloudAccountAtom } from "@/utils/cloud/sync";
+import { useTranslation } from "react-i18next";
 
 // Wie tief JBL die Züge des Spielers prüft: schnell genug, dass der Kommentar
 // kommt, bevor man den nächsten Zug überlegt.
@@ -32,7 +36,18 @@ export type CoachComment = {
     motifs: string[];
     // Name der Eröffnung, wenn der Zug Theorie ist
     opening: string | null;
+    // Stellung nach dem Zug
+    fenAfter: string;
+    // Was JBL dazu sagt, von Claude formuliert; null: die festen Sprüche
+    text: string | null;
 };
+
+// So lange wartet die Partie höchstens auf Claude, dann gilt der feste Spruch
+export const SAY_TIMEOUT_MS = 3500;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+    return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+}
 
 // Zweitbester Zug zählt mit, wenn er höchstens so viel schlechter ist.
 const SOLUTION_MARGIN_CP = 30;
@@ -45,7 +60,12 @@ export function useCoachCommentary(
     root: TreeNode,
     humanColor: "white" | "black" | null,
     active: boolean,
-): CoachComment | null {
+): { comment: CoachComment | null; enabled: boolean } {
+    const { i18n } = useTranslation();
+    const account = useAtomValue(cloudAccountAtom);
+    const stage = useAtomValue(coachIntroAtom).entry ?? "knows";
+    const say = useRef({ account, stage, lang: "de" as "de" | "en" });
+    say.current = { account, stage, lang: i18n.language.startsWith("en") ? "en" : "de" };
     const engines = useAtomValue(enginesAtom);
     const engine = useMemo(() => findStockfish(engines), [engines]);
     const [comment, setComment] = useState<CoachComment | null>(null);
@@ -118,6 +138,34 @@ export function useCoachCommentary(
                 Math.abs(after.value) === 1 &&
                 normalizeScore(after, humanColor) < 0;
             const reaction = reactionFor(annotation, allowsMateInOne, opening !== null);
+            const engineMove0 = preBest.sanMoves[0] ?? null;
+            const beforeText = evalText(preBest.score.value, humanColor);
+            const afterText = evalText(postBest.score.value, humanColor);
+            const followLine = postBest.sanMoves.slice(0, 6);
+            const motifs = explainMotifs({ allowsMateInOne, sacrifice: post.is_sacrifice });
+            // Claude formuliert den Satz zum Zug; die Partie wartet darauf
+            let text: string | null = null;
+            const { account: acc, stage: st, lang } = say.current;
+            if (acc) {
+                text = await withTimeout(
+                    askCoachExplain({
+                        mode: "say",
+                        fen: before.fen,
+                        move: last.san ?? "",
+                        best: engineMove0 && engineMove0 !== last.san ? engineMove0 : null,
+                        line: followLine,
+                        before: beforeText,
+                        after: afterText,
+                        mark: REACTION_SIGN[reaction] || (reaction === "book" ? "book" : "solid"),
+                        motifs,
+                        stage: st,
+                        lang,
+                        opening,
+                    }).catch(() => null),
+                    SAY_TIMEOUT_MS,
+                );
+            }
+            if (cancelled()) return;
             const engineMove = preBest.sanMoves[0] ?? null;
             const bestScore = normalizeScore(preBest.score.value, humanColor);
             const solutions = pre.best
@@ -136,11 +184,13 @@ export function useCoachCommentary(
                 best: engineMove && engineMove !== last.san ? engineMove : null,
                 fen: before.fen,
                 solutions,
-                before: evalText(preBest.score.value, humanColor),
-                after: evalText(postBest.score.value, humanColor),
-                line: postBest.sanMoves.slice(0, 6),
-                motifs: explainMotifs({ allowsMateInOne, sacrifice: post.is_sacrifice }),
+                before: beforeText,
+                after: afterText,
+                line: followLine,
+                motifs,
                 opening,
+                fenAfter: last.fen,
+                text,
             }));
         })()
             .catch(() => {})
@@ -161,5 +211,8 @@ export function useCoachCommentary(
     }, [line.length]);
     useEffect(() => stopAll, []);
 
-    return line.length <= 1 ? null : comment;
+    return {
+        comment: line.length <= 1 ? null : comment,
+        enabled: active && !!engine && !!humanColor,
+    };
 }
