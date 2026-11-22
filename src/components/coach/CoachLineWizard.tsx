@@ -3,6 +3,7 @@ import {
   Badge,
   Box,
   Button,
+  Chip,
   Group,
   Loader,
   Modal,
@@ -33,6 +34,13 @@ import {
 import { mergeLine } from "@/utils/repertoireTree";
 import type { TreeNode } from "@/utils/treeReducer";
 import CoachFigure from "./CoachFigure";
+import {
+  coachLineToolsAtom,
+  EnginePanel,
+  LichessPanel,
+  type LineTool,
+  RepertoireTreePanel,
+} from "./CoachLineTools";
 import { coachDiaryAtom } from "./coachDiary";
 import {
   coachLineWizardAtom,
@@ -87,7 +95,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal opened onClose={onClose} size="xl" title={t("Coach.NewLine.Title")} centered>
+    <Modal opened onClose={onClose} size={1040} title={t("Coach.NewLine.Title")} centered>
       <Stepper active={step} size="sm" allowNextStepsSelect={false} onStepClick={setStep}>
         <Stepper.Step label={t("Coach.NewLine.Step.Choose")}>
           <ChooseStep
@@ -330,110 +338,157 @@ export function TryStep({
     ? sanToSquares(playLine(moves.slice(0, -1))?.fen ?? "", moves.at(-1)!)
     : null;
   const newMoves = moves.length - known;
+  const [tools, setTools] = useAtom(coachLineToolsAtom);
+
+  const play = (san: string) => setMoves([...moves, san]);
 
   return (
-    <Group align="flex-start" wrap="wrap" gap="lg" mt="md">
-      <Box w={340} h={340} style={{ flexShrink: 0 }}>
-        <Chessground
-          key={moves.join(" ")}
-          coordinates
-          orientation={target.color}
-          turnColor={turn}
-          fen={fen}
-          lastMove={last ? (last as Key[]) : undefined}
-          movable={{
-            free: false,
-            color: turn,
-            dests: dests as never,
-            showDests: true,
-            events: {
-              after: (orig, dest) => {
-                const san = squaresToSan(fen, orig, dest);
-                if (san) setMoves([...moves, san]);
-              },
-            },
-          }}
-        />
-      </Box>
-      <Stack gap="sm" style={{ flex: "1 1 260px", minWidth: 0 }}>
-        <Say>
-          {mine
-            ? inRepertoire.length
-              ? t("Coach.NewLine.Say.YourMoveKnown")
-              : t("Coach.NewLine.Say.YourMove")
-            : t("Coach.NewLine.Say.TheirMove")}
-        </Say>
-        <Alert color="blue" variant="light" p="xs">
-          <Text size="xs">{t("Coach.NewLine.OnlyTrying")}</Text>
-        </Alert>
-        <Box>
-          <Text size="xs" c="dimmed">
-            {t("Coach.NewLine.YourLine")}
-          </Text>
-          {moves.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {t("Coach.NewLine.FromStart")}
-            </Text>
-          ) : (
-            <Text size="sm">
-              <Text span c="dimmed">
-                {lineText(moves.slice(0, known))}
-              </Text>{" "}
-              <Text span fw={700} c="orange">
-                {lineText(moves.slice(known), known)}
-              </Text>
-            </Text>
-          )}
-        </Box>
-        {inRepertoire.length > 0 && (
-          <Group gap={4} wrap="wrap">
-            <Text size="xs" c="dimmed">
-              {t("Coach.NewLine.InRepertoire")}
-            </Text>
-            {inRepertoire.map((san) => (
-              <Button
-                key={san}
-                size="compact-xs"
-                variant="light"
-                color="gray"
-                onClick={() => setMoves([...moves, san])}
-              >
-                {san}
-              </Button>
-            ))}
+    <Stack gap="md" mt="md">
+      <Say>
+        {mine
+          ? inRepertoire.length
+            ? t("Coach.NewLine.Say.YourMoveKnown")
+            : t("Coach.NewLine.Say.YourMove")
+          : t("Coach.NewLine.Say.TheirMove")}
+      </Say>
+      <Group align="flex-start" wrap="wrap" gap="lg">
+        <Stack gap="xs" style={{ flexShrink: 0 }}>
+          <Box w={360} h={360}>
+            <Chessground
+              key={moves.join(" ")}
+              coordinates
+              orientation={target.color}
+              turnColor={turn}
+              fen={fen}
+              lastMove={last ? (last as Key[]) : undefined}
+              movable={{
+                free: false,
+                color: turn,
+                dests: dests as never,
+                showDests: true,
+                events: {
+                  after: (orig, dest) => {
+                    const san = squaresToSan(fen, orig, dest);
+                    if (san) play(san);
+                  },
+                },
+              }}
+            />
+          </Box>
+          <Group gap="xs" justify="center">
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<IconArrowBackUp size={14} />}
+              disabled={moves.length === 0}
+              onClick={() => setMoves(moves.slice(0, -1))}
+            >
+              {t("Coach.NewLine.Undo")}
+            </Button>
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<IconRefresh size={14} />}
+              onClick={() => setMoves(start)}
+            >
+              {t("Coach.NewLine.Restart")}
+            </Button>
           </Group>
-        )}
-        <Group gap="xs">
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconArrowBackUp size={14} />}
-            disabled={moves.length === 0}
-            onClick={() => setMoves(moves.slice(0, -1))}
-          >
-            {t("Coach.NewLine.Undo")}
-          </Button>
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconRefresh size={14} />}
-            onClick={() => setMoves(start)}
-          >
-            {t("Coach.NewLine.Restart")}
-          </Button>
-        </Group>
-        <Group justify="space-between" mt="sm">
-          <Button variant="subtle" color="gray" onClick={onBack}>
-            {t("Coach.NewLine.Back")}
-          </Button>
-          <Button color="orange" disabled={newMoves === 0} onClick={onNext}>
-            {newMoves === 0
-              ? t("Coach.NewLine.NothingNew")
-              : t("Coach.NewLine.ToConfirm", { count: newMoves })}
-          </Button>
-        </Group>
-      </Stack>
-    </Group>
+        </Stack>
+        <Stack gap="sm" style={{ flex: "1 1 300px", minWidth: 0 }}>
+          <Paper withBorder radius="md" p="sm">
+            <Text size="xs" c="dimmed" fw={600} tt="uppercase">
+              {t("Coach.NewLine.YourLine")}
+            </Text>
+            {moves.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                {t("Coach.NewLine.FromStart")}
+              </Text>
+            ) : (
+              <Text size="sm">
+                <Text span c="dimmed">
+                  {lineText(moves.slice(0, known))}
+                </Text>{" "}
+                <Text span fw={700} c="orange">
+                  {lineText(moves.slice(known), known)}
+                </Text>
+              </Text>
+            )}
+            <Text size="xs" c="dimmed" mt={4}>
+              {t("Coach.NewLine.Legend")}
+            </Text>
+            {inRepertoire.length > 0 && (
+              <Group gap={4} wrap="wrap" mt={6}>
+                <Text size="xs" c="dimmed">
+                  {t("Coach.NewLine.InRepertoire")}
+                </Text>
+                {inRepertoire.map((san) => (
+                  <Button
+                    key={san}
+                    size="compact-xs"
+                    variant="light"
+                    color="gray"
+                    onClick={() => play(san)}
+                  >
+                    {san}
+                  </Button>
+                ))}
+              </Group>
+            )}
+          </Paper>
+          <Chip.Group multiple value={tools} onChange={(v) => setTools(v as LineTool[])}>
+            <Group gap={6}>
+              <Chip size="xs" value="tree" color="orange">
+                {t("Coach.NewLine.Tools.Tree")}
+              </Chip>
+              <Chip size="xs" value="engine" color="orange">
+                {t("Coach.NewLine.Tools.Engine")}
+              </Chip>
+              <Chip size="xs" value="lichess" color="orange">
+                {t("Coach.NewLine.Tools.Lichess")}
+              </Chip>
+            </Group>
+          </Chip.Group>
+          {tools.includes("tree") && (
+            <Paper withBorder radius="md" p="sm">
+              <Text size="xs" c="dimmed" fw={600} tt="uppercase" mb={4}>
+                {t("Coach.NewLine.Tools.TreeTitle", { name: target.name })}
+              </Text>
+              <RepertoireTreePanel root={target.root} current={moves} onPick={setMoves} />
+            </Paper>
+          )}
+          {tools.includes("engine") && fen && (
+            <Paper withBorder radius="md" p="sm">
+              <Text size="xs" c="dimmed" fw={600} tt="uppercase" mb={4}>
+                {t("Coach.NewLine.Tools.EngineTitle")}
+              </Text>
+              <EnginePanel fen={fen} onPlay={play} />
+            </Paper>
+          )}
+          {tools.includes("lichess") && fen && (
+            <Paper withBorder radius="md" p="sm">
+              <Text size="xs" c="dimmed" fw={600} tt="uppercase" mb={4}>
+                {t("Coach.NewLine.Tools.LichessTitle")}
+              </Text>
+              <LichessPanel fen={fen} onPlay={play} />
+            </Paper>
+          )}
+        </Stack>
+      </Group>
+      <Alert color="blue" variant="light" p="xs">
+        <Text size="xs">{t("Coach.NewLine.OnlyTrying")}</Text>
+      </Alert>
+      <Group justify="space-between">
+        <Button variant="subtle" color="gray" onClick={onBack}>
+          {t("Coach.NewLine.Back")}
+        </Button>
+        <Button color="orange" disabled={newMoves === 0} onClick={onNext}>
+          {newMoves === 0
+            ? t("Coach.NewLine.NothingNew")
+            : t("Coach.NewLine.ToConfirm", { count: newMoves })}
+        </Button>
+      </Group>
+    </Stack>
   );
 }
 
