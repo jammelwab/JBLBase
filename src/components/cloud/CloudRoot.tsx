@@ -9,6 +9,7 @@ import { cloudAccountAtom, signedInBefore, startCloudSync } from "@/utils/cloud/
 import { linkLichess, loginScreenOpenAtom, loginSkipped } from "./cloudUi";
 import ConsentGate from "./ConsentGate";
 import LoginScreen from "./LoginScreen";
+import ProfileClaim from "./ProfileClaim";
 
 /**
  * App-wide part of the JBLBase account: starts the sync, shows the sign-in
@@ -72,6 +73,7 @@ export default function CloudRoot() {
     <>
       <LoginScreen />
       <ConsentGate />
+      <ProfileClaim />
     </>
   );
 }

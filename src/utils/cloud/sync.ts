@@ -15,6 +15,7 @@ import {
 } from "@/components/files/file";
 import { evalCloudSyncAtom, reloadTrainingDecks } from "@/state/atoms";
 import { getDocumentDir } from "@/utils/directories";
+import { applyProfile, initProfiles, profileReadyFor } from "@/utils/profile";
 import { DEFAULT_MAIN_OWNER, getMainOwner } from "@/utils/mainOwner";
 import { bumpRepertoires } from "@/utils/repertoires";
 import {
@@ -708,6 +709,8 @@ async function runSync(uid: string) {
 /** Syncs now (or right after a sync that is already running). */
 export function syncNow(): Promise<void> {
     if (!currentUid || held) return Promise.resolve();
+    // Erst abgleichen, wenn das Profil zum Konto passt (1.2.13)
+    if (!profileReadyFor(currentUid)) return Promise.resolve();
     if (running) {
         again = true;
         return running;
@@ -802,6 +805,7 @@ let active: (() => void) | null = null;
 
 export function startCloudSync(force = false): () => void {
     if (active) return () => {};
+    initProfiles(signedInBefore());
     if (!signedInBefore() && !force) return () => {};
 
     let stopped = false;
@@ -812,8 +816,11 @@ export function startCloudSync(force = false): () => void {
             else localStorage.removeItem(SIGNED_IN_KEY);
         } catch {}
         const before = getDefaultStore().get(cloudAccountAtom);
+        // Jedes Konto hat sein eigenes Profil: passt es nicht, wechselt die
+        // App (und lädt neu) oder fragt erst, bevor abgeglichen wird.
+        const ready = applyProfile(account ? { uid: account.uid, email: account.email } : null);
         getDefaultStore().set(cloudAccountAtom, account);
-        setSyncAccount(account?.uid ?? null);
+        setSyncAccount(ready ? (account?.uid ?? null) : null);
         // A confirmed e-mail address may open the cloud (allowlist): sync again.
         if (
             account?.emailVerified &&

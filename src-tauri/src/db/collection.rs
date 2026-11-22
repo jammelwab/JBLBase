@@ -52,9 +52,7 @@ fn matching_ids(db: &Connection, query: &GameQuery) -> Result<Vec<i32>, Error> {
     } else {
         clauses.join(" AND ")
     };
-    let mut stmt = db.prepare(&format!(
-        "SELECT id FROM games WHERE {filter} ORDER BY id"
-    ))?;
+    let mut stmt = db.prepare(&format!("SELECT id FROM games WHERE {filter} ORDER BY id"))?;
     let ids = stmt
         .query_map([], |row| row.get(0))?
         .collect::<Result<Vec<_>, _>>()?;

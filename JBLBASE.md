@@ -695,6 +695,15 @@ Kostenbremse und Rollen. Beschreibung in `firebase/README.md`, die Schritte
 in der Konsole in `firebase/SETUP.md`. Ohne Anmeldung ändert sich an der App
 nichts.
 
+### Ein Profil pro Konto (ab 1.2.13)
+
+Jedes Konto hat sein eigenes Profil auf dem Gerät. Zum Profil gehört alles, was dem Spieler gehört: die Einstellungen und Stände der App (localStorage, darunter Coach, zuletzt geöffnete Dateien, Ordner-Einstellungen), der Dateien-Ordner mit Repertoires, der Datenbanken-Ordner, Training, Statistik, Puzzle-Bewertung und Sicherungen. Gemeinsam für alle Konten bleiben die Engines, die Puzzle-Datenbanken, der Analyse-Speicher und Geräte-Einstellungen wie Fenstergröße.
+
+- Der Stand von vor 1.2.13 ist das Profil `legacy` und bleibt, wo er ist (`Dokumente/JBLBase`, App-Datenordner). Er gehört dem Konto, das ihn übernimmt. War vor dem Update schon ein Konto angemeldet, fragt die App einmal: „Gehören die Daten auf diesem Gerät zu diesem Konto?“ Sonst übernimmt das erste Konto ihn ohne Frage.
+- Jedes andere Konto bekommt `Dokumente/JBLBase Konten/<Konto-Id>` und `App-Daten/profiles/u-<Konto-Id>/`. Ohne Anmeldung (nachdem der alte Stand vergeben ist) gilt das Profil `guest`.
+- Beim An- oder Abmelden mit einem anderen Konto speichert die App die Einstellungen des bisherigen Profils, lädt die des neuen und startet neu. Die Cloud gleicht erst ab, wenn das Profil zum Konto passt.
+- Code: `src/utils/profile.ts`, `src-tauri/src/profile.rs`, die Frage in `ProfileClaim.tsx`.
+
 **JBLBase-Konto** (Einstellungen → JBLBase-Konto):
 
 - Anmelden oder registrieren mit E-Mail und Passwort, mit Bestätigungsmail

@@ -323,7 +323,7 @@ pub fn restore_repertoires(
 }
 
 fn backup_dir(app: &tauri::AppHandle) -> Result<PathBuf, Error> {
-    Ok(app.path().app_data_dir()?.join(BACKUP_DIR_NAME))
+    Ok(crate::profile::active_data_dir(app)?.join(BACKUP_DIR_NAME))
 }
 
 /// Makes a backup. `daily`: the automatic one, skipped when today's exists.
