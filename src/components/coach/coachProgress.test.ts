@@ -5,6 +5,7 @@ import {
     computeReceipt,
     currentStreak,
     isoWeek,
+    clampLock,
     lockAfter,
     streakBonusPercent,
     touchStreak,
@@ -84,9 +85,12 @@ describe("Kassenzettel", () => {
     });
 
     it("sperrt nach Niederlage 3, nach Remis 1 Aufgabe", () => {
-        expect(lockAfter("loss")).toBe(3);
-        expect(lockAfter("draw")).toBe(1);
+        expect(lockAfter("loss")).toBe(1);
+        expect(lockAfter("draw")).toBe(0);
         expect(lockAfter("win")).toBe(0);
+        expect(clampLock(3, false)).toBe(1);
+        expect(clampLock(5, true)).toBe(5);
+        expect(clampLock(0, false)).toBe(0);
     });
 
     it("hat Texte für jede Zeile", () => {

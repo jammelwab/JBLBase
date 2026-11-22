@@ -138,6 +138,16 @@ export function StrengthSelect() {
       }))}
       value={strength}
       allowDeselect={false}
+      miw={190}
+      // Kein markierter Text im Feld, es ist nur eine Auswahl
+      styles={{ input: { userSelect: "none", cursor: "pointer" } }}
+      onDropdownClose={() => {
+        const el = document.activeElement;
+        if (el instanceof HTMLInputElement) {
+          el.setSelectionRange(0, 0);
+          el.blur();
+        }
+      }}
       onChange={(v) => v && setStrength(v as CoachStrengthId)}
       comboboxProps={{ withinPortal: true }}
     />

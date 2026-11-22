@@ -1,5 +1,5 @@
-import { atom, useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useMemo, useState } from "react";
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getStats } from "@/components/files/opening";
 import { useOpenRecentFile } from "@/components/tabs/useOpenRecentFile";
@@ -14,6 +14,7 @@ import type { Tab } from "@/utils/tabs";
 import { coachBossAtom } from "./coachBoss";
 import { MATE_DRILL_THEME } from "./coachEggs";
 import {
+    clampLock,
     coachLockAtom,
     coachMateDrillAtom,
     coachMistakeAtom,
@@ -67,12 +68,16 @@ export function useCoach(tabId: string) {
     const { t } = useTranslation();
     const setTabs = useSetAtom(tabsAtom);
     const day = useAtomValue(coachDayAtom);
-    const lock = useAtomValue(coachLockAtom);
+    const [storedLock, setLock] = useAtom(coachLockAtom);
     const hasMistake = useAtomValue(coachMistakeAtom) !== null;
     const streak = currentStreak(useAtomValue(coachStreakAtom), today());
     const { total: dueCount, best } = useAtomValue(repertoireDueAtom);
     const openRecentFile = useOpenRecentFile();
     const mateDrill = useAtomValue(coachMateDrillAtom);
+    const lock = clampLock(storedLock, mateDrill);
+    useEffect(() => {
+        if (lock !== storedLock) setLock(lock);
+    }, [lock, storedLock, setLock]);
     const setPuzzleTheme = useSetAtom(puzzleThemeAtom);
     const setPuzzleStart = useSetAtom(coachPuzzleStartAtom);
     const results = useAtomValue(coachResultsAtom);

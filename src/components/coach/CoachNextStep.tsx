@@ -292,7 +292,7 @@ export default function CoachNextStep({
               )}
             </Stack>
             {view.button && view.onClick && (
-              <Stack gap={6} style={{ flexShrink: 0 }} w={220}>
+              <Stack gap={6} style={{ flexShrink: 0 }} miw={220}>
                 {step === "play" && <StrengthSelect />}
                 <Button
                   size="md"
@@ -396,7 +396,7 @@ function CoachPathSteps({ coach }: { coach: Coach }) {
             </Box>
           )}
         </Stack>
-        <Stack gap={6} style={{ flexShrink: 0 }} w={220}>
+        <Stack gap={6} style={{ flexShrink: 0 }} miw={220}>
           {current.id === "play" && <StrengthSelect />}
           {now.button && now.onClick && (
             <Button

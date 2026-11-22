@@ -88,14 +88,21 @@ export function streakBonusPercent(days: number): number {
 
 // ---------- Sperre ----------
 
-// Aufgaben, die nach einer Niederlage (3) oder einem Remis (1) noch fehlen,
-// bevor man wieder gegen JBL spielen darf.
+// Aufgaben, die nach einer Niederlage noch fehlen, bevor man wieder gegen JBL
+// spielen darf (seit 1.2.18 eine; ein Remis sperrt nicht).
 export const coachLockAtom = atomWithStorage<number>("jbl-coach-lock", 0);
+// Ältere Sperren (bis 1.2.17 drei Aufgaben) auf die neue Länge kürzen; die
+// Matt-Strafe (Easter Egg) bleibt, wie sie ist
+export function clampLock(lock: number, mateDrill: boolean): number {
+    return mateDrill ? lock : Math.min(lock, 1);
+}
 // Die Aufgaben der Sperre sind Matt-in-1-Puzzles (Easter Egg für Aaron)
 export const coachMateDrillAtom = atomWithStorage<boolean>("jbl-coach-mate-drill", false);
 
+export const LOSS_LOCK = 1;
+
 export function lockAfter(result: "win" | "draw" | "loss"): number {
-    return result === "loss" ? 3 : result === "draw" ? 1 : 0;
+    return result === "loss" ? LOSS_LOCK : 0;
 }
 
 // ---------- Kassenzettel ----------
