@@ -188,6 +188,15 @@ export default function CoachGamePanel({
         return;
       }
     }
+    // Theorie und solide Züge: kurzer Kommentar, kein Zeichen, kein Ton
+    if (comment.reaction === "book" || comment.reaction === "solid") {
+      const extra =
+        comment.reaction === "book" && comment.opening
+          ? t("Coach.Line.BookName", { name: comment.opening })
+          : "";
+      deliver(REACTION_ANIMATION[comment.reaction], comment.reaction, null, extra);
+      return;
+    }
     if (comment.reaction === "good") stats.current.goods++;
     marks.current[comment.ply] = REACTION_SIGN[comment.reaction];
     if (comment.reaction === "blunder" || comment.reaction === "missedMate")

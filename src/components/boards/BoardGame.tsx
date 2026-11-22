@@ -30,6 +30,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "r
 import { useTranslation } from "react-i18next";
 import { match } from "ts-pattern";
 import { useStore } from "zustand";
+import type { Annotation } from "@/utils/annotation";
 import type { Outcome } from "@/bindings";
 import {
   commands,
@@ -71,7 +72,12 @@ import EditingCard from "./EditingCard";
 import { OpponentForm, type OpponentSettings } from "./OpponentForm";
 import CoachGameSetup from "@/components/coach/CoachGameSetup";
 import CoachGamePanel from "@/components/coach/CoachGamePanel";
-import { findStockfish, jblEngineSetup, jblEngineSettings } from "@/components/coach/coachGame";
+import {
+  findStockfish,
+  jblEngineSetup,
+  jblEngineSettings,
+  REACTION_SIGN,
+} from "@/components/coach/coachGame";
 import {
   BOSS_ELO,
   BOSS_NAME,
@@ -252,6 +258,16 @@ function BoardGame() {
     coachHumanColor,
     isCoachGame && gameState === "playing",
   );
+  // Das Zeichen des Coaches (!!, ?, ...) steht auch in der Zugliste
+  const setAnnotationAt = useStore(store, (s) => s.setAnnotationAt);
+  useEffect(() => {
+    if (!coachComment) return;
+    const sign = REACTION_SIGN[coachComment.reaction];
+    if (!sign) return;
+    const depth = coachComment.ply - root.halfMoves;
+    if (depth > 0) setAnnotationAt(Array(depth).fill(0), sign as Annotation);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachComment?.id]);
   const lastPly = useMemo(() => {
     let n = root;
     while (n.children.length > 0) n = n.children[0];

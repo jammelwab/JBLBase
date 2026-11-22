@@ -30,6 +30,8 @@ export type CoachComment = {
     after: string;
     line: string[];
     motifs: string[];
+    // Name der Eröffnung, wenn der Zug Theorie ist
+    opening: string | null;
 };
 
 // Zweitbester Zug zählt mit, wenn er höchstens so viel schlechter ist.
@@ -37,8 +39,8 @@ const SOLUTION_MARGIN_CP = 30;
 
 let runs = 0;
 
-// Bewertet jeden neuen Zug des Spielers und meldet eine Reaktion, wenn er
-// auffällt (!!, !, !?, ?!, ?, ?? oder Matt in 1 zugelassen).
+// Bewertet jeden neuen Zug des Spielers: Theorie, solide, oder ein Zeichen
+// (!!, !, !?, ?!, ?, ??, Matt in 1 zugelassen).
 export function useCoachCommentary(
     root: TreeNode,
     humanColor: "white" | "black" | null,
@@ -48,6 +50,8 @@ export function useCoachCommentary(
     const engine = useMemo(() => findStockfish(engines), [engines]);
     const [comment, setComment] = useState<CoachComment | null>(null);
     const checked = useRef(new Set<string>());
+    const running = useRef(new Set<string>());
+    const generation = useRef(0);
 
     // Hauptlinie als Liste der Knoten
     const line = useMemo(() => {
@@ -72,9 +76,15 @@ export function useCoachCommentary(
         if (checked.current.has(key)) return;
         checked.current.add(key);
 
-        let cancelled = false;
+        // Die Prüfung läuft weiter, auch wenn JBL schon geantwortet hat; nur
+        // eine neue Partie oder das Schließen bricht sie ab.
         const runId = `coach_comment_${++runs}`;
+        const gen = generation.current;
+        running.current.add(runId);
+        const cancelled = () => gen !== generation.current;
         (async () => {
+            const book = await commands.getOpeningFromFen(last.fen).catch(() => null);
+            const opening = book?.status === "ok" ? book.data : null;
             const res = await commands.analyzeGame(
                 runId,
                 engine.path,
@@ -88,7 +98,7 @@ export function useCoachCommentary(
                 },
                 [{ name: "MultiPV", value: "2" }],
             );
-            if (cancelled || res.status !== "ok" || res.data.length < 2) return;
+            if (cancelled() || res.status !== "ok" || res.data.length < 2) return;
             const [pre, post] = res.data;
             const preBest = pre.best[0];
             const postBest = post.best[0];
@@ -107,8 +117,7 @@ export function useCoachCommentary(
                 after.type === "mate" &&
                 Math.abs(after.value) === 1 &&
                 normalizeScore(after, humanColor) < 0;
-            const reaction = reactionFor(annotation, allowsMateInOne);
-            if (!reaction) return;
+            const reaction = reactionFor(annotation, allowsMateInOne, opening !== null);
             const engineMove = preBest.sanMoves[0] ?? null;
             const bestScore = normalizeScore(preBest.score.value, humanColor);
             const solutions = pre.best
@@ -131,19 +140,26 @@ export function useCoachCommentary(
                 after: evalText(postBest.score.value, humanColor),
                 line: postBest.sanMoves.slice(0, 6),
                 motifs: explainMotifs({ allowsMateInOne, sacrifice: post.is_sacrifice }),
+                opening,
             }));
-        })().catch(() => {});
-
-        return () => {
-            cancelled = true;
-            commands.cancelAnalysis(runId).catch(() => {});
-        };
+        })()
+            .catch(() => {})
+            .finally(() => running.current.delete(runId));
     }, [active, engine, humanColor, line]);
 
-    // Neue Partie: alles vergessen
+    // Neue Partie oder Ende: laufende Prüfungen abbrechen, alles vergessen
+    const stopAll = () => {
+        generation.current++;
+        for (const id of running.current) commands.cancelAnalysis(id).catch(() => {});
+        running.current.clear();
+    };
     useEffect(() => {
-        if (line.length <= 1) checked.current.clear();
+        if (line.length <= 1) {
+            checked.current.clear();
+            stopAll();
+        }
     }, [line.length]);
+    useEffect(() => stopAll, []);
 
     return line.length <= 1 ? null : comment;
 }

@@ -64,6 +64,8 @@ export interface TreeStoreState extends TreeState {
     setStart: (start: number[]) => void;
 
     setAnnotation: (payload: Annotation) => void;
+    // Zeichen an einem bestimmten Zug setzen (ersetzt ein anderes der gleichen Gruppe)
+    setAnnotationAt: (path: number[], payload: Annotation) => void;
     setComment: (payload: string) => void;
     setHeaders: (payload: GameHeaders) => void;
     setResult: (payload: Outcome) => void;
@@ -443,6 +445,22 @@ export const createTreeStore = (id?: string, initialTree?: TreeState) => {
                             );
                         }
                     }
+                }),
+            ),
+        setAnnotationAt: (path, payload) =>
+            set(
+                produce((state) => {
+                    const node = getNodeAtPath(state.root, path);
+                    if (!node || node.annotations.includes(payload)) return;
+                    state.dirty = true;
+                    const kept = node.annotations.filter(
+                        (a) =>
+                            !ANNOTATION_INFO[a].group ||
+                            ANNOTATION_INFO[a].group !== ANNOTATION_INFO[payload].group,
+                    );
+                    node.annotations = [...kept, payload].sort((a, b) =>
+                        ANNOTATION_INFO[a].nag > ANNOTATION_INFO[b].nag ? 1 : -1,
+                    );
                 }),
             ),
         setComment: (payload) =>

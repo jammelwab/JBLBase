@@ -24,7 +24,8 @@ export default function CoachWhy({ comment }: { comment: CoachComment | null }) 
     text?: string;
     error?: ExplainError;
   } | null>(null);
-  if (!comment || !account) return null;
+  // Theorie und solide Züge haben kein Zeichen: da gibt es nichts zu erklären
+  if (!comment || !account || !REACTION_SIGN[comment.reaction]) return null;
 
   const sign = REACTION_SIGN[comment.reaction];
   const lang = i18n.language.startsWith("en") ? "en" : "de";

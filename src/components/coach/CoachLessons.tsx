@@ -5,6 +5,7 @@ import {
   Card,
   Group,
   Modal,
+  Progress,
   SimpleGrid,
   Stack,
   Text,
@@ -12,9 +13,9 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import type { Key } from "@lichess-org/chessground/types";
-import { IconCheck, IconLock, IconMedal } from "@tabler/icons-react";
+import { IconCircleCheck, IconLock, IconMedal } from "@tabler/icons-react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, sanToSquares } from "@/utils/gamesTree";
@@ -48,53 +49,103 @@ export default function CoachLessons() {
   const [announced, setAnnounced] = useAtom(coachLessonAnnouncedAtom);
   const lesson = LESSONS.find((l) => l.id === open) ?? null;
 
+  // Die erste freie, noch nicht gemachte Lektion: „Weiter mit …“
+  const nextIndex = LESSONS.findIndex((l, i) => i < unlocked && !done.includes(l.id));
+  const next = nextIndex >= 0 ? LESSONS[nextIndex] : null;
+  const start = (id: string) => {
+    // Wer eine Lektion öffnet, hat die Meldung gesehen
+    if (announced < unlocked) setAnnounced(unlocked);
+    setOpen(id);
+  };
+
   return (
     <>
-      <Group justify="space-between" align="baseline">
-        <Title order={3}>{t("Coach.Lessons.Title")}</Title>
-        <Text size="sm" c="dimmed">
-          {t("Coach.Lessons.Progress", { done: done.length, total: LESSONS.length })}
-        </Text>
-      </Group>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} data-tour="coach-lessons">
-        {LESSON_PATHS.map((path) => (
-          <Card key={path} withBorder radius="md" p="md">
-            <Text fw={600} mb={6}>
-              {t(`Coach.Lessons.Path.${path}`)}
+      <Title order={3}>{t("Coach.Lessons.Title")}</Title>
+      <Card withBorder radius="md" p={0} data-tour="coach-lessons">
+        <Group justify="space-between" gap="md" px="lg" py="md" wrap="wrap">
+          <Box style={{ flex: "1 1 240px", minWidth: 0 }}>
+            <Text fw={600}>
+              {next
+                ? t("Coach.Lessons.Continue", {
+                    n: nextIndex + 1,
+                    name: t(`Coach.Lesson.${next.id}.Title`),
+                  })
+                : done.length >= LESSONS.length
+                  ? t("Coach.Lessons.AllDone")
+                  : t("Coach.Lessons.WaitLevel")}
             </Text>
-            <Stack gap={6}>
-              {LESSONS.map((l, i) => ({ l, i }))
-                .filter(({ l }) => l.path === path)
-                .map(({ l, i }) => {
+            <Progress
+              mt={8}
+              size="sm"
+              radius="xl"
+              color="orange"
+              value={(done.length / LESSONS.length) * 100}
+              aria-label={t("Coach.Lessons.Title")}
+            />
+            <Text size="xs" c="dimmed" mt={2}>
+              {t("Coach.Lessons.Progress", { done: done.length, total: LESSONS.length })}
+            </Text>
+          </Box>
+          {next && (
+            <Button radius="md" variant="light" color="orange" onClick={() => start(next.id)}>
+              {t("Coach.Step.lesson.Button")}
+            </Button>
+          )}
+        </Group>
+        {LESSON_PATHS.map((path) => {
+          const items = LESSONS.map((l, i) => ({ l, i })).filter(({ l }) => l.path === path);
+          const pathDone = items.filter(({ l }) => done.includes(l.id)).length;
+          return (
+            <Group
+              key={path}
+              gap="md"
+              px="lg"
+              py="sm"
+              wrap="wrap"
+              align="center"
+              style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
+            >
+              <Box w={160}>
+                <Text fw={600} size="sm">
+                  {t(`Coach.Lessons.Path.${path}`)}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {pathDone} / {items.length}
+                </Text>
+              </Box>
+              <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="xs" style={{ flex: "1 1 460px" }}>
+                {items.map(({ l, i }) => {
                   const isDone = done.includes(l.id);
                   const locked = i >= unlocked;
+                  const isNext = i === nextIndex;
                   return (
                     <UnstyledButton
                       key={l.id}
                       disabled={locked}
-                      onClick={() => {
-                        // Wer eine Lektion öffnet, hat die Meldung gesehen
-                        if (announced < unlocked) setAnnounced(unlocked);
-                        setOpen(l.id);
-                      }}
-                      p={8}
+                      onClick={() => start(l.id)}
+                      px="sm"
+                      py={6}
+                      mih={52}
                       style={{
-                        borderRadius: "var(--mantine-radius-sm)",
-                        border: "1px solid var(--mantine-color-default-border)",
-                        opacity: locked ? 0.55 : 1,
+                        borderRadius: "var(--mantine-radius-md)",
+                        border: `1px solid ${isNext ? "var(--mantine-color-orange-6)" : "var(--mantine-color-default-border)"}`,
+                        opacity: locked ? 0.5 : 1,
                         cursor: locked ? "not-allowed" : "pointer",
                       }}
                     >
-                      <Group gap={8} wrap="nowrap">
+                      <Group gap={10} wrap="nowrap" h="100%">
                         {isDone ? (
-                          <IconCheck size={18} color="var(--mantine-color-teal-6)" />
+                          <IconCircleCheck size={20} color="var(--mantine-color-teal-6)" />
                         ) : locked ? (
-                          <IconLock size={18} />
+                          <IconLock size={20} />
                         ) : (
-                          <IconMedal size={18} color="var(--mantine-color-orange-6)" />
+                          <IconMedal
+                            size={20}
+                            color={isNext ? "var(--mantine-color-orange-6)" : undefined}
+                          />
                         )}
                         <Box style={{ minWidth: 0 }}>
-                          <Text size="sm" fw={500}>
+                          <Text size="sm" fw={500} lineClamp={2} lh={1.3}>
                             {t("Coach.Lessons.Number", { n: i + 1 })}{" "}
                             {t(`Coach.Lesson.${l.id}.Title`)}
                           </Text>
@@ -108,16 +159,19 @@ export default function CoachLessons() {
                     </UnstyledButton>
                   );
                 })}
-            </Stack>
-          </Card>
-        ))}
-      </SimpleGrid>
+              </SimpleGrid>
+            </Group>
+          );
+        })}
+      </Card>
       <Modal
         opened={lesson !== null}
         onClose={() => setOpen(null)}
         title={lesson ? t(`Coach.Lesson.${lesson.id}.Title`) : ""}
         centered
         size="auto"
+        padding="xl"
+        styles={{ title: { fontWeight: 700, fontSize: "var(--mantine-font-size-xl)" } }}
       >
         {lesson && <LessonView key={lesson.id} lesson={lesson} onClose={() => setOpen(null)} />}
       </Modal>
@@ -125,7 +179,77 @@ export default function CoachLessons() {
   );
 }
 
-const BOARD = 320;
+const BOARD = 480;
+
+// Lektions-Popup: links JBL mit Sprechblase, der alles erklärt, rechts das Brett.
+function LessonFrame({
+  figure,
+  say,
+  tone = "default",
+  actions,
+  top,
+  children,
+}: {
+  figure?: Ref<CoachFigureHandle>;
+  say: ReactNode;
+  tone?: "default" | "right" | "wrong";
+  actions?: ReactNode;
+  top?: ReactNode;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const border =
+    tone === "right"
+      ? "var(--mantine-color-teal-6)"
+      : tone === "wrong"
+        ? "var(--mantine-color-orange-6)"
+        : "var(--mantine-color-default-border)";
+  return (
+    <Group wrap="wrap" align="stretch" gap="xl" justify="center">
+      <Stack w={300} gap="md" justify="space-between">
+        <Stack gap={0}>
+          {top}
+          <Box
+            pos="relative"
+            p="md"
+            mt={top ? "sm" : 0}
+            style={{
+              border: `2px solid ${border}`,
+              borderRadius: "var(--mantine-radius-lg)",
+              background: "var(--mantine-color-body)",
+            }}
+            aria-live="polite"
+          >
+            <Text size="md" lh={1.5}>
+              {say}
+            </Text>
+            {/* Spitze der Sprechblase zu JBL hin */}
+            <Box
+              pos="absolute"
+              left={60}
+              bottom={-11}
+              w={18}
+              h={18}
+              style={{
+                background: "var(--mantine-color-body)",
+                borderRight: `2px solid ${border}`,
+                borderBottom: `2px solid ${border}`,
+                transform: "rotate(45deg)",
+              }}
+            />
+          </Box>
+          <Box mt="lg" style={{ lineHeight: 0 }}>
+            <CoachFigure ref={figure} size={170} title={t("Coach.Card.Title")} />
+          </Box>
+        </Stack>
+        {actions && <Stack gap="xs">{actions}</Stack>}
+      </Stack>
+      <Box w={BOARD} h={BOARD} style={{ flexShrink: 0 }}>
+        {children}
+      </Box>
+    </Group>
+  );
+}
 
 function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }) {
   const { t } = useTranslation();
@@ -154,33 +278,30 @@ function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }
     const ex = lesson.example;
     const turn = ex.fen.split(" ")[1] === "b" ? "black" : "white";
     return (
-      <Stack gap="sm" maw={BOARD + 40} align="center">
-        <Group wrap="nowrap" align="flex-start" gap="sm">
-          <CoachFigure size={56} title={t("Coach.Card.Title")} />
-          <Text size="sm">{t(`Coach.Lesson.${lesson.id}.Text`)}</Text>
-        </Group>
-        <Box w={BOARD} h={BOARD}>
-          <Chessground
-            coordinates={false}
-            viewOnly
-            fen={ex.fen}
-            orientation={turn}
-            drawable={{ enabled: false, visible: true, autoShapes: arrowShapes(ex.arrows) }}
-          />
-        </Box>
-        <Group>
-          <Button color="orange" radius="md" onClick={() => setStep(0)}>
+      <LessonFrame
+        figure={figure}
+        say={t(`Coach.Lesson.${lesson.id}.Text`)}
+        actions={
+          <Button color="orange" radius="md" size="md" onClick={() => setStep(0)}>
             {t("Coach.Lessons.Start")}
           </Button>
-        </Group>
-      </Stack>
+        }
+      >
+        <Chessground
+          coordinates={false}
+          viewOnly
+          fen={ex.fen}
+          orientation={turn}
+          drawable={{ enabled: false, visible: true, autoShapes: arrowShapes(ex.arrows) }}
+        />
+      </LessonFrame>
     );
   }
 
   if (finished)
     return (
-      <Stack gap="sm" align="center" maw={BOARD + 40}>
-        <CoachFigure ref={figure} size={110} title={t("Coach.Card.Title")} />
+      <Stack gap="sm" align="center" justify="center" w={BOARD + 340} mih={BOARD}>
+        <CoachFigure ref={figure} size={180} title={t("Coach.Card.Title")} />
         <Text fw={600}>
           {t("Coach.Lessons.Done", { name: t(`Coach.Lesson.${lesson.id}.Title`) })}
         </Text>
@@ -214,6 +335,13 @@ function LessonTaskView({
   const [state, setState] = useState<"open" | "wrong" | "right" | "shown">("open");
   const [resetKey, setResetKey] = useState(0);
   const arrow = state === "shown" ? sanToSquares(task.fen, task.solutions[0]) : null;
+  const figure = useRef<CoachFigureHandle>(null);
+
+  // JBL reagiert auf jeden Versuch
+  useEffect(() => {
+    if (state === "right") figure.current?.play("good");
+    else if (state === "wrong") figure.current?.play("dub");
+  }, [state, resetKey]);
 
   useEffect(() => {
     if (state !== "right") return;
@@ -228,69 +356,71 @@ function LessonTaskView({
     setResetKey((k) => k + 1);
   };
 
+  const say =
+    state === "right"
+      ? t("Coach.Lessons.Right")
+      : state === "wrong"
+        ? t("Coach.Lessons.Wrong")
+        : state === "shown"
+          ? t("Coach.Lessons.Shown")
+          : `${t(`Coach.Lessons.Turn.${turn}`)} ${t(`Coach.Lessons.Check.${lesson.check}`)}`;
+
   return (
-    <Stack gap="sm" align="center" maw={BOARD + 40}>
-      <Group gap={6}>
-        {lesson.tasks.map((_, i) => (
-          <Box
-            key={i}
-            w={10}
-            h={10}
-            style={{
-              borderRadius: 5,
-              background:
-                i < index || (i === index && state === "right")
-                  ? "var(--mantine-color-teal-6)"
-                  : i === index
-                    ? "var(--mantine-color-orange-6)"
-                    : "var(--mantine-color-gray-4)",
-            }}
-          />
-        ))}
-      </Group>
-      <Text size="sm" ta="center">
-        {t(`Coach.Lessons.Turn.${turn}`)} {t(`Coach.Lessons.Check.${lesson.check}`)}
-      </Text>
-      <Box w={BOARD} h={BOARD}>
-        <Chessground
-          key={resetKey}
-          coordinates={false}
-          viewOnly={state === "right"}
-          fen={task.fen}
-          orientation={turn}
-          turnColor={turn}
-          movable={{
-            free: false,
-            color: state === "right" ? undefined : turn,
-            dests: dests as never,
-            showDests: true,
-            events: { after: (o, d) => play(o, d) },
-          }}
-          drawable={{
-            enabled: false,
-            visible: true,
-            autoShapes: arrow ? arrowShapes([arrow]) : [],
-          }}
-        />
-      </Box>
-      <Text
-        size="sm"
-        c={state === "right" ? "teal" : state === "wrong" ? "orange" : "dimmed"}
-        aria-live="polite"
-      >
-        {state === "right"
-          ? t("Coach.Lessons.Right")
-          : state === "wrong"
-            ? t("Coach.Lessons.Wrong")
-            : state === "shown"
-              ? t("Coach.Lessons.Shown")
-              : t("Coach.Lessons.Task", { n: index + 1, total: lesson.tasks.length })}
-      </Text>
-      {state === "wrong" && (
-        <Button size="xs" variant="subtle" color="gray" onClick={() => setState("shown")}>
-          {t("Coach.Lessons.Show")}
-        </Button>
-      )}
-    </Stack>
+    <LessonFrame
+      figure={figure}
+      say={say}
+      tone={state === "right" ? "right" : state === "wrong" ? "wrong" : "default"}
+      top={
+        <Group gap={8} align="center">
+          {lesson.tasks.map((_, i) => (
+            <Box
+              key={i}
+              w={12}
+              h={12}
+              style={{
+                borderRadius: 6,
+                background:
+                  i < index || (i === index && state === "right")
+                    ? "var(--mantine-color-teal-6)"
+                    : i === index
+                      ? "var(--mantine-color-orange-6)"
+                      : "var(--mantine-color-gray-4)",
+              }}
+            />
+          ))}
+          <Text size="sm" c="dimmed">
+            {t("Coach.Lessons.Task", { n: index + 1, total: lesson.tasks.length })}
+          </Text>
+        </Group>
+      }
+      actions={
+        state === "wrong" && (
+          <Button variant="light" color="gray" radius="md" onClick={() => setState("shown")}>
+            {t("Coach.Lessons.Show")}
+          </Button>
+        )
+      }
+    >
+      <Chessground
+        key={resetKey}
+        coordinates={false}
+        viewOnly={state === "right"}
+        fen={task.fen}
+        orientation={turn}
+        turnColor={turn}
+        movable={{
+          free: false,
+          color: state === "right" ? undefined : turn,
+          dests: dests as never,
+          showDests: true,
+          events: { after: (o, d) => play(o, d) },
+        }}
+        drawable={{
+          enabled: false,
+          visible: true,
+          autoShapes: arrow ? arrowShapes([arrow]) : [],
+        }}
+      />
+    </LessonFrame>
   );
 }

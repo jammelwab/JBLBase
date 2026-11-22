@@ -50,7 +50,11 @@ describe("JBLs Kommentare", () => {
     it("ordnet Zeichen einer Reaktion zu, Matt in 1 geht vor", () => {
         expect(reactionFor("??", false)).toBe("blunder");
         expect(reactionFor("!!", false)).toBe("brilliant");
-        expect(reactionFor("", false)).toBeNull();
+        expect(reactionFor("", false)).toBe("solid");
+        expect(reactionFor("", false, true)).toBe("book");
+        expect(reactionFor("?!", false, true)).toBe("book");
+        expect(reactionFor("?", false, true)).toBe("mistake");
+        expect(reactionFor("!!", false, true)).toBe("brilliant");
         expect(reactionFor("!", true)).toBe("missedMate");
     });
 
