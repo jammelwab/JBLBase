@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { countReactions } from "./coachCloud";
-import { lineSteps, mateInFromEval, moveNumber, type ReportMove, reportMoments } from "./coachDeep";
+import {
+    lineSteps,
+    solutionMotif,
+    mateInFromEval,
+    moveNumber,
+    type ReportMove,
+    reportMoments,
+} from "./coachDeep";
 
 const move = (ply: number, reaction: ReportMove["reaction"], sign = ""): ReportMove => ({
     reaction,
@@ -58,5 +65,28 @@ describe("lineSteps", () => {
         expect(steps.map((s) => s.san)).toEqual(["e5", "Nf3", "Nc6", "Bb5"]);
         expect(steps[1]).toMatchObject({ from: "g1", to: "f3" });
         expect(lineSteps(fen, ["e5", "Qxf7"])).toHaveLength(1);
+    });
+});
+
+describe("solutionMotif", () => {
+    it("finds a fork in the found move", () => {
+        const m = solutionMotif("r3k3/8/8/3N4/8/8/8/4K3 w - - 0 1", "Nc7+", "+5.0", "Nc7+");
+        expect(m).toEqual({ id: "fork", square: "c7", mateIn: null });
+    });
+    it("finds a free piece", () => {
+        const m = solutionMotif("4k3/8/8/3n4/8/8/3Q4/4K3 w - - 0 1", "Qxd5", "+9.0", "Qxd5");
+        expect(m).toEqual({ id: "hanging", square: "d5", mateIn: null });
+    });
+    it("names a mate only for the engine's best move", () => {
+        const fen = "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1";
+        expect(solutionMotif(fen, "Ra8#", "+M1", "Ra8#")).toEqual({
+            id: "mate",
+            square: null,
+            mateIn: 1,
+        });
+        expect(solutionMotif(fen, "Kf2", "+M1", "Ra8#")).toBeNull();
+    });
+    it("stays quiet without a motif", () => {
+        expect(solutionMotif("4k3/8/8/8/8/8/8/4K2R w - - 0 1", "Kf1", "+5.0", "Kf1")).toBeNull();
     });
 });

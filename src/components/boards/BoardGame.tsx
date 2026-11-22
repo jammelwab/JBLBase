@@ -48,6 +48,7 @@ import {
 import type { ChessgroundRef } from "@/chessground/Chessground";
 import {
   activeTabAtom,
+  coachCoordinatesAtom,
   enginesAtom,
   flipBoardAfterMoveAtom,
   currentGameIdAtom,
@@ -155,6 +156,7 @@ function BoardGame() {
   // Partie gegen JBL: Gegner und Stärke kommen vom Coach, nicht aus dem Formular.
   const allTabs = useAtomValue(tabsAtom);
   const isCoachGame = allTabs.find((x) => x.value === activeTab)?.coach === true;
+  const coachCoordinates = useAtomValue(coachCoordinatesAtom);
   const coachStrength = useAtomValue(coachStrengthAtom);
   // Stärke und Rücknahmen der laufenden Coach-Partie (für den Kassenzettel)
   const [coachGameStrength, setCoachGameStrength] = useState(coachStrength);
@@ -834,6 +836,7 @@ function BoardGame() {
           selectedPiece={selectedPiece}
           cgRef={cgRef}
           enablePremoves={isPlayerVsEngine && gameState === "playing"}
+          coordinates={isCoachGame ? coachCoordinates : undefined}
         />
       </Portal>
       <Portal target="#topRight" style={{ height: "100%", overflow: "hidden" }}>

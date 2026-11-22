@@ -84,3 +84,24 @@ export function lineSteps(fenAfter: string, line: string[], max = 4): LineStep[]
     }
     return out;
 }
+
+// Taktikmotiv in der Lösung des eigenen Fehlers (1.2.14): was der richtige Zug
+// selbst macht. fen: Stellung vor dem Zug, san: der gefundene Zug, before:
+// Bewertung vorher aus Sicht des Spielers, best: der beste Zug der Engine.
+export type SolutionMotif = { id: Motif["id"]; square: string | null; mateIn: number | null };
+
+export function solutionMotif(
+    fen: string,
+    san: string,
+    before: string | undefined,
+    best: string | undefined,
+): SolutionMotif | null {
+    const mate = before ? /^\+M(\d{1,2})$/.exec(before) : null;
+    if (mate && san === best) return { id: "mate", square: null, mateIn: Number(mate[1]) };
+    // Die Erkennung sieht den Zug als Antwort des Gegners: hier ist der
+    // Spieler am Zug, also gehören die Ziele dem Gegner.
+    const m = detectMotifs(fen, [san], null)[0];
+    if (!m) return null;
+    const square = m.id === "fork" ? (m.from ?? null) : (m.targets[0] ?? null);
+    return { id: m.id, square, mateIn: null };
+}

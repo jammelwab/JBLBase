@@ -33,6 +33,7 @@ export default defineConfig({
         preservePatterns: [
             "Files.FileType.*",
             "SideBar.*",
+            "Coach.Mistake.Motif.*",
             "Insight.Phase.*",
             "Insight.Color.*",
             "Insight.Speed.*",

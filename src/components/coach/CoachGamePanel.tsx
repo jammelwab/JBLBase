@@ -275,7 +275,12 @@ export default function CoachGamePanel({
     )
       worst.current = {
         severity,
-        mistake: { fen: comment.fen, played: comment.san, solutions: comment.solutions },
+        mistake: {
+          fen: comment.fen,
+          played: comment.san,
+          solutions: comment.solutions,
+          before: comment.before,
+        },
       };
     const sign = REACTION_SIGN[comment.reaction];
     const better =
