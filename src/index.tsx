@@ -31,6 +31,8 @@ const i18nReady = i18n
   .init({
     resources: { "en-US": en_US },
     partialBundledLanguages: true,
+    // React maskiert selbst; sonst stünde "King&#39;s Pawn Game" in den Texten
+    interpolation: { escapeValue: false },
     supportedLngs: [
       "en-US",
       "en-GB",

@@ -160,3 +160,32 @@ export function pickLine(key: string, recent: string[], rand = Math.random): str
 export function readingTime(text: string): number {
     return Math.min(6000, 1500 + 60 * text.length);
 }
+
+// Zeichen in der Zugliste für jeden Zug der Partie gegen JBL (1.2.14), auch
+// für JBLs Züge: Theorie bekommt keins (nur Farbe), sonst das Zeichen der
+// Engine-Prüfung, N für den ersten Zug aus dem Buch, □ für den einzigen
+// guten Zug.
+export function notationSign(o: {
+    annotation: string;
+    allowsMateInOne: boolean;
+    inBook: boolean;
+    prevInBook: boolean;
+    onlyMove: boolean;
+}): string {
+    if (o.allowsMateInOne) return "??";
+    if (o.inBook && o.annotation !== "!!" && o.annotation !== "?" && o.annotation !== "??")
+        return "";
+    if (o.annotation) return o.annotation;
+    if (o.prevInBook && !o.inBook) return "N";
+    if (o.onlyMove) return "□";
+    return "";
+}
+
+// So viel schlechter muss der zweitbeste Zug sein, damit der beste „einzig“ ist
+export const ONLY_MOVE_MARGIN_CP = 150;
+
+// Einziger Zug: gespielt wurde der beste, und der zweitbeste verliert deutlich
+export function isOnlyMove(played: string, best: { san: string | null; score: number }[]): boolean {
+    if (best.length < 2 || !best[0].san || best[0].san !== played) return false;
+    return best[0].score - best[1].score >= ONLY_MOVE_MARGIN_CP;
+}

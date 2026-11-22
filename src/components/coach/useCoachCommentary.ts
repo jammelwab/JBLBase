@@ -6,7 +6,14 @@ import { enginesAtom } from "@/state/atoms";
 import { normalizeScore, getAnnotation } from "@/utils/score";
 import type { TreeNode } from "@/utils/treeReducer";
 import { evalText, explainMotifs } from "./coachExplain";
-import { type CoachReaction, findStockfish, REACTION_SIGN, reactionFor } from "./coachGame";
+import {
+    type CoachReaction,
+    findStockfish,
+    isOnlyMove,
+    notationSign,
+    REACTION_SIGN,
+    reactionFor,
+} from "./coachGame";
 import { coachIntroAtom } from "./coachIntroState";
 import { askCoachExplain } from "@/utils/cloud/auth";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
@@ -43,7 +50,7 @@ export type CoachComment = {
 };
 
 // So lange wartet die Partie höchstens auf Claude, dann gilt der feste Spruch
-export const SAY_TIMEOUT_MS = 3500;
+export const SAY_TIMEOUT_MS = 5000;
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
     return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
@@ -60,7 +67,12 @@ export function useCoachCommentary(
     root: TreeNode,
     humanColor: "white" | "black" | null,
     active: boolean,
-): { comment: CoachComment | null; enabled: boolean } {
+): {
+    comment: CoachComment | null;
+    enabled: boolean;
+    // Zeichen für die Zugliste je Stellung nach dem Zug, für beide Seiten
+    signs: Record<string, string>;
+} {
     const { i18n } = useTranslation();
     const account = useAtomValue(cloudAccountAtom);
     const stage = useAtomValue(coachIntroAtom).entry ?? "knows";
@@ -69,6 +81,7 @@ export function useCoachCommentary(
     const engines = useAtomValue(enginesAtom);
     const engine = useMemo(() => findStockfish(engines), [engines]);
     const [comment, setComment] = useState<CoachComment | null>(null);
+    const [signs, setSigns] = useState<Record<string, string>>({});
     const checked = useRef(new Set<string>());
     const running = useRef(new Set<string>());
     const generation = useRef(0);
@@ -91,7 +104,8 @@ export function useCoachCommentary(
         if (!last.move) return;
         // Wer hat den letzten Zug gemacht? Ungerade halfMoves = Weiß
         const mover = last.halfMoves % 2 === 1 ? "white" : "black";
-        if (mover !== humanColor) return;
+        // JBLs Züge bekommen nur ein Zeichen in der Zugliste, keinen Kommentar
+        const isHuman = mover === humanColor;
         const key = `${before.fen}|${makeUci(last.move)}`;
         if (checked.current.has(key)) return;
         checked.current.add(key);
@@ -103,8 +117,14 @@ export function useCoachCommentary(
         running.current.add(runId);
         const cancelled = () => gen !== generation.current;
         (async () => {
-            const book = await commands.getOpeningFromFen(last.fen).catch(() => null);
+            const [book, prevBook] = await Promise.all([
+                commands.getOpeningFromFen(last.fen).catch(() => null),
+                line.length > 2
+                    ? commands.getOpeningFromFen(before.fen).catch(() => null)
+                    : Promise.resolve({ status: "ok" as const, data: "start" }),
+            ]);
             const opening = book?.status === "ok" ? book.data : null;
+            const prevInBook = prevBook?.status === "ok" && !!prevBook.data;
             const res = await commands.analyzeGame(
                 runId,
                 engine.path,
@@ -127,11 +147,31 @@ export function useCoachCommentary(
                 null,
                 preBest.score.value,
                 postBest.score.value,
-                humanColor,
+                mover,
                 pre.best,
                 post.is_sacrifice,
                 last.san ?? "",
             );
+            const allowsMate =
+                postBest.score.value.type === "mate" &&
+                Math.abs(postBest.score.value.value) === 1 &&
+                normalizeScore(postBest.score.value, mover) < 0;
+            const sign = notationSign({
+                annotation,
+                allowsMateInOne: allowsMate,
+                inBook: opening !== null,
+                prevInBook,
+                onlyMove: isOnlyMove(
+                    last.san ?? "",
+                    pre.best.map((b) => ({
+                        san: b.sanMoves[0] ?? null,
+                        score: normalizeScore(b.score.value, mover),
+                    })),
+                ),
+            });
+            if (cancelled()) return;
+            if (sign) setSigns((m) => ({ ...m, [last.fen]: sign }));
+            if (!isHuman) return;
             const after = postBest.score.value;
             const allowsMateInOne =
                 after.type === "mate" &&
@@ -206,6 +246,7 @@ export function useCoachCommentary(
     useEffect(() => {
         if (line.length <= 1) {
             checked.current.clear();
+            setSigns({});
             stopAll();
         }
     }, [line.length]);
@@ -214,5 +255,6 @@ export function useCoachCommentary(
     return {
         comment: line.length <= 1 ? null : comment,
         enabled: active && !!engine && !!humanColor,
+        signs: line.length <= 1 ? {} : signs,
     };
 }

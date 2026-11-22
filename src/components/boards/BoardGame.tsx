@@ -106,7 +106,7 @@ import { type CoachPlan, coachSparringAtom, prepareCoachGame } from "@/component
 
 // So lange hält die Partie JBLs Antwortzug höchstens zurück, bis der
 // Kommentar zu deinem Zug fertig ist.
-const COACH_WAIT_MAX_MS = 6000;
+const COACH_WAIT_MAX_MS = 7500;
 
 function gameResultToOutcome(result: GameResult): Outcome {
   if (result.type === "whiteWins") return "1-0";
@@ -260,28 +260,34 @@ function BoardGame() {
         ? ("black" as const)
         : null
     : null;
-  const { comment: coachComment, enabled: coachCommenting } = useCoachCommentary(
-    root,
-    coachHumanColor,
-    isCoachGame && gameState === "playing",
-  );
+  const {
+    comment: coachComment,
+    enabled: coachCommenting,
+    signs: coachSigns,
+  } = useCoachCommentary(root, coachHumanColor, isCoachGame && gameState === "playing");
   // Das Zeichen des Coaches (!!, ?, ...) steht auch in der Zugliste, Theorie
   // und solide Züge werden dort eingefärbt.
   const setAnnotationAt = useStore(store, (s) => s.setAnnotationAt);
   const setCoachMarks = useSetAtom(coachMoveMarksAtom);
   useEffect(() => {
     if (!coachComment) return;
-    const sign = REACTION_SIGN[coachComment.reaction];
-    if (!sign) {
-      const r = coachComment.reaction;
-      if (r === "book" || r === "solid")
-        setCoachMarks((m) => ({ ...m, [coachComment.fenAfter]: r }));
-      return;
-    }
-    const depth = coachComment.ply - root.halfMoves;
-    if (depth > 0) setAnnotationAt(Array(depth).fill(0), sign as Annotation);
+    const r = coachComment.reaction;
+    if (r === "book" || r === "solid") setCoachMarks((m) => ({ ...m, [coachComment.fenAfter]: r }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coachComment?.id]);
+  // Zeichen für beide Seiten (!!, !, !?, ?!, ?, ??, N, □) an die Züge schreiben
+  useEffect(() => {
+    let n = root;
+    const path: number[] = [];
+    while (n.children.length > 0) {
+      n = n.children[0];
+      path.push(0);
+      const sign = coachSigns[n.fen];
+      if (sign && !n.annotations.includes(sign as Annotation))
+        setAnnotationAt([...path], sign as Annotation);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachSigns]);
   const lastPly = useMemo(() => {
     let n = root;
     while (n.children.length > 0) n = n.children[0];
