@@ -16,6 +16,7 @@ import {
   saidRecently,
 } from "./coachGame";
 import CoachReceipt from "./CoachReceipt";
+import { celebration, coachCelebrationAtom } from "./CoachCelebration";
 import CoachDeepDive from "./CoachDeepDive";
 import CoachReport, { type CoachReportData } from "./CoachReport";
 import { coachAnalyzeAtom, coachReportOpenAtom } from "./coachReportState";
@@ -26,7 +27,7 @@ import { cloudAccountAtom } from "@/utils/cloud/sync";
 import CoachWhy from "./CoachWhy";
 import { playCoachTone } from "./coachSound";
 import { coachPathEventAtom } from "./coachPath";
-import { type CoachMistake, finishCoachGameAtom, type ReceiptLine } from "./coachProgress";
+import { type CoachMistake, finishCoachGameAtom, type ReceiptLine, XP } from "./coachProgress";
 import { coachBonusTrackAtom, DAILY_QUEST_XP } from "./coachRewards";
 import type { CoachStrengthId } from "./coachState";
 import type { CoachComment } from "./useCoachCommentary";
@@ -242,10 +243,31 @@ export default function CoachGamePanel({
   const [departure, setDeparture] = useState<RepertoireDeparture | null>(null);
   const [added, setAdded] = useState<"no" | "busy" | "done" | "failed">("no");
 
+  // Krasse Momente (1.2.20): großer Jubel über dem Fenster
+  const setCelebrations = useSetAtom(coachCelebrationAtom);
+  const celebrate = (...items: Parameters<typeof celebration>[0][]) =>
+    setCelebrations((q) => [...q, ...items.map(celebration)]);
+  // Gute Züge in Folge (! oder !!), für die Combo
+  const combo = useRef(0);
+
   const lastComment = useRef(0);
   useEffect(() => {
     if (!comment || comment.id === lastComment.current) return;
     lastComment.current = comment.id;
+    if (comment.reaction === "good" || comment.reaction === "brilliant") combo.current++;
+    else if (comment.reaction !== "book" && comment.reaction !== "solid") combo.current = 0;
+    if (comment.reaction === "brilliant")
+      celebrate({
+        tier: "big",
+        title: t("Coach.Celebrate.Brilliant"),
+        subtitle: t("Coach.Celebrate.BrilliantSub", { move: comment.san, xp: XP.brilliant }),
+      });
+    else if (comment.reaction === "good" && combo.current >= 3)
+      celebrate({
+        tier: "big",
+        title: t("Coach.Celebrate.Combo", { n: combo.current }),
+        subtitle: t("Coach.Celebrate.ComboSub"),
+      });
     if (comment.opening) opening.current = comment.opening;
     const motif = (SEVERITY[comment.reaction] ?? 0) > 0 ? (motifsFor(comment)[0] ?? null) : null;
     history.current = [
@@ -270,7 +292,6 @@ export default function CoachGamePanel({
         setLambruscoDay(today());
         setCart(true);
         timers.current.push(setTimeout(() => setCart(false), 5600));
-        playCoachTone("brilliant");
         speak([
           { anim: "bril", text: line("brilliant"), sign: "!!" },
           { anim: "good", text: line("lambrusco"), sign: null },
@@ -319,7 +340,8 @@ export default function CoachGamePanel({
       comment.best && ["dubious", "mistake", "blunder"].includes(comment.reaction)
         ? t("Coach.Line.Better", { move: comment.best })
         : "";
-    playCoachTone(comment.reaction === "missedMate" ? "blunder" : comment.reaction);
+    if (comment.reaction !== "brilliant")
+      playCoachTone(comment.reaction === "missedMate" ? "blunder" : comment.reaction);
     // Claudes Satz, sonst der feste Spruch; auch dann, wenn Claude gerade
     // dasselbe schon gesagt hat
     if (comment.text && !saidRecently(comment.text))
@@ -397,6 +419,7 @@ export default function CoachGamePanel({
     if (prev === gameState) return;
     if (gameState === "playing") {
       stats.current = { brilliants: 0, goods: 0, blunders: 0 };
+      combo.current = 0;
       worst.current = null;
       marks.current = {};
       reported.current = { own: false, end: false };
@@ -440,6 +463,10 @@ export default function CoachGamePanel({
           : (result === "1-0") === (humanColor === "white")
             ? ("win" as const)
             : ("loss" as const);
+      // Gewonnen durch Matt: der letzte Zug der Partie setzt matt
+      let lastNode = root;
+      while (lastNode.children.length > 0) lastNode = lastNode.children[0];
+      const mateWin = outcome === "win" && !!lastNode.san?.endsWith("#");
       playCoachTone(outcome);
       setDiary((d) => addToDiary(d, diaryGame(root, humanColor, outcome, marks.current, today())));
       if (plan?.index) setDeparture(repertoireDeparture(root, humanColor, plan.index));
@@ -454,7 +481,51 @@ export default function CoachGamePanel({
         lambrusco: lambrusco.current,
         boss,
         isAdmin,
+        mateWin,
       });
+      // Die großen Momente der Partie, nacheinander
+      const moments: Parameters<typeof celebration>[0][] = [];
+      if (mateWin)
+        moments.push({
+          tier: "big",
+          title: t("Coach.Celebrate.Mate"),
+          subtitle: t("Coach.Celebrate.Xp", { xp: XP.mate }),
+        });
+      if (boss && outcome === "win")
+        moments.push({
+          tier: "mega",
+          title: t("Coach.Celebrate.Boss"),
+          subtitle: t("Coach.Celebrate.BossSub"),
+        });
+      if (done.firstWin)
+        moments.push({
+          tier: "mega",
+          title: t("Coach.Celebrate.FirstWin"),
+          subtitle: t("Coach.Celebrate.FirstWinSub", {
+            strength: t(`Coach.Strength.${strength}`),
+            xp: XP.firstWin,
+          }),
+        });
+      if (done.levelAfter > done.levelBefore)
+        moments.push({
+          tier: "mega",
+          title: t("Coach.Celebrate.LevelUp", { level: done.levelAfter }),
+          subtitle: t("Coach.Celebrate.Total", { xp: done.total }),
+        });
+      if (done.newBest && done.estimate)
+        moments.push({
+          tier: "mega",
+          title: t("Coach.Celebrate.NewBest"),
+          subtitle: t("Coach.Celebrate.NewBestSub", { elo: done.estimate }),
+        });
+      for (const trophy of done.trophies)
+        moments.push({
+          tier: "big",
+          title: t("Coach.Celebrate.Trophy"),
+          subtitle: t(`Coach.Trophy.${trophy}.Title`),
+        });
+      // Eigener Timer: speak() räumt timers auf
+      if (moments.length > 0) setTimeout(() => celebrate(...moments), 700);
       const egg = finishEggs({
         result: outcome,
         attack,

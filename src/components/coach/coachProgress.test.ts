@@ -1,9 +1,11 @@
+import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
 import de from "@/translation/de-DE.json";
 import en from "@/translation/en-US.json";
 import {
     computeReceipt,
     currentStreak,
+    finishCoachGameAtom,
     isoWeek,
     clampLock,
     lockAfter,
@@ -110,5 +112,31 @@ describe("Kassenzettel", () => {
         for (const t of [de.translation, en.translation] as Record<string, string>[]) {
             for (const k of keys) expect(t[`Coach.Receipt.${k}`]).toBeTruthy();
         }
+    });
+});
+
+describe("Krasse Momente (1.2.20)", () => {
+    it("Matt und erster Sieg auf einer Stufe bringen Extra-XP, nur bei Sieg", () => {
+        const win = computeReceipt({ ...base, result: "win", mateWin: true, firstWin: true });
+        expect(win.lines.find((l) => l.key === "mate")?.xp).toBe(25);
+        expect(win.lines.find((l) => l.key === "firstWin")?.xp).toBe(40);
+        const loss = computeReceipt({ ...base, result: "loss", mateWin: true, firstWin: true });
+        expect(loss.lines.some((l) => l.key === "mate" || l.key === "firstWin")).toBe(false);
+    });
+    it("der erste Sieg auf einer Stufe zählt nur einmal", () => {
+        const store = createStore();
+        const game = { ...base, result: "win" as const };
+        expect(store.set(finishCoachGameAtom, game, () => 0.9).firstWin).toBe(true);
+        expect(store.set(finishCoachGameAtom, game, () => 0.9).firstWin).toBe(false);
+        expect(
+            store.set(finishCoachGameAtom, { ...game, strength: "hard" }, () => 0.9).firstWin,
+        ).toBe(true);
+        expect(
+            store.set(
+                finishCoachGameAtom,
+                { ...game, strength: "medium", result: "loss" },
+                () => 0.9,
+            ).firstWin,
+        ).toBe(false);
     });
 });
