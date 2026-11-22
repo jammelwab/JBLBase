@@ -129,12 +129,12 @@ describe("Partieende", () => {
         expect(lost.lines.some((l) => l.key === "bonusTrack")).toBe(true);
         expect(store.get(coachBonusTrackAtom)).toBe(false);
         expect(store.get(coachMistakeAtom)).toEqual(mistake);
-        expect(store.get(coachLockAtom)).toBe(3);
+        expect(store.get(coachLockAtom)).toBe(1);
 
         const xp = store.get(coachXpAtom);
         store.set(coachMistakeDoneAtom, true, true);
         expect(store.get(coachMistakeAtom)).toBeNull();
-        expect(store.get(coachLockAtom)).toBe(2);
+        expect(store.get(coachLockAtom)).toBe(0);
         // Erster Versuch: Puzzle-XP plus Extra-XP (die Tagesaufgabe kann dazukommen)
         expect(store.get(coachXpAtom) - xp).toBeGreaterThanOrEqual(XP.puzzle + XP.mistakeFirstTry);
     });
