@@ -56,3 +56,37 @@ body {
 .mantine-ScrollArea-viewport {
   overscroll-behavior: none;
 }
+
+/*
+ * JBL orange: the second accent next to the chosen accent color. Used for
+ * frames and markers that show where you are (active navigation, active tab,
+ * headings), never for buttons or switches, so it stays calm and orderly.
+ */
+:root {
+  --jbl-accent: var(--mantine-color-orange-6);
+  --jbl-accent-text: var(--mantine-color-orange-8);
+  --jbl-accent-soft: var(--mantine-color-orange-0);
+  --jbl-accent-frame: var(--mantine-color-orange-3);
+}
+
+[data-mantine-color-scheme="dark"] {
+  --jbl-accent: var(--mantine-color-orange-6);
+  --jbl-accent-text: var(--mantine-color-orange-4);
+  --jbl-accent-soft: rgba(253, 126, 20, 0.1);
+  --jbl-accent-frame: rgba(253, 126, 20, 0.45);
+}
+
+/* Page headings (Repertoires, Files, Databases, Engines, Insight): orange icon */
+.jbl-page-icon {
+  color: var(--jbl-accent);
+  flex-shrink: 0;
+}
+
+/* Bordered cards get a JBL orange frame while the mouse is on them */
+.mantine-Card-root[data-with-border] {
+  transition: border-color 120ms ease;
+}
+
+.mantine-Card-root[data-with-border]:hover {
+  border-color: var(--jbl-accent-frame);
+}

@@ -1,23 +1,12 @@
 import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
-  IconBook,
-  IconBrush,
   IconBug,
-  IconChess,
-  IconDatabase,
   IconDownload,
-  IconFlag,
-  IconFolder,
   IconHelp,
-  IconKeyboard,
-  IconMouse,
   IconPlayerPlay,
   IconSchool,
   IconSettings,
-  IconShield,
-  IconUserCircle,
-  IconVolume,
 } from "@tabler/icons-react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { getVersion } from "@tauri-apps/api/app";
@@ -36,23 +25,10 @@ import { useIsAdmin, useStartTutorial } from "@/components/tutorial/tutorialStat
 import { tutorialsForPage } from "@/components/tutorial/tutorials";
 import { coachIntroOpenAtom } from "@/components/coach/coachIntroState";
 import classes from "./CornerMenu.module.css";
+import { SETTINGS_NAV } from "@/components/settings/settingsNav";
 
 /** Look for a new release again every few hours while the app stays open. */
 const RECHECK_MS = 6 * 60 * 60 * 1000;
-
-const tabs = [
-  { value: "profile", label: "Settings.Cloud", icon: IconUserCircle },
-  { value: "board", label: "Settings.Board", icon: IconChess },
-  { value: "inputs", label: "Settings.Inputs", icon: IconMouse },
-  { value: "anarchy", label: "Settings.Anarchy", icon: IconFlag },
-  { value: "appearance", label: "Settings.Appearance", icon: IconBrush },
-  { value: "sound", label: "Settings.Sound", icon: IconVolume },
-  { value: "keybinds", label: "Settings.Keybinds", icon: IconKeyboard },
-  { value: "directories", label: "Settings.Directories", icon: IconFolder },
-  { value: "repertoire", label: "Settings.Repertoire", icon: IconBook },
-  { value: "evalcache", label: "Settings.EvalCache", icon: IconDatabase },
-  { value: "privacy", label: "Settings.Privacy", icon: IconShield },
-] as const;
 
 /** Version, system and the end of the log for a bug report (never throws). */
 async function collectBugReport(
@@ -153,6 +129,7 @@ export default function CornerMenu() {
   const navigate = useNavigate();
   const setSettingsTab = useSetAtom(settingsTabAtom);
   const update = useAtomValue(availableUpdateAtom);
+  const isAdmin = useIsAdmin();
 
   useEffect(() => {
     const timer = setInterval(() => void checkForAppUpdate(t, { silent: true }), RECHECK_MS);
@@ -214,16 +191,25 @@ export default function CornerMenu() {
           </ActionIcon>
         </Menu.Target>
         <Menu.Dropdown>
-          <Menu.Label>{t("SideBar.Settings")}</Menu.Label>
-          {tabs.map(({ value, label, icon: Icon }) => (
-            <Menu.Item
-              key={value}
-              leftSection={<Icon size="1rem" stroke={1.6} />}
-              onClick={() => openTab(value)}
-            >
-              {t(label)}
-            </Menu.Item>
-          ))}
+          {SETTINGS_NAV.map((group, i) => {
+            const tabs = group.tabs.filter((tab) => !tab.adminOnly || isAdmin);
+            if (tabs.length === 0) return null;
+            return (
+              <div key={group.label}>
+                {i > 0 && <Menu.Divider />}
+                <Menu.Label>{t(group.label)}</Menu.Label>
+                {tabs.map(({ value, label, icon: Icon }) => (
+                  <Menu.Item
+                    key={value}
+                    leftSection={<Icon size="1rem" stroke={1.6} />}
+                    onClick={() => openTab(value)}
+                  >
+                    {t(label)}
+                  </Menu.Item>
+                ))}
+              </div>
+            );
+          })}
           <Menu.Divider />
           <Menu.Item
             leftSection={<IconDownload size="1rem" stroke={1.6} />}

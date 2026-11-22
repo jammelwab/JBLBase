@@ -2,6 +2,7 @@ import {
   Alert,
   Badge,
   Button,
+  Collapse,
   Group,
   Modal,
   NumberInput,
@@ -16,10 +17,12 @@ import {
   Text,
   TextInput,
   Title,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   IconAlertCircle,
   IconChartBar,
+  IconChevronDown,
   IconDownload,
   IconPlayerPlay,
   IconTargetArrow,
@@ -571,128 +574,144 @@ function RatingCalibration({ engine }: { engine: LocalEngine | undefined }) {
   }
 
   const progress = step === "rerate" ? rerating.progress : calibrating.progress;
+  // Rarely needed: folded away until opened, or while it runs
+  const [open, setOpen] = useState(false);
+  const showBody = open || running;
 
   return (
     <Paper withBorder p="md" data-tour="ins-calibration">
-      <Stack gap="sm">
-        <Text fw={600}>{t("Insight.Calibration.Title")}</Text>
-        <Text size="sm" c="dimmed">
-          {t("Insight.Calibration.Desc")}
-        </Text>
-        {!searching && !lichessDb && (
-          <Alert icon={<IconAlertCircle size="1rem" />} color="yellow">
-            <Stack gap="xs" align="flex-start">
-              <Text size="sm">{t("Insight.Calibration.NoLichess")}</Text>
-              {downloading ? (
-                <Stack gap={4} w="100%">
-                  <Progress value={download.progress} animated />
+      <UnstyledButton w="100%" onClick={() => setOpen((o) => !o)} aria-expanded={showBody}>
+        <Group justify="space-between" wrap="nowrap">
+          <Text fw={600}>{t("Insight.Calibration.Title")}</Text>
+          <IconChevronDown
+            size="1rem"
+            style={{
+              transform: showBody ? "rotate(180deg)" : undefined,
+              transition: "transform 150ms ease",
+            }}
+          />
+        </Group>
+      </UnstyledButton>
+      <Collapse expanded={showBody}>
+        <Stack gap="sm" mt="sm">
+          <Text size="sm" c="dimmed">
+            {t("Insight.Calibration.Desc")}
+          </Text>
+          {!searching && !lichessDb && (
+            <Alert icon={<IconAlertCircle size="1rem" />} color="yellow">
+              <Stack gap="xs" align="flex-start">
+                <Text size="sm">{t("Insight.Calibration.NoLichess")}</Text>
+                {downloading ? (
+                  <Stack gap={4} w="100%">
+                    <Progress value={download.progress} animated />
+                    <Text size="xs" c="dimmed">
+                      {t("Puzzle.Lichess.Importing")} {Math.floor(download.progress)} %
+                    </Text>
+                  </Stack>
+                ) : (
+                  <Button
+                    size="xs"
+                    leftSection={<IconDownload size="0.9rem" />}
+                    onClick={downloadLichess}
+                  >
+                    {t("Puzzle.Lichess.Download")}
+                  </Button>
+                )}
+              </Stack>
+            </Alert>
+          )}
+          {lichessDb && (
+            <>
+              <Group>
+                {running ? (
+                  <Button variant="default" onClick={cancel}>
+                    {t("Common.Cancel")}
+                  </Button>
+                ) : (
+                  <Button
+                    leftSection={<IconTargetArrow size="1rem" />}
+                    onClick={estimate}
+                    disabled={!engine}
+                  >
+                    {t("Insight.Calibration.Estimate")}
+                  </Button>
+                )}
+              </Group>
+              {!engine && (
+                <Text size="xs" c="dimmed">
+                  {t("Insight.Calibration.NeedsEngine")}
+                </Text>
+              )}
+              {running && (
+                <Stack gap={4}>
+                  <Progress value={progress} animated />
                   <Text size="xs" c="dimmed">
-                    {t("Puzzle.Lichess.Importing")} {Math.floor(download.progress)} %
+                    {step === "calibrate"
+                      ? t("Insight.Calibration.StepCalibrate")
+                      : t("Insight.Calibration.StepRerate")}{" "}
+                    {Math.floor(progress)} %
                   </Text>
                 </Stack>
-              ) : (
-                <Button
-                  size="xs"
-                  leftSection={<IconDownload size="0.9rem" />}
-                  onClick={downloadLichess}
-                >
-                  {t("Puzzle.Lichess.Download")}
-                </Button>
               )}
-            </Stack>
-          </Alert>
-        )}
-        {lichessDb && (
-          <>
-            <Group>
-              {running ? (
-                <Button variant="default" onClick={cancel}>
-                  {t("Common.Cancel")}
-                </Button>
-              ) : (
+              {rated !== null && !running && (
+                <Text size="sm">{t("Insight.Calibration.Rated", { count: rated })}</Text>
+              )}
+            </>
+          )}
+          {reference && (
+            <Text size="xs" c="dimmed">
+              {t("Insight.Calibration.Using", {
+                name: reference.title,
+                puzzles: reference.puzzleCount.toLocaleString(),
+              })}
+            </Text>
+          )}
+          <Text size="sm">
+            {calibration
+              ? t("Insight.Calibration.Status", {
+                  samples: calibration.samples,
+                  error: Math.round(calibration.meanError),
+                  before: Math.round(calibration.defaultError),
+                  date: new Date(calibration.calibratedAt * 1000).toLocaleDateString(),
+                })
+              : t("Insight.Calibration.NotYet")}
+          </Text>
+          {lichessDb && (
+            <Group align="flex-end">
+              <NumberInput
+                label={t("Insight.Calibration.Samples")}
+                min={200}
+                max={50000}
+                step={500}
+                w={170}
+                value={samples}
+                onChange={(value) => typeof value === "number" && setSamples(value)}
+                disabled={running}
+              />
+              <Button variant="default" onClick={recalibrate} disabled={!engine || running}>
+                {calibration ? t("Insight.Calibration.Again") : t("Insight.Calibration.Start")}
+              </Button>
+              {calibration && !running && (
                 <Button
-                  leftSection={<IconTargetArrow size="1rem" />}
-                  onClick={estimate}
-                  disabled={!engine}
+                  variant="subtle"
+                  color="gray"
+                  onClick={async () => {
+                    await commands.resetRatingCalibration();
+                    mutate();
+                  }}
                 >
-                  {t("Insight.Calibration.Estimate")}
+                  {t("Insight.Calibration.Reset")}
                 </Button>
               )}
             </Group>
-            {!engine && (
-              <Text size="xs" c="dimmed">
-                {t("Insight.Calibration.NeedsEngine")}
-              </Text>
-            )}
-            {running && (
-              <Stack gap={4}>
-                <Progress value={progress} animated />
-                <Text size="xs" c="dimmed">
-                  {step === "calibrate"
-                    ? t("Insight.Calibration.StepCalibrate")
-                    : t("Insight.Calibration.StepRerate")}{" "}
-                  {Math.floor(progress)} %
-                </Text>
-              </Stack>
-            )}
-            {rated !== null && !running && (
-              <Text size="sm">{t("Insight.Calibration.Rated", { count: rated })}</Text>
-            )}
-          </>
-        )}
-        {reference && (
-          <Text size="xs" c="dimmed">
-            {t("Insight.Calibration.Using", {
-              name: reference.title,
-              puzzles: reference.puzzleCount.toLocaleString(),
-            })}
-          </Text>
-        )}
-        <Text size="sm">
-          {calibration
-            ? t("Insight.Calibration.Status", {
-                samples: calibration.samples,
-                error: Math.round(calibration.meanError),
-                before: Math.round(calibration.defaultError),
-                date: new Date(calibration.calibratedAt * 1000).toLocaleDateString(),
-              })
-            : t("Insight.Calibration.NotYet")}
-        </Text>
-        {lichessDb && (
-          <Group align="flex-end">
-            <NumberInput
-              label={t("Insight.Calibration.Samples")}
-              min={200}
-              max={50000}
-              step={500}
-              w={170}
-              value={samples}
-              onChange={(value) => typeof value === "number" && setSamples(value)}
-              disabled={running}
-            />
-            <Button variant="default" onClick={recalibrate} disabled={!engine || running}>
-              {calibration ? t("Insight.Calibration.Again") : t("Insight.Calibration.Start")}
-            </Button>
-            {calibration && !running && (
-              <Button
-                variant="subtle"
-                color="gray"
-                onClick={async () => {
-                  await commands.resetRatingCalibration();
-                  mutate();
-                }}
-              >
-                {t("Insight.Calibration.Reset")}
-              </Button>
-            )}
-          </Group>
-        )}
-        {error && (
-          <Alert icon={<IconAlertCircle size="1rem" />} title={t("Common.Error")} color="red">
-            {error}
-          </Alert>
-        )}
-      </Stack>
+          )}
+          {error && (
+            <Alert icon={<IconAlertCircle size="1rem" />} title={t("Common.Error")} color="red">
+              {error}
+            </Alert>
+          )}
+        </Stack>
+      </Collapse>
     </Paper>
   );
 }
@@ -785,7 +804,7 @@ export default function InsightPage() {
     <ScrollArea h="100%" px="md" py="sm">
       <Stack maw={1200} mx="auto">
         <Group gap="xs">
-          <IconChartBar size="1.6rem" />
+          <IconChartBar size="1.75rem" className="jbl-page-icon" />
           <Title order={2}>{t("SideBar.Insight")}</Title>
         </Group>
         <Text c="dimmed" size="sm">

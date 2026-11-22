@@ -99,12 +99,13 @@ export default function EnginesPage() {
   return (
     <Stack h="100%">
       <AddEngine opened={opened} setOpened={setOpened} />
-      <Group align="baseline" py="sm" pl="lg">
-        <Title>{t("Engines.Title")}</Title>
+      <Group align="center" gap="sm" pl="md" pt="md" pb="xs">
+        <IconCpu size="1.75rem" className="jbl-page-icon" />
+        <Title order={2}>{t("Engines.Title")}</Title>
         <OpenFolderButton base="Engines" folder="engines" />
       </Group>
       <Group grow flex={1} style={{ overflow: "hidden" }} align="start" px="md" pb="md">
-        <Paper withBorder style={{ borderWidth: 2 }} h="100%" data-tour="eng-list">
+        <Paper withBorder h="100%" data-tour="eng-list">
           <Stack gap={0} h="100%" style={{ overflow: "hidden" }}>
             <Group p="xs" gap="xs">
               <Input
@@ -179,7 +180,7 @@ export default function EnginesPage() {
           </Stack>
         </Paper>
         {!selectedEngine || selected === undefined ? (
-          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%">
+          <Paper withBorder p="md" h="100%">
             <Center h="100%">
               <Stack align="center" gap="sm">
                 <ThemeIcon size={80} radius="100%" variant="light" color="gray">
@@ -192,7 +193,7 @@ export default function EnginesPage() {
             </Center>
           </Paper>
         ) : (
-          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%" data-tour="eng-settings">
+          <Paper withBorder p="md" h="100%" data-tour="eng-settings">
             {selectedEngine.type === "local" ? (
               <EngineSettings selected={selected} setSelected={setSelected} />
             ) : (
