@@ -53,8 +53,7 @@ export type EventRequest = {
     variant: number;
 };
 
-const FEN =
-    /^[1-8pnbrqkPNBRQK/]{15,71} [wb] (-|[KQkq]{1,4}) (-|[a-h][36])( \d{1,3} \d{1,4})?$/;
+const FEN = /^[1-8pnbrqkPNBRQK/]{15,71} [wb] (-|[KQkq]{1,4}) (-|[a-h][36])( \d{1,3} \d{1,4})?$/;
 const SAN = /^(O-O(-O)?|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](=[NBRQ])?)[+#]?$/;
 const EVAL = /^([+-]?\d{1,2}(\.\d{1,2})?|[+-]?M\d{1,2})$/;
 const MOTIF = /^[\p{L}\d .,+#-]{1,40}$/u;
@@ -71,20 +70,14 @@ export function parseExplainRequest(data: unknown): ExplainRequest | null {
     const best = d.best == null || d.best === "" ? null : str(d.best);
     const before = str(d.before);
     const after = str(d.after);
-    if (!FEN.test(fen) || !SAN.test(move) || (best !== null && !SAN.test(best)))
-        return null;
+    if (!FEN.test(fen) || !SAN.test(move) || (best !== null && !SAN.test(best))) return null;
     if (!EVAL.test(before) || !EVAL.test(after)) return null;
     if (!Array.isArray(d.line) || d.line.length > 8) return null;
     const line = d.line.map(str);
     if (!line.every((s) => SAN.test(s))) return null;
     const motifs = Array.isArray(d.motifs) ? d.motifs.map(str).slice(0, 4) : [];
     if (!motifs.every((m) => MOTIF.test(m))) return null;
-    const mode =
-        d.mode === "say"
-            ? "say"
-            : d.mode === "deep" || d.deep === true
-              ? "deep"
-              : "why";
+    const mode = d.mode === "say" ? "say" : d.mode === "deep" || d.deep === true ? "deep" : "why";
     const marks: readonly string[] = mode === "say" ? SAY_MARKS : MARKS;
     const mark = SAY_MARKS.find((m) => m === d.mark && marks.includes(m));
     const stage = STAGES.find((s) => s === d.stage);
@@ -95,20 +88,14 @@ export function parseExplainRequest(data: unknown): ExplainRequest | null {
     const opening = rawOpening || null;
     const say = mode === "say";
     const variant =
-        say && typeof d.variant === "number"
-            ? Math.min(3, Math.max(1, Math.trunc(d.variant)))
-            : 1;
+        say && typeof d.variant === "number" ? Math.min(3, Math.max(1, Math.trunc(d.variant))) : 1;
     const ply =
-        say && typeof d.ply === "number"
-            ? Math.min(400, Math.max(0, Math.trunc(d.ply)))
-            : 0;
+        say && typeof d.ply === "number" ? Math.min(400, Math.max(0, Math.trunc(d.ply))) : 0;
     const recent =
         say && Array.isArray(d.recent)
             ? d.recent
                   .map(str)
-                  .map((s) =>
-                      s.replace(/[\u0000-\u001f<>]/g, " ").slice(0, 160),
-                  )
+                  .map((s) => s.replace(/[\u0000-\u001f<>]/g, " ").slice(0, 160))
                   .filter(Boolean)
                   .slice(0, 4)
             : [];
@@ -136,10 +123,7 @@ export function parseExplainRequest(data: unknown): ExplainRequest | null {
 export type ReportRequest = {
     result: "win" | "loss" | "draw";
     opening: string | null;
-    counts: Record<
-        "book" | "solid" | "good" | "dubious" | "mistake" | "blunder",
-        number
-    >;
+    counts: Record<"book" | "solid" | "good" | "dubious" | "mistake" | "blunder", number>;
     moments: {
         move: string;
         mark: (typeof MARKS)[number];
@@ -150,23 +134,14 @@ export type ReportRequest = {
     lang: "de" | "en";
 };
 
-const COUNT_KEYS = [
-    "book",
-    "solid",
-    "good",
-    "dubious",
-    "mistake",
-    "blunder",
-] as const;
+const COUNT_KEYS = ["book", "solid", "good", "dubious", "mistake", "blunder"] as const;
 
 export function parseReportRequest(data: unknown): ReportRequest | null {
     if (!data || typeof data !== "object") return null;
     const d = data as Record<string, unknown>;
     if (d.mode !== "report") return null;
     const result =
-        d.result === "win" || d.result === "loss" || d.result === "draw"
-            ? d.result
-            : null;
+        d.result === "win" || d.result === "loss" || d.result === "draw" ? d.result : null;
     const stage = STAGES.find((s) => s === d.stage);
     const lang = d.lang === "en" ? "en" : d.lang === "de" ? "de" : null;
     if (!result || !stage || !lang) return null;
@@ -176,8 +151,7 @@ export function parseReportRequest(data: unknown): ReportRequest | null {
     const counts = {} as ReportRequest["counts"];
     for (const k of COUNT_KEYS) {
         const v = c[k];
-        if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 300)
-            return null;
+        if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 300) return null;
         counts[k] = v;
     }
     if (!Array.isArray(d.moments) || d.moments.length > 3) return null;
@@ -189,8 +163,7 @@ export function parseReportRequest(data: unknown): ReportRequest | null {
         const mark = MARKS.find((x) => x === o.mark);
         const best = o.best == null || o.best === "" ? null : str(o.best);
         const motif = o.motif == null || o.motif === "" ? null : str(o.motif);
-        if (!SAN.test(move) || !mark || (best !== null && !SAN.test(best)))
-            return null;
+        if (!SAN.test(move) || !mark || (best !== null && !SAN.test(best))) return null;
         if (motif !== null && !MOTIF.test(motif)) return null;
         moments.push({ move, mark, best, motif });
     }
@@ -289,9 +262,7 @@ export function explainPrompt(r: ExplainRequest): string {
         r.best && r.best !== r.move
             ? `Engine's best move: ${r.best}.`
             : "The engine also likes this move.",
-        r.line.length > 0
-            ? `Engine line after the player's move: ${r.line.join(" ")}.`
-            : "",
+        r.line.length > 0 ? `Engine line after the player's move: ${r.line.join(" ")}.` : "",
         `Evaluation from the player's side: before ${r.before}, after ${r.after} (pawns; M means mate in so many moves).`,
         r.motifs.length > 0 ? `Detected motifs: ${r.motifs.join("; ")}.` : "",
         r.opening ? `The move is known opening theory: ${r.opening}.` : "",
@@ -320,8 +291,7 @@ export function nextUsage(
     limit = EXPLAIN_DAILY_LIMIT,
 ): { allowed: boolean; usage: { day: string; count: number } } {
     const p = prev as { day?: unknown; count?: unknown } | undefined;
-    const count =
-        p && p.day === day && typeof p.count === "number" ? p.count : 0;
+    const count = p && p.day === day && typeof p.count === "number" ? p.count : 0;
     if (count >= limit) return { allowed: false, usage: { day, count } };
     return { allowed: true, usage: { day, count: count + 1 } };
 }
@@ -340,14 +310,10 @@ export function isMember(
     if (!access || typeof access !== "object") return false;
     const a = access as { emails?: unknown; lichess?: unknown };
     const has = (list: unknown, v: string) =>
-        Array.isArray(list) &&
-        list.some((x) => typeof x === "string" && x.toLowerCase() === v);
+        Array.isArray(list) && list.some((x) => typeof x === "string" && x.toLowerCase() === v);
     if (token.email_verified === true && typeof token.email === "string")
         if (has(a.emails, token.email.toLowerCase())) return true;
-    return (
-        typeof token.lichess === "string" &&
-        has(a.lichess, token.lichess.toLowerCase())
-    );
+    return typeof token.lichess === "string" && has(a.lichess, token.lichess.toLowerCase());
 }
 
 // Die Antwort kurz halten: höchstens 600 Zeichen (1.2.21: Aufrufe kürzen auf 300, ausführlich 700).
