@@ -1,6 +1,7 @@
 import { Box, Group, Stack } from "@mantine/core";
 import { useAtomValue } from "jotai";
 import { playerDatabasesAtom, sessionsAtom } from "@/state/atoms";
+import CoachTip from "@/components/coach/CoachTip";
 import Accounts from "./Accounts";
 import Databases from "./Databases";
 
@@ -11,6 +12,9 @@ function AccountsPage() {
   return (
     <Group grow px="lg" pb="lg" h="100%" style={{ overflow: "hidden" }}>
       <Stack h="100%">
+        <Box pt={36}>
+          <CoachTip place="accounts" />
+        </Box>
         <Accounts />
       </Stack>
 

@@ -78,6 +78,7 @@ export default defineConfig({
             "Coach.Item.*",
             "Coach.Frame.*",
             "Coach.Trophy.*",
+            "Coach.Tip.*",
             "Coach.Quest.*",
             "Coach.Birthday.*",
             "Coach.Hint.*",

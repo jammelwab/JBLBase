@@ -1,3 +1,4 @@
+import CoachTip from "@/components/coach/CoachTip";
 import {
   ActionIcon,
   Alert,
@@ -1167,6 +1168,9 @@ export default function RepertoiresPage() {
           />
         )}
         <Stack p="md" gap="lg" maw={1100}>
+          <Box pt="lg">
+            <CoachTip place="repertoire" />
+          </Box>
           <Group justify="space-between">
             <Group gap="sm">
               <IconBooks size="1.75rem" className="jbl-page-icon" />
