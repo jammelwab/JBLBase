@@ -52,6 +52,7 @@ import {
   currentInvisibleAtom,
   currentPracticeTabAtom,
   currentShowCommentsAtom,
+  activeTabAtom,
   currentTabAtom,
   deckAtomFamily,
   deckLoadedFamily,
@@ -62,8 +63,9 @@ import {
   practiceStateAtom,
   practiceAdvanceDelayAtom,
   practiceAutoDifficultyAtom,
+  tabsAtom,
 } from "@/state/atoms";
-import { getTabFile, getTabGameNumber } from "@/utils/tabs";
+import { createTab, getTabFile, getTabGameNumber } from "@/utils/tabs";
 import { findFen, getNodeAtPath } from "@/utils/treeReducer";
 import LineTrainer from "./LineTrainer";
 import RepertoireInfo from "./RepertoireInfo";
@@ -81,6 +83,23 @@ function PracticePanel() {
 
   const currentTab = useAtomValue(currentTabAtom);
   const tabFile = getTabFile(currentTab);
+  // Vom Coach geöffnet: nach dem Training zurück zum Coach
+  const fromCoach = currentTab?.coach === true;
+  const [tabs, setTabs] = useAtom(tabsAtom);
+  const setActiveTab = useSetAtom(activeTabAtom);
+  const backToCoach = () => {
+    setTabs((prev) =>
+      prev.map((tab) => (tab.value === currentTab?.value ? { ...tab, coach: undefined } : tab)),
+    );
+    const coachTab = tabs.find((tab) => tab.type === "coach");
+    if (coachTab) setActiveTab(coachTab.value);
+    else
+      void createTab({
+        tab: { name: t("Coach.Card.Title"), type: "coach" },
+        setTabs,
+        setActiveTab,
+      });
+  };
   const [resetModal, toggleResetModal] = useToggle();
 
   const deckKey = { file: tabFile?.path || "", game: getTabGameNumber(currentTab) };
@@ -502,6 +521,16 @@ function PracticePanel() {
                             {t("Board.Practice.PracticedAll2")}{" "}
                             {dayjs(stats.nextDue).format("MMM D, HH:mm")}
                           </Text>
+                          {fromCoach && (
+                            <Button
+                              mt="xs"
+                              color="orange"
+                              leftSection={<IconArrowBack size={18} />}
+                              onClick={backToCoach}
+                            >
+                              {t("Coach.Game.BackToCoach")}
+                            </Button>
+                          )}
                         </Stack>
                       </Paper>
                     ) : (

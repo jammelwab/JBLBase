@@ -18,7 +18,7 @@ export function useOpenRecentFile() {
     const navigate = useNavigate();
 
     return useCallback(
-        async (file: RecentFile) => {
+        async (file: RecentFile, options?: { coach?: boolean }) => {
             try {
                 const exists = await commands.fileExists(file.path);
                 if (exists.status === "error" || !exists.data) {
@@ -44,6 +44,7 @@ export function useOpenRecentFile() {
                     },
                     setTabs,
                     setActiveTab,
+                    { coach: options?.coach },
                 );
                 navigate({ to: "/" });
             } catch (e) {

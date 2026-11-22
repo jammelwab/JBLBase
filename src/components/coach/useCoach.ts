@@ -112,7 +112,7 @@ export function useCoach(tabId: string) {
                 turnTabInto("puzzles", t("Home.PuzzleTraining"), true);
             },
             repertoire: () => {
-                if (best) openRecentFile(best.file);
+                if (best) openRecentFile(best.file, { coach: true });
             },
             // Weiterer Pfad: Taktik-Puzzles zu einem Thema
             tactic: (theme: string) => {
@@ -121,7 +121,7 @@ export function useCoach(tabId: string) {
                 turnTabInto("puzzles", t("Home.PuzzleTraining"), true);
             },
             // Weiterer Pfad: eine Linie ins Repertoire, dort über „Hinzufügen“
-            addLine: anyRepertoire ? () => openRecentFile(anyRepertoire) : null,
+            addLine: anyRepertoire ? () => openRecentFile(anyRepertoire, { coach: true }) : null,
         }),
         [
             turnTabInto,
