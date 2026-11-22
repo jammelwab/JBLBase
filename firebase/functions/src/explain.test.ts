@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+    EXPLAIN_DEEP_MAX_TOKENS,
+    EXPLAIN_MAX_TOKENS,
+    EXPLAIN_SYSTEM,
+    SAY_MAX_TOKENS,
     eventPrompt,
     explainPrompt,
     isMember,
@@ -52,7 +56,10 @@ test("rejects anything unexpected", () => {
 
 test("same position, move and stage share an answer", () => {
     const a = parseExplainRequest(good)!;
-    const b = parseExplainRequest({ ...good, fen: good.fen.replace("4 4", "10 20") })!;
+    const b = parseExplainRequest({
+        ...good,
+        fen: good.fen.replace("4 4", "10 20"),
+    })!;
     assert.equal(cacheKey(a), cacheKey(b));
     assert.notEqual(cacheKey(a), cacheKey({ ...a, stage: "club" }));
     assert.notEqual(cacheKey(a), cacheKey({ ...a, lang: "en" }));
@@ -96,8 +103,8 @@ test("deep explanations ask for more and are stored apart", () => {
     assert.equal(d.mode, "deep");
     assert.equal(parseExplainRequest({ ...good, deep: "yes" })?.mode, "why");
     assert.notEqual(cacheKey(a), cacheKey(d));
-    assert.match(explainPrompt(d), /in depth/);
-    assert.doesNotMatch(explainPrompt(a), /in depth/);
+    assert.match(explainPrompt(d), /Explain this mistake/);
+    assert.doesNotMatch(explainPrompt(a), /Explain this mistake/);
     assert.equal(trimAnswer("Eins.\n\n  Zwei   drei.", 1400), "Eins.\n\nZwei drei.");
     assert.equal(trimAnswer("x".repeat(2000), 1400).length, 1398);
 });
@@ -115,7 +122,12 @@ test("one sentence per move, with theory and solid marks only there", () => {
     assert.match(explainPrompt(say), /Ruy Lopez/);
     assert.equal(parseExplainRequest({ ...good, mark: "book" }), null);
     assert.equal(
-        parseExplainRequest({ ...good, mode: "say", mark: "solid", opening: "<b>x</b>" }),
+        parseExplainRequest({
+            ...good,
+            mode: "say",
+            mark: "solid",
+            opening: "<b>x</b>",
+        }),
         null,
     );
     const why = parseExplainRequest(good)!;
@@ -151,12 +163,30 @@ test("say varies: variants, game context and recent sentences", () => {
 });
 
 test("game moments come in five variants", () => {
-    const e = parseEventRequest({ event: "win", stage: "knows", lang: "de", variant: 3 })!;
+    const e = parseEventRequest({
+        event: "win",
+        stage: "knows",
+        lang: "de",
+        variant: 3,
+    })!;
     assert.equal(e.event, "win");
     assert.match(eventPrompt(e), /German/);
-    assert.equal(parseEventRequest({ event: "win", stage: "knows", lang: "de", variant: 6 }), null);
     assert.equal(
-        parseEventRequest({ event: "dance", stage: "knows", lang: "de", variant: 1 }),
+        parseEventRequest({
+            event: "win",
+            stage: "knows",
+            lang: "de",
+            variant: 6,
+        }),
+        null,
+    );
+    assert.equal(
+        parseEventRequest({
+            event: "dance",
+            stage: "knows",
+            lang: "de",
+            variant: 1,
+        }),
         null,
     );
     assert.notEqual(eventKey(e), eventKey({ ...e, variant: 4 }));
@@ -167,7 +197,14 @@ test("game report takes counts and up to three moments", () => {
         mode: "report",
         result: "loss",
         opening: "Sicilian Defense",
-        counts: { book: 4, solid: 12, good: 2, dubious: 1, mistake: 1, blunder: 1 },
+        counts: {
+            book: 4,
+            solid: 12,
+            good: 2,
+            dubious: 1,
+            mistake: 1,
+            blunder: 1,
+        },
         moments: [
             {
                 move: "Qh5",
@@ -183,10 +220,30 @@ test("game report takes counts and up to three moments", () => {
     assert.equal(r.result, "loss");
     assert.match(reportPrompt(r), /Qh5 rated \?\?, better was Nf3/);
     assert.match(reportPrompt(r), /Sicilian/);
-    assert.equal(parseReportRequest({ ...base, counts: { ...base.counts, blunder: -1 } }), null);
     assert.equal(
-        parseReportRequest({ ...base, moments: new Array(4).fill(base.moments[0]) }),
+        parseReportRequest({
+            ...base,
+            counts: { ...base.counts, blunder: -1 },
+        }),
+        null,
+    );
+    assert.equal(
+        parseReportRequest({
+            ...base,
+            moments: new Array(4).fill(base.moments[0]),
+        }),
         null,
     );
     assert.equal(parseReportRequest({ ...base, mode: "say" }), null);
+});
+
+test("answers stay short and cheap (1.2.21)", () => {
+    assert.ok(EXPLAIN_MAX_TOKENS <= 200);
+    assert.ok(EXPLAIN_DEEP_MAX_TOKENS <= 400);
+    assert.ok(SAY_MAX_TOKENS <= 80);
+    assert.match(EXPLAIN_SYSTEM, /1 or 2 short sentences/);
+    assert.match(explainPrompt(parseExplainRequest({ ...good, deep: true })!), /3 or 4 short/);
+    // Neue, kurze Antworten statt der alten, langen aus dem Speicher
+    const a = parseExplainRequest(good)!;
+    assert.notEqual(cacheKey(a), cacheKey({ ...a, mode: "deep" }));
 });

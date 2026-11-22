@@ -125,7 +125,9 @@ export const lichessLogin = onCall({ cors: true, timeoutSeconds: 15 }, async (re
     } catch {
         await auth.createUser({ uid, displayName: account.username });
     }
-    const customToken = await auth.createCustomToken(uid, { lichess: account.username });
+    const customToken = await auth.createCustomToken(uid, {
+        lichess: account.username,
+    });
     logger.info("Lichess login", { uid });
     return { token: customToken, username: account.username };
 });
@@ -352,7 +354,7 @@ export const coachExplain = onCall(
                 .filter((b) => b.type === "text")
                 .map((b) => b.text)
                 .join(" "),
-            report ? 900 : short ? 240 : req!.mode === "deep" ? 1400 : 600,
+            report ? 450 : short ? 160 : req!.mode === "deep" ? 700 : 300,
         );
         if (!text) throw new HttpsError("unavailable", "No explanation");
 

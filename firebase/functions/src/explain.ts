@@ -1,22 +1,23 @@
 // „Warum?“ beim JBL Coach (1.2.9): Claude formuliert fertige Fakten aus
-// Stockfish in 2 bis 4 Sätzen im Ton des Coaches. Die KI bewertet nichts
+// Stockfish kurz und direkt (seit 1.2.21: 1 bis 2 Sätze) im Ton des Coaches. Die KI bewertet nichts
 // selbst. Hier stehen die reinen Teile (Prüfen, Schlüssel, Anleitung,
 // Tageslimit), damit sie ohne Firebase testbar sind.
 
 export const EXPLAIN_MODEL = "claude-haiku-5-5";
 export const EXPLAIN_DAILY_LIMIT = 20;
-export const EXPLAIN_MAX_TOKENS = 400;
+// Kurz und günstig (1.2.21): Antworten sind wenige kurze Sätze
+export const EXPLAIN_MAX_TOKENS = 200;
 // Ausführliche Erklärung nach einem Fehler (1.2.12): mehr Platz
-export const EXPLAIN_DEEP_MAX_TOKENS = 900;
+export const EXPLAIN_DEEP_MAX_TOKENS = 380;
 
 export const MARKS = ["!!", "!", "!?", "?!", "?", "??"] as const;
 // Kommentar zu jedem Zug (1.2.12): dazu Theorie und solide Züge
 export const SAY_MARKS = [...MARKS, "book", "solid"] as const;
-export const SAY_MAX_TOKENS = 120;
+export const SAY_MAX_TOKENS = 70;
 // Kurze Sprüche sind billig: eigenes, höheres Tageslimit
 export const SAY_DAILY_LIMIT = 400;
 export const EVENTS = ["start", "win", "loss", "draw"] as const;
-export const REPORT_MAX_TOKENS = 500;
+export const REPORT_MAX_TOKENS = 260;
 export const STAGES = ["rules", "knows", "regular", "club"] as const;
 
 export type ExplainRequest = {
@@ -166,7 +167,14 @@ export function parseReportRequest(data: unknown): ReportRequest | null {
         if (motif !== null && !MOTIF.test(motif)) return null;
         moments.push({ move, mark, best, motif });
     }
-    return { result, opening: rawOpening || null, counts, moments, stage, lang };
+    return {
+        result,
+        opening: rawOpening || null,
+        counts,
+        moments,
+        stage,
+        lang,
+    };
 }
 
 export function reportPrompt(r: ReportRequest): string {
@@ -181,7 +189,7 @@ export function reportPrompt(r: ReportRequest): string {
             (m) =>
                 `Key moment: ${m.move} rated ${m.mark}${m.best ? `, better was ${m.best}` : ""}${m.motif ? `, motif ${m.motif}` : ""}.`,
         ),
-        "Write a short game report in 3 to 5 sentences: how the game went, the best moment, the most important mistake and what to learn from it, and one concrete tip for the next game. No lists, no headings.",
+        "Write a short game report in 2 or 3 short, simple sentences: the key moment of the game and one concrete tip for the next game. No lists, no headings, no filler.",
     ]
         .filter(Boolean)
         .join("\n");
@@ -211,7 +219,7 @@ export function eventPrompt(r: EventRequest): string {
         `The player is ${STAGE_TEXT[r.stage]}.`,
         `Moment: ${EVENT_TEXT[r.event]}.`,
         `This is variant ${r.variant} of 5, so phrase it differently from the obvious first idea.`,
-        "Write exactly one short sentence, at most 15 words. No chess analysis.",
+        "Write exactly one short sentence, at most 12 words. No chess analysis.",
     ].join("\n");
 }
 
@@ -226,7 +234,7 @@ export const EXPLAIN_SYSTEM = `You are JBL, a friendly chess coach shaped like a
 
 You explain one move of the player. You get facts from the engine Stockfish. Do not evaluate the position yourself and do not invent moves, threats or variations that are not in the facts. If the facts are thin, say less.
 
-Write 2 to 4 short sentences, no lists, no headings, no move numbers beyond what is needed. Talk to the player directly ("you"). End with the point that matters most.`;
+Be short, simple and direct: 1 or 2 short sentences, plain words, no filler, no lists, no headings. Talk to the player directly ("you"). Say the point that matters most.`;
 
 // Für den Partiebericht nach dem Spiel
 export const REPORT_SYSTEM = `You are JBL, a friendly chess coach shaped like a small speaker. After a game you write the player a short, honest, encouraging report. You get counts and key moments from the engine Stockfish; never invent moves, threats or evaluations beyond them. Use at most one music image. Talk to the player directly.`;
@@ -236,7 +244,7 @@ export const SAY_SYSTEM = `You are JBL, a chess coach shaped like a small speake
 
 Keep it lively and varied. Change how you start the sentence and its shape every time: sometimes a short reaction, sometimes a question, sometimes a concrete hint about the plan or the piece that moved, sometimes a playful remark about the game situation. Avoid filler like "solid move", "good move" or "well played" on their own; say something specific about this move instead. Never repeat the wording of the sentences you said recently.
 
-Answer with exactly one short sentence in the requested language, talking to the player directly. No lists, no quotes, no emojis.`;
+Answer with exactly one short sentence (at most 12 words) in the requested language, talking to the player directly. No lists, no quotes, no emojis.`;
 
 function phase(ply: number): string {
     if (ply <= 16) return "the opening";
@@ -268,9 +276,9 @@ export function explainPrompt(r: ExplainRequest): string {
             ? `Variant ${r.variant} of 3: phrase it differently from the obvious first idea.`
             : "",
         r.mode === "say"
-            ? `Write exactly one short sentence (at most 18 words) reacting to this move right after it was played. ${r.mark === "book" ? "Say it is theory and name the opening if given." : r.mark === "solid" ? "It is a sound, ordinary move; keep it light." : `Match the rating "${r.mark}"; if a better move is given and the rating is ?!, ? or ??, name it.`}`
+            ? `Write exactly one short sentence (at most 12 words) reacting to this move right after it was played. ${r.mark === "book" ? "Say it is theory and name the opening if given." : r.mark === "solid" ? "It is a sound, ordinary move; keep it light." : `Match the rating "${r.mark}"; if a better move is given and the rating is ?!, ? or ??, name it.`}`
             : r.mode === "deep"
-              ? `Explain this mistake in depth, in 5 to 8 short sentences: first what the opponent can do now, walking through the engine line move by move up to its first 4 half-moves (2 full moves) when the point only shows after a few moves, then, if a motif was detected, what that tactical motif is in general and how it works here, and finally what the better move does differently. You may use one short paragraph break.`
+              ? `Explain this mistake in 3 or 4 short, simple sentences: what the opponent can do now (name up to the first 4 half-moves of the engine line if the point only shows later), the tactical motif in one plain sentence if one was detected, and what the better move does instead. No filler.`
               : `Explain why the move deserves "${r.mark}". If the problem only shows after a few moves, follow the engine line for up to its first 4 half-moves (2 full moves) and name those moves.`,
     ];
     return lines.filter(Boolean).join("\n");
@@ -290,7 +298,12 @@ export function nextUsage(
 
 // Gleiche Regel wie member() in firestore.rules
 export function isMember(
-    token: { admin?: unknown; email?: unknown; email_verified?: unknown; lichess?: unknown },
+    token: {
+        admin?: unknown;
+        email?: unknown;
+        email_verified?: unknown;
+        lichess?: unknown;
+    },
     access: unknown,
 ): boolean {
     if (token.admin === true) return true;
@@ -303,7 +316,7 @@ export function isMember(
     return typeof token.lichess === "string" && has(a.lichess, token.lichess.toLowerCase());
 }
 
-// Die Antwort kurz halten: höchstens 600 Zeichen, ausführlich 1400.
+// Die Antwort kurz halten: höchstens 600 Zeichen (1.2.21: Aufrufe kürzen auf 300, ausführlich 700).
 // Absätze bleiben erhalten, sonstige Leerzeichen werden zusammengefasst.
 export function trimAnswer(text: string, max = 600): string {
     const clean = text
