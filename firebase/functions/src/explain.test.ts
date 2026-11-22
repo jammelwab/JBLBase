@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { explainPrompt, isMember, nextUsage, parseExplainRequest, trimAnswer } from "./explain.js";
-import { cacheKey } from "./explainKey.js";
+import {
+    eventPrompt,
+    explainPrompt,
+    isMember,
+    nextUsage,
+    parseEventRequest,
+    parseExplainRequest,
+    parseReportRequest,
+    reportPrompt,
+    trimAnswer,
+} from "./explain.js";
+import { cacheKey, eventKey } from "./explainKey.js";
 
 const good = {
     fen: "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 4 4",
@@ -77,4 +87,82 @@ test("members as in the rules", () => {
 test("keeps answers short", () => {
     assert.equal(trimAnswer("  Ein   Satz. "), "Ein Satz.");
     assert.equal(trimAnswer("x".repeat(700)).length, 598);
+});
+
+test("deep explanations ask for more and are stored apart", () => {
+    const a = parseExplainRequest(good)!;
+    const d = parseExplainRequest({ ...good, deep: true })!;
+    assert.equal(a.mode, "why");
+    assert.equal(d.mode, "deep");
+    assert.equal(parseExplainRequest({ ...good, deep: "yes" })?.mode, "why");
+    assert.notEqual(cacheKey(a), cacheKey(d));
+    assert.match(explainPrompt(d), /in depth/);
+    assert.doesNotMatch(explainPrompt(a), /in depth/);
+    assert.equal(trimAnswer("Eins.\n\n  Zwei   drei.", 1400), "Eins.\n\nZwei drei.");
+    assert.equal(trimAnswer("x".repeat(2000), 1400).length, 1398);
+});
+
+test("one sentence per move, with theory and solid marks only there", () => {
+    const say = parseExplainRequest({
+        ...good,
+        mode: "say",
+        mark: "book",
+        opening: "Ruy Lopez: Morphy Defense",
+    })!;
+    assert.equal(say.mode, "say");
+    assert.equal(say.opening, "Ruy Lopez: Morphy Defense");
+    assert.match(explainPrompt(say), /one short sentence/);
+    assert.match(explainPrompt(say), /Ruy Lopez/);
+    assert.equal(parseExplainRequest({ ...good, mark: "book" }), null);
+    assert.equal(
+        parseExplainRequest({ ...good, mode: "say", mark: "solid", opening: "<b>x</b>" }),
+        null,
+    );
+    const why = parseExplainRequest(good)!;
+    assert.notEqual(cacheKey(why), cacheKey({ ...why, mode: "say" }));
+    assert.notEqual(
+        cacheKey({ ...why, mode: "say", mark: "?" }),
+        cacheKey({ ...why, mode: "say", mark: "??" }),
+    );
+});
+
+test("game moments come in five variants", () => {
+    const e = parseEventRequest({ event: "win", stage: "knows", lang: "de", variant: 3 })!;
+    assert.equal(e.event, "win");
+    assert.match(eventPrompt(e), /German/);
+    assert.equal(parseEventRequest({ event: "win", stage: "knows", lang: "de", variant: 6 }), null);
+    assert.equal(
+        parseEventRequest({ event: "dance", stage: "knows", lang: "de", variant: 1 }),
+        null,
+    );
+    assert.notEqual(eventKey(e), eventKey({ ...e, variant: 4 }));
+});
+
+test("game report takes counts and up to three moments", () => {
+    const base = {
+        mode: "report",
+        result: "loss",
+        opening: "Sicilian Defense",
+        counts: { book: 4, solid: 12, good: 2, dubious: 1, mistake: 1, blunder: 1 },
+        moments: [
+            {
+                move: "Qh5",
+                mark: "??",
+                best: "Nf3",
+                motif: "fork by knight on c2 hits king and rook",
+            },
+        ],
+        stage: "knows",
+        lang: "de",
+    };
+    const r = parseReportRequest(base)!;
+    assert.equal(r.result, "loss");
+    assert.match(reportPrompt(r), /Qh5 rated \?\?, better was Nf3/);
+    assert.match(reportPrompt(r), /Sicilian/);
+    assert.equal(parseReportRequest({ ...base, counts: { ...base.counts, blunder: -1 } }), null);
+    assert.equal(
+        parseReportRequest({ ...base, moments: new Array(4).fill(base.moments[0]) }),
+        null,
+    );
+    assert.equal(parseReportRequest({ ...base, mode: "say" }), null);
 });

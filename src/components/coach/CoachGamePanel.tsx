@@ -1,5 +1,5 @@
 import { Box, Button, Group, Paper, Text } from "@mantine/core";
-import { IconArrowBackUp } from "@tabler/icons-react";
+import { IconArrowBackUp, IconBulb, IconReport } from "@tabler/icons-react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { makeUci } from "chessops";
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +8,12 @@ import type { Outcome } from "@/bindings";
 import CoachFigure, { type CoachAnimation, type CoachFigureHandle } from "./CoachFigure";
 import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coachGame";
 import CoachReceipt from "./CoachReceipt";
+import CoachDeepDive from "./CoachDeepDive";
+import CoachReport, { type CoachReportData } from "./CoachReport";
+import { askCoach, countReactions } from "./coachCloud";
+import { DEEP_REACTIONS, motifsFor, type ReportMove, reportMoments } from "./coachDeep";
+import { coachIntroAtom } from "./coachIntroState";
+import { cloudAccountAtom } from "@/utils/cloud/sync";
 import CoachWhy from "./CoachWhy";
 import { playCoachTone } from "./coachSound";
 import { type CoachMistake, finishCoachGameAtom, type ReceiptLine } from "./coachProgress";
@@ -52,6 +58,11 @@ const SIGN_COLOR: Record<string, string> = {
 type Bubble = { sign: string | null; text: string; key: number };
 type Say = { anim: CoachAnimation | null; text: string; sign: string | null };
 
+// So lange warten Start und Ende höchstens auf Claude
+const EVENT_TIMEOUT_MS = 2500;
+// Der Bericht erscheint, wenn JBL die ersten Sätze gesagt hat
+const REPORT_DELAY_MS = 6500;
+
 // Wie schlimm ein Fehler ist, um den schlimmsten der Partie zu finden
 const SEVERITY: Record<string, number> = { missedMate: 4, blunder: 3, mistake: 2, dubious: 1 };
 
@@ -88,8 +99,18 @@ export default function CoachGamePanel({
   // Boss-Challenge: „Jannick“ spielt
   boss?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
+  const account = useAtomValue(cloudAccountAtom);
+  const stage = useAtomValue(coachIntroAtom).entry ?? "knows";
+  // Bewertete eigene Züge dieser Partie für den Bericht
+  const history = useRef<ReportMove[]>([]);
+  const opening = useRef<string | null>(null);
+  const [report, setReport] = useState<CoachReportData | null>(null);
+  const [reportReady, setReportReady] = useState<CoachReportData | null>(null);
+  const [deep, setDeep] = useState<CoachComment | null>(null);
+  // Jede neue Partie oder jedes Ende macht ältere Claude-Antworten ungültig
+  const speechGen = useRef(0);
   const recent = useRef<string[]>([]);
   const [bubble, setBubble] = useState<Bubble | null>(null);
   const [hover, setHover] = useState(false);
@@ -145,6 +166,21 @@ export default function CoachGamePanel({
     }
   };
 
+  // Satz zu Start und Ende von Claude, sonst der feste Spruch
+  const eventText = async (event: "start" | "win" | "loss" | "draw", fallback: string) => {
+    if (!account) return fallback;
+    const answer = await askCoach(
+      {
+        event,
+        stage,
+        lang: i18n.language.startsWith("en") ? "en" : "de",
+        variant: 1 + Math.floor(Math.random() * 5),
+      },
+      EVENT_TIMEOUT_MS,
+    );
+    return answer ?? fallback;
+  };
+
   const deliver = (anim: CoachAnimation | null, lineKey: string, sign: string | null, extra = "") =>
     speak([{ anim, text: line(lineKey, extra), sign }]);
 
@@ -169,6 +205,20 @@ export default function CoachGamePanel({
   useEffect(() => {
     if (!comment || comment.id === lastComment.current) return;
     lastComment.current = comment.id;
+    if (comment.opening) opening.current = comment.opening;
+    const motif = (SEVERITY[comment.reaction] ?? 0) > 0 ? (motifsFor(comment)[0] ?? null) : null;
+    history.current = [
+      ...history.current.filter((m) => m.ply !== comment.ply),
+      {
+        reaction: comment.reaction,
+        ply: comment.ply,
+        san: comment.san,
+        best: comment.best,
+        sign: REACTION_SIGN[comment.reaction],
+        motif: motif?.id ?? null,
+        motifText: motif?.text ?? null,
+      },
+    ];
     if (comment.reaction === "brilliant") {
       stats.current.brilliants++;
       // Aaron: sein Hund kommt und schaut für den Rest der Partie zu
@@ -187,6 +237,19 @@ export default function CoachGamePanel({
         marks.current[comment.ply] = "!!";
         return;
       }
+    }
+    // Theorie und solide Züge: kurzer Kommentar, kein Zeichen, kein Ton
+    if (comment.reaction === "book" || comment.reaction === "solid") {
+      if (comment.text) {
+        speak([{ anim: REACTION_ANIMATION[comment.reaction], text: comment.text, sign: null }]);
+        return;
+      }
+      const extra =
+        comment.reaction === "book" && comment.opening
+          ? t("Coach.Line.BookName", { name: comment.opening })
+          : "";
+      deliver(REACTION_ANIMATION[comment.reaction], comment.reaction, null, extra);
+      return;
     }
     if (comment.reaction === "good") stats.current.goods++;
     marks.current[comment.ply] = REACTION_SIGN[comment.reaction];
@@ -208,7 +271,10 @@ export default function CoachGamePanel({
         ? t("Coach.Line.Better", { move: comment.best })
         : "";
     playCoachTone(comment.reaction === "missedMate" ? "blunder" : comment.reaction);
-    deliver(REACTION_ANIMATION[comment.reaction], comment.reaction, sign, better);
+    // Claudes Satz, sonst der feste Spruch
+    if (comment.text)
+      speak([{ anim: REACTION_ANIMATION[comment.reaction], text: comment.text, sign }]);
+    else deliver(REACTION_ANIMATION[comment.reaction], comment.reaction, sign, better);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comment]);
 
@@ -293,14 +359,22 @@ export default function CoachGamePanel({
       setPenalty(false);
       lambrusco.current = false;
       checkedPly.current = 0;
-      speak([
-        boss
-          ? { anim: "think" as const, text: line("bossStart"), sign: null }
-          : { anim: "hello" as const, text: line("start"), sign: null },
+      history.current = [];
+      opening.current = null;
+      setReport(null);
+      setReportReady(null);
+      setDeep(null);
+      const gen = ++speechGen.current;
+      const rest: Say[] = [
         ...(attack ? [{ anim: "think" as const, text: line("attack"), sign: null }] : []),
         ...(plan?.announce ?? []).map((key) => ({ anim: null, text: line(key), sign: null })),
         ...(bonusTrack ? [{ anim: "bril" as const, text: line("bonusTrack"), sign: null }] : []),
-      ]);
+      ];
+      if (boss) speak([{ anim: "think", text: line("bossStart"), sign: null }, ...rest]);
+      else
+        void eventText("start", line("start")).then((text) => {
+          if (gen === speechGen.current) speak([{ anim: "hello", text, sign: null }, ...rest]);
+        });
     }
     if (gameState === "gameOver" && humanColor && result && result !== "*") {
       const outcome =
@@ -406,13 +480,22 @@ export default function CoachGamePanel({
       if (done.bossNext) after.push({ anim: "think", text: line("bossNext"), sign: null });
       if (done.lines.some((l) => l.key === "tired"))
         after.push({ anim: "think", text: line("tired"), sign: null });
-      speak([
-        outcome === "draw"
-          ? { anim: null, text: line("draw"), sign: null }
-          : { anim: outcome, text: line(outcome), sign: null },
-        ...after,
-      ]);
+      const gen = ++speechGen.current;
+      void eventText(outcome, line(outcome)).then((text) => {
+        if (gen !== speechGen.current) return;
+        speak([{ anim: outcome === "draw" ? null : outcome, text, sign: null }, ...after]);
+      });
       timers.current.push(setTimeout(() => setReceipt({ lines: done.lines, lock }), 2400));
+      // Der Partiebericht kommt von selbst, wenn JBL fertig gesprochen hat
+      const data: CoachReportData = {
+        id: gen,
+        outcome,
+        opening: opening.current,
+        counts: countReactions(history.current.map((m) => m.reaction)),
+        moments: reportMoments(history.current),
+      };
+      setReportReady(data);
+      timers.current.push(setTimeout(() => setReport(data), REPORT_DELAY_MS));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, result]);
@@ -459,7 +542,33 @@ export default function CoachGamePanel({
               {t("Coach.Game.Watching")}
             </Text>
           )}
-          {gameState !== "settingUp" && <CoachWhy comment={comment} />}
+          {gameState !== "settingUp" && comment && DEEP_REACTIONS.includes(comment.reaction) ? (
+            <Button
+              mt="xs"
+              size="xs"
+              variant="light"
+              color="red"
+              leftSection={<IconBulb size={14} />}
+              onClick={() => setDeep(comment)}
+            >
+              {t("Coach.Deep.Button", { move: comment.san, sign: REACTION_SIGN[comment.reaction] })}
+            </Button>
+          ) : (
+            gameState !== "settingUp" && <CoachWhy comment={comment} />
+          )}
+          {gameState === "gameOver" && reportReady && (
+            <Button
+              mt="xs"
+              ml={6}
+              size="xs"
+              variant="light"
+              color="orange"
+              leftSection={<IconReport size={14} />}
+              onClick={() => setReport(reportReady)}
+            >
+              {t("Coach.Report.Open")}
+            </Button>
+          )}
           {penalty && (
             <Box mt="xs">
               <PenaltyTicket
@@ -514,6 +623,8 @@ export default function CoachGamePanel({
           )}
         </Box>
       </Group>
+      <CoachDeepDive comment={deep} onClose={() => setDeep(null)} />
+      <CoachReport report={report} onClose={() => setReport(null)} />
     </Paper>
   );
 }

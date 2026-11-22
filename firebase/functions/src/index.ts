@@ -14,16 +14,27 @@ import { type MailKind, maySend, parseEmail, parseLang, renderMail } from "./mai
 import { lichessListed, lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
 import Anthropic from "@anthropic-ai/sdk";
 import {
+    EXPLAIN_DAILY_LIMIT,
+    EXPLAIN_DEEP_MAX_TOKENS,
     EXPLAIN_MAX_TOKENS,
     EXPLAIN_MODEL,
     EXPLAIN_SYSTEM,
+    eventPrompt,
     explainPrompt,
     isMember,
     nextUsage,
+    parseEventRequest,
     parseExplainRequest,
+    parseReportRequest,
+    REPORT_MAX_TOKENS,
+    REPORT_SYSTEM,
+    reportPrompt,
+    SAY_DAILY_LIMIT,
+    SAY_MAX_TOKENS,
+    SAY_SYSTEM,
     trimAnswer,
 } from "./explain.js";
-import { cacheKey } from "./explainKey.js";
+import { cacheKey, eventKey, reportKey } from "./explainKey.js";
 
 // All functions run in Frankfurt with at most one instance, so a bug or an
 // attack can never scale up costs.
@@ -268,12 +279,15 @@ export const sendPasswordResetMail = onCall(
 const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 
 export const coachExplain = onCall(
+    // minInstances 0: kalt dauert der erste Spruch etwas länger, die App wartet höchstens 4 s
     { cors: true, timeoutSeconds: 30, secrets: [ANTHROPIC_API_KEY] },
     async (request) => {
         const auth = request.auth;
         if (!auth) throw new HttpsError("unauthenticated", "Not signed in");
-        const req = parseExplainRequest(request.data);
-        if (!req) throw new HttpsError("invalid-argument", "Bad request");
+        const report = parseReportRequest(request.data);
+        const event = report ? null : parseEventRequest(request.data);
+        const req = report || event ? null : parseExplainRequest(request.data);
+        if (!report && !event && !req) throw new HttpsError("invalid-argument", "Bad request");
 
         const db = getFirestore();
         const access = await db.doc("config/access").get();
@@ -281,18 +295,25 @@ export const coachExplain = onCall(
             throw new HttpsError("permission-denied", "Not a member");
         }
 
-        const key = cacheKey(req);
+        const key = report ? reportKey(report) : event ? eventKey(event) : cacheKey(req!);
         const cached = await db.doc(`coachExplanations/${key}`).get();
         const cachedText = cached.data()?.text;
         if (typeof cachedText === "string" && cachedText) {
             return { text: cachedText, cached: true };
         }
 
-        // Nur neue Antworten zählen zum Tageslimit
+        // Nur neue Antworten zählen zum Tageslimit. Kurze Sprüche während der
+        // Partie (say, event) haben ein eigenes, höheres Limit.
+        // Bericht und kurze Sprüche zählen zum hohen Limit
+        const short = report !== null || event !== null || req!.mode === "say";
         const day = new Date().toISOString().slice(0, 10);
-        const usageRef = db.doc(`coachExplainUsage/${auth.uid}`);
+        const usageRef = db.doc(`${short ? "coachSayUsage" : "coachExplainUsage"}/${auth.uid}`);
         const allowed = await db.runTransaction(async (tx) => {
-            const next = nextUsage((await tx.get(usageRef)).data(), day);
+            const next = nextUsage(
+                (await tx.get(usageRef)).data(),
+                day,
+                short ? SAY_DAILY_LIMIT : EXPLAIN_DAILY_LIMIT,
+            );
             if (next.allowed) tx.set(usageRef, next.usage);
             return next.allowed;
         });
@@ -301,12 +322,27 @@ export const coachExplain = onCall(
         const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
         const response = await client.messages.create({
             model: EXPLAIN_MODEL,
-            max_tokens: EXPLAIN_MAX_TOKENS,
+            max_tokens: report
+                ? REPORT_MAX_TOKENS
+                : short
+                  ? SAY_MAX_TOKENS
+                  : req!.mode === "deep"
+                    ? EXPLAIN_DEEP_MAX_TOKENS
+                    : EXPLAIN_MAX_TOKENS,
             // Wenig Denkaufwand: nur formulieren, nicht rechnen
             thinking: { type: "disabled" },
             output_config: { effort: "low" },
-            system: EXPLAIN_SYSTEM,
-            messages: [{ role: "user", content: explainPrompt(req) }],
+            system: report ? REPORT_SYSTEM : short ? SAY_SYSTEM : EXPLAIN_SYSTEM,
+            messages: [
+                {
+                    role: "user",
+                    content: report
+                        ? reportPrompt(report)
+                        : event
+                          ? eventPrompt(event)
+                          : explainPrompt(req!),
+                },
+            ],
         });
         if (response.stop_reason === "refusal") {
             throw new HttpsError("unavailable", "No explanation");
@@ -316,6 +352,7 @@ export const coachExplain = onCall(
                 .filter((b) => b.type === "text")
                 .map((b) => b.text)
                 .join(" "),
+            report ? 900 : short ? 240 : req!.mode === "deep" ? 1400 : 600,
         );
         if (!text) throw new HttpsError("unavailable", "No explanation");
 

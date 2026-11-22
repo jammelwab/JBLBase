@@ -50,10 +50,21 @@ export type CoachReaction =
     | "dubious"
     | "mistake"
     | "blunder"
-    | "missedMate";
+    | "missedMate"
+    // Theorie: der Zug steht im Eröffnungsbuch
+    | "book"
+    // Ein ordentlicher Zug ohne Besonderheit
+    | "solid";
 
-export function reactionFor(annotation: string, allowsMateInOne: boolean): CoachReaction | null {
+// Jeder eigene Zug bekommt eine Einordnung. Theorie geht vor kleinen
+// Ungenauigkeiten (?!), aber nicht vor echten Fehlern und nicht vor !!.
+export function reactionFor(
+    annotation: string,
+    allowsMateInOne: boolean,
+    inBook = false,
+): CoachReaction {
     if (allowsMateInOne) return "missedMate";
+    if (inBook && annotation !== "!!" && annotation !== "?" && annotation !== "??") return "book";
     switch (annotation) {
         case "!!":
             return "brilliant";
@@ -68,7 +79,7 @@ export function reactionFor(annotation: string, allowsMateInOne: boolean): Coach
         case "??":
             return "blunder";
         default:
-            return null;
+            return "solid";
     }
 }
 
@@ -80,6 +91,8 @@ export const REACTION_ANIMATION: Record<CoachReaction, CoachAnimation> = {
     mistake: "mis",
     blunder: "blu",
     missedMate: "blu",
+    book: "think",
+    solid: "good",
 };
 
 export const REACTION_SIGN: Record<CoachReaction, string> = {
@@ -90,6 +103,8 @@ export const REACTION_SIGN: Record<CoachReaction, string> = {
     mistake: "?",
     blunder: "??",
     missedMate: "??",
+    book: "",
+    solid: "",
 };
 
 // So viele Fassungen hat jeder Spruch in den Übersetzungen (Coach.Line.<key>.<n>).
@@ -101,6 +116,8 @@ export const LINE_VARIANTS: Record<string, number> = {
     mistake: 2,
     blunder: 2,
     missedMate: 1,
+    book: 2,
+    solid: 4,
     start: 2,
     win: 2,
     loss: 2,

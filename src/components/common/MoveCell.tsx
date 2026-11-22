@@ -1,4 +1,4 @@
-import { Box, rgba, useMantineTheme } from "@mantine/core";
+import { Box, type MantineColor, rgba, useMantineTheme } from "@mantine/core";
 import { IconFlag } from "@tabler/icons-react";
 import { useAtom } from "jotai";
 import type { ReactNode, RefObject } from "react";
@@ -16,6 +16,8 @@ interface MoveCellProps {
   fullWidth?: boolean;
   rightAccessory?: ReactNode;
   ref?: RefObject<HTMLButtonElement>;
+  // Farbe ohne Zeichen, z. B. vom JBL Coach für Theorie oder solide Züge
+  tint?: MantineColor;
 }
 
 function MoveCell(props: MoveCellProps) {
@@ -23,7 +25,7 @@ function MoveCell(props: MoveCellProps) {
   const [showComments] = useAtom(currentShowCommentsAtom);
   const visualAnnotation = showComments ? props.annotations[0] : "";
 
-  const color = ANNOTATION_INFO[visualAnnotation]?.color || "gray";
+  const color = ANNOTATION_INFO[visualAnnotation]?.color || (showComments && props.tint) || "gray";
   const theme = useMantineTheme();
   const hoverOpacity = props.isCurrentVariation ? 0.25 : 0.1;
   let baseLight = theme.colors.gray[8];
