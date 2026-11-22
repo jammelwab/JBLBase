@@ -120,14 +120,14 @@ export const REACTION_SIGN: Record<CoachReaction, string> = {
 // So viele Fassungen hat jeder Spruch in den Übersetzungen (Coach.Line.<key>.<n>).
 export const LINE_VARIANTS: Record<string, number> = {
     brilliant: 3,
-    good: 3,
-    interesting: 2,
-    dubious: 2,
-    mistake: 2,
-    blunder: 2,
+    good: 6,
+    interesting: 3,
+    dubious: 4,
+    mistake: 4,
+    blunder: 4,
     missedMate: 1,
-    book: 2,
-    solid: 4,
+    book: 5,
+    solid: 10,
     start: 2,
     win: 2,
     loss: 2,
@@ -198,4 +198,47 @@ export const ONLY_MOVE_MARGIN_CP = 150;
 export function isOnlyMove(played: string, best: { san: string | null; score: number }[]): boolean {
     if (best.length < 2 || !best[0].san || best[0].san !== played) return false;
     return best[0].score - best[1].score >= ONLY_MOVE_MARGIN_CP;
+}
+
+// Bewertung nach dem gespielten Zug (1.2.19): Steht der Zug unter den besten
+// Zügen der Stellung davor, zählt dessen Bewertung aus derselben Suche. Sonst
+// bekommt ein bester Zug durch das Rauschen zweier Suchen schnell ein ?!.
+export function playedScore<S>(
+    played: string,
+    best: { sanMoves: string[]; score: { value: S } }[],
+    after: S,
+): S {
+    return best.find((b) => b.sanMoves[0] === played)?.score.value ?? after;
+}
+
+// Optionen der Engine für die Prüfung: ohne Stärke-Begrenzung, damit JBL mit
+// voller Stärke bewertet
+const STRENGTH_OPTIONS = new Set(["UCI_LimitStrength", "UCI_Elo", "Skill Level", "MultiPV"]);
+export function checkEngineOptions<O extends { name: string }>(options: O[]): O[] {
+    return options.filter((o) => !STRENGTH_OPTIONS.has(o.name));
+}
+
+// Was JBL in dieser Sitzung zuletzt gesagt hat (1.2.19): Claude bekommt es
+// mit, damit er sich nicht wiederholt, und ein Satz, der gerade schon kam,
+// wird durch einen festen Spruch ersetzt.
+const RECENT_SAYS = 12;
+let recentSays: string[] = [];
+
+export function rememberSaid(text: string) {
+    const t = text.trim();
+    if (t) recentSays = [t, ...recentSays.filter((s) => s !== t)].slice(0, RECENT_SAYS);
+}
+
+export function recentlySaid(n = RECENT_SAYS): string[] {
+    return recentSays.slice(0, n);
+}
+
+export function saidRecently(text: string): boolean {
+    const norm = (s: string) =>
+        s
+            .toLowerCase()
+            .replace(/[^\p{L}\d]+/gu, " ")
+            .trim();
+    const t = norm(text);
+    return recentSays.some((s) => norm(s) === t);
 }

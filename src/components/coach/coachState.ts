@@ -162,3 +162,8 @@ export function nextCoachStep(i: CoachStepInput): CoachStepId {
     if (i.next !== "done") return i.next;
     return i.questDone ? "path" : "quest";
 }
+
+// „Gegen JBL spielen“ (1.2.19): der Tab, in dem eine neue Partie ab Zug 1
+// beginnen soll. Das Brett vergisst dann, was vorher im Tab stand (ein
+// Puzzle, eine alte Partie), auch wenn dort noch eine Partie lief.
+export const coachNewGameAtom = atom<string | null>(null);

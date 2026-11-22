@@ -7,7 +7,14 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Outcome } from "@/bindings";
 import CoachFigure, { type CoachAnimation, type CoachFigureHandle } from "./CoachFigure";
-import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coachGame";
+import {
+  pickLine,
+  REACTION_ANIMATION,
+  REACTION_SIGN,
+  readingTime,
+  rememberSaid,
+  saidRecently,
+} from "./coachGame";
 import CoachReceipt from "./CoachReceipt";
 import CoachDeepDive from "./CoachDeepDive";
 import CoachReport, { type CoachReportData } from "./CoachReport";
@@ -63,6 +70,8 @@ type Say = { anim: CoachAnimation | null; text: string; sign: string | null };
 
 // So viele Sätze bleiben im Verlauf
 const LOG_MAX = 60;
+// So groß steht JBL während der Partie neben seinem Kommentar (1.2.19, vorher 96)
+const FIGURE_SIZE = 150;
 
 // So lange warten Start und Ende höchstens auf Claude
 const EVENT_TIMEOUT_MS = 2500;
@@ -177,6 +186,7 @@ export default function CoachGamePanel({
     timers.current = [];
     let at = startDelay;
     for (const item of items) {
+      rememberSaid(item.text);
       timers.current.push(
         setTimeout(() => {
           if (item.anim) figure.current?.play(item.anim);
@@ -216,10 +226,10 @@ export default function CoachGamePanel({
   const deliver = (anim: CoachAnimation | null, lineKey: string, sign: string | null, extra = "") =>
     speak([{ anim, text: line(lineKey, extra), sign }]);
 
-  // Immer den neuesten Satz zeigen
+  // Ältere Sätze stehen neueste zuerst darunter
   useEffect(() => {
     const el = logView.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (el) el.scrollTo({ top: 0, behavior: "smooth" });
   }, [log]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
@@ -310,8 +320,9 @@ export default function CoachGamePanel({
         ? t("Coach.Line.Better", { move: comment.best })
         : "";
     playCoachTone(comment.reaction === "missedMate" ? "blunder" : comment.reaction);
-    // Claudes Satz, sonst der feste Spruch
-    if (comment.text)
+    // Claudes Satz, sonst der feste Spruch; auch dann, wenn Claude gerade
+    // dasselbe schon gesagt hat
+    if (comment.text && !saidRecently(comment.text))
       speak([{ anim: REACTION_ANIMATION[comment.reaction], text: comment.text, sign }]);
     else deliver(REACTION_ANIMATION[comment.reaction], comment.reaction, sign, better);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -549,6 +560,9 @@ export default function CoachGamePanel({
   }, [gameState, result]);
 
   // Zurücknehmen nach ? oder ??, aber nie nach zugelassenem Matt in 1.
+  const latest = log.at(-1) ?? null;
+  const older = log.slice(0, -1).reverse();
+
   const offerTakeBack =
     gameState === "playing" &&
     comment !== null &&
@@ -557,9 +571,10 @@ export default function CoachGamePanel({
 
   return (
     <Paper withBorder radius="md" p="sm" data-tour="coach-game">
-      <Group wrap="nowrap" align="flex-start" gap="sm">
+      {/* JBL groß und sichtbar (1.2.19): Figur, Zeichen und letzter Satz oben */}
+      <Group wrap="nowrap" align="center" gap="md">
         <Box style={{ flexShrink: 0, lineHeight: 0 }}>
-          <CoachFigure ref={figure} size={96} title={t("Coach.Card.Title")} />
+          <CoachFigure ref={figure} size={FIGURE_SIZE} title={t("Coach.Card.Title")} />
           {dog && (
             <Box mt={4} ta="center">
               <CoachDog size={64} />
@@ -568,119 +583,130 @@ export default function CoachGamePanel({
         </Box>
         {cart && <LambruscoCart />}
         {blast && <BunnyBlast />}
-        <Box style={{ flex: 1, minWidth: 0, minHeight: 72 }} aria-live="polite">
-          {log.length > 0 ? (
-            <ScrollArea.Autosize mah={170} viewportRef={logView} type="auto" offsetScrollbars>
-              <Stack gap={6}>
-                {log.map((b, i) => {
-                  const latest = i === log.length - 1;
-                  return (
-                    <Paper
-                      key={b.key}
-                      radius="md"
-                      p="xs"
-                      bg={latest ? "var(--mantine-color-default-hover)" : "transparent"}
-                      withBorder={!latest}
-                    >
-                      <Text size="sm" c={latest ? undefined : "dimmed"}>
-                        {b.sign && (
-                          <Text span fw={800} mr={6} c={SIGN_COLOR[b.sign]}>
-                            {b.sign}
-                          </Text>
-                        )}
-                        {b.text}
-                      </Text>
-                    </Paper>
-                  );
-                })}
-              </Stack>
-            </ScrollArea.Autosize>
+        <Box style={{ flex: 1, minWidth: 0 }} aria-live="polite">
+          {latest ? (
+            <Paper radius="lg" p="sm" bg="var(--mantine-color-default-hover)">
+              <Group wrap="nowrap" gap="sm" align="center">
+                {latest.sign && (
+                  <Text
+                    fw={900}
+                    fz={34}
+                    lh={1}
+                    c={SIGN_COLOR[latest.sign]}
+                    style={{ flexShrink: 0 }}
+                  >
+                    {latest.sign}
+                  </Text>
+                )}
+                <Text size="md" fw={500}>
+                  {latest.text}
+                </Text>
+              </Group>
+            </Paper>
           ) : (
-            <Text size="sm" c="dimmed">
+            <Text size="md" c="dimmed">
               {t("Coach.Game.Watching")}
             </Text>
           )}
-          {gameState !== "settingUp" && comment && DEEP_REACTIONS.includes(comment.reaction) ? (
-            <Button
-              mt="xs"
-              size="xs"
-              variant="light"
-              color="red"
-              leftSection={<IconBulb size={14} />}
-              onClick={() => setDeep(comment)}
-            >
-              {t("Coach.Deep.Button", { move: comment.san, sign: REACTION_SIGN[comment.reaction] })}
-            </Button>
-          ) : (
-            gameState !== "settingUp" && <CoachWhy comment={comment} />
-          )}
-          {gameState === "gameOver" && reportReady && (
-            <Button
-              mt="xs"
-              ml={6}
-              size="xs"
-              variant="light"
-              color="orange"
-              leftSection={<IconReport size={14} />}
-              onClick={() => setReport(reportReady)}
-            >
-              {t("Coach.Report.Open")}
-            </Button>
-          )}
-          {penalty && (
-            <Box mt="xs">
-              <PenaltyTicket
-                title={t("Coach.Egg.TicketTitle")}
-                text={t("Coach.Egg.TicketText", { count: MATE_DRILL_TASKS })}
-              />
-            </Box>
-          )}
-          {receipt && <CoachReceipt lines={receipt.lines} lock={receipt.lock} />}
-          {receipt && departure && (
-            <Paper withBorder radius="md" p="xs" mt="xs">
-              <Text size="sm">
-                {departure.kind === "own"
-                  ? t("Coach.Game.LeftOwn", {
-                      move: departure.played,
-                      expected: departure.expected.join(", "),
-                    })
-                  : departure.played
-                    ? t("Coach.Game.LeftGap", { move: departure.jbl, reply: departure.played })
-                    : t("Coach.Game.LeftGapNoReply", { move: departure.jbl })}
-              </Text>
-              {departure.kind === "gap" && departure.played && (
-                <Button
-                  mt={6}
-                  size="xs"
-                  variant="light"
-                  color="orange"
-                  loading={added === "busy"}
-                  disabled={added === "done"}
-                  onClick={addLine}
-                >
-                  {added === "done"
-                    ? t("Coach.Game.LineAdded")
-                    : added === "failed"
-                      ? t("Coach.Game.LineFailed")
-                      : t("Coach.Game.AddLine")}
-                </Button>
-              )}
-            </Paper>
-          )}
-          {offerTakeBack && (
-            <Button
-              mt="xs"
-              size="xs"
-              variant="light"
-              color="orange"
-              leftSection={<IconArrowBackUp size={14} />}
-              onClick={() => comment && onTakeBack(Math.max(0, comment.ply - 1 - rootHalfMoves))}
-            >
-              {t("Coach.Game.TakeBack")}
-            </Button>
-          )}
         </Box>
       </Group>
+      <Box mt="xs">
+        {older.length > 0 && (
+          <ScrollArea.Autosize mah={120} viewportRef={logView} type="auto" offsetScrollbars>
+            <Stack gap={4}>
+              {older.map((b) => (
+                <Text key={b.key} size="xs" c="dimmed">
+                  {b.sign && (
+                    <Text span fw={800} mr={6} c={SIGN_COLOR[b.sign]}>
+                      {b.sign}
+                    </Text>
+                  )}
+                  {b.text}
+                </Text>
+              ))}
+            </Stack>
+          </ScrollArea.Autosize>
+        )}
+        {gameState !== "settingUp" && comment && DEEP_REACTIONS.includes(comment.reaction) ? (
+          <Button
+            mt="xs"
+            size="xs"
+            variant="light"
+            color="red"
+            leftSection={<IconBulb size={14} />}
+            onClick={() => setDeep(comment)}
+          >
+            {t("Coach.Deep.Button", { move: comment.san, sign: REACTION_SIGN[comment.reaction] })}
+          </Button>
+        ) : (
+          gameState !== "settingUp" && <CoachWhy comment={comment} />
+        )}
+        {gameState === "gameOver" && reportReady && (
+          <Button
+            mt="xs"
+            ml={6}
+            size="xs"
+            variant="light"
+            color="orange"
+            leftSection={<IconReport size={14} />}
+            onClick={() => setReport(reportReady)}
+          >
+            {t("Coach.Report.Open")}
+          </Button>
+        )}
+        {penalty && (
+          <Box mt="xs">
+            <PenaltyTicket
+              title={t("Coach.Egg.TicketTitle")}
+              text={t("Coach.Egg.TicketText", { count: MATE_DRILL_TASKS })}
+            />
+          </Box>
+        )}
+        {receipt && <CoachReceipt lines={receipt.lines} lock={receipt.lock} />}
+        {receipt && departure && (
+          <Paper withBorder radius="md" p="xs" mt="xs">
+            <Text size="sm">
+              {departure.kind === "own"
+                ? t("Coach.Game.LeftOwn", {
+                    move: departure.played,
+                    expected: departure.expected.join(", "),
+                  })
+                : departure.played
+                  ? t("Coach.Game.LeftGap", { move: departure.jbl, reply: departure.played })
+                  : t("Coach.Game.LeftGapNoReply", { move: departure.jbl })}
+            </Text>
+            {departure.kind === "gap" && departure.played && (
+              <Button
+                mt={6}
+                size="xs"
+                variant="light"
+                color="orange"
+                loading={added === "busy"}
+                disabled={added === "done"}
+                onClick={addLine}
+              >
+                {added === "done"
+                  ? t("Coach.Game.LineAdded")
+                  : added === "failed"
+                    ? t("Coach.Game.LineFailed")
+                    : t("Coach.Game.AddLine")}
+              </Button>
+            )}
+          </Paper>
+        )}
+        {offerTakeBack && (
+          <Button
+            mt="xs"
+            size="xs"
+            variant="light"
+            color="orange"
+            leftSection={<IconArrowBackUp size={14} />}
+            onClick={() => comment && onTakeBack(Math.max(0, comment.ply - 1 - rootHalfMoves))}
+          >
+            {t("Coach.Game.TakeBack")}
+          </Button>
+        )}
+      </Box>
       <CoachDeepDive comment={deep} onClose={() => setDeep(null)} />
       <CoachReport
         report={report}

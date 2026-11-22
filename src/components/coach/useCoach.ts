@@ -42,6 +42,7 @@ import {
     nextCoachTask,
     repsToday,
     today,
+    coachNewGameAtom,
 } from "./coachState";
 import {
     coachBestEstimateAtom,
@@ -84,6 +85,7 @@ export function useCoach(tabId: string) {
     const bestEstimate = useAtomValue(coachBestEstimateAtom);
     const strength = useAtomValue(coachStrengthAtom);
     const setLineWizard = useSetAtom(coachLineWizardAtom);
+    const setNewGame = useSetAtom(coachNewGameAtom);
 
     const turnTabInto = useCallback(
         (type: Tab["type"], name: string, coach = false) =>
@@ -103,6 +105,7 @@ export function useCoach(tabId: string) {
             openCoach: () => turnTabInto("coach", t("Coach.Card.Title")),
             play: () => {
                 if (lock > 0) return;
+                setNewGame(tabId);
                 turnTabInto("play", t("Coach.Game.TabName"), true);
             },
             // Der eigene Fehler wird auf der Coach-Seite gelöst, danach Puzzles
@@ -144,6 +147,7 @@ export function useCoach(tabId: string) {
             best,
             openRecentFile,
             setLineWizard,
+            setNewGame,
             tabId,
         ],
     );

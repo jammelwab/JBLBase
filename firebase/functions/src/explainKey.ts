@@ -6,7 +6,7 @@ export function cacheKey(r: ExplainRequest): string {
     const position = r.fen.split(" ").slice(0, 4).join(" ");
     return createHash("sha256")
         .update(
-            `${position}|${r.move}|${r.stage}|${r.lang}${r.mode === "why" ? "" : `|${r.mode}|${r.mark}`}`,
+            `${position}|${r.move}|${r.stage}|${r.lang}${r.mode === "why" ? "" : `|${r.mode}|${r.mark}`}${r.mode === "say" && r.variant > 1 ? `|v${r.variant}` : ""}`,
         )
         .digest("hex")
         .slice(0, 40);

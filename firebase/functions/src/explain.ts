@@ -35,6 +35,12 @@ export type ExplainRequest = {
     mode: "why" | "deep" | "say";
     // Name der Eröffnung, wenn der Zug Theorie ist (nur say)
     opening: string | null;
+    // Nur say (1.2.19): Fassung 1 bis 3 (eigener Speicherplatz, damit derselbe
+    // Zug nicht immer denselben Satz bekommt), Halbzug der Partie und die
+    // letzten Sätze von JBL, die er nicht wiederholen soll
+    variant: number;
+    ply: number;
+    recent: string[];
 };
 
 // Ein Satz zu einem Moment der Partie (Start, Sieg, Niederlage, Remis).
@@ -79,7 +85,36 @@ export function parseExplainRequest(data: unknown): ExplainRequest | null {
     const rawOpening = mode === "say" ? str(d.opening) : "";
     if (rawOpening && !OPENING.test(rawOpening)) return null;
     const opening = rawOpening || null;
-    return { fen, move, best, line, before, after, mark, motifs, stage, lang, mode, opening };
+    const say = mode === "say";
+    const variant =
+        say && typeof d.variant === "number" ? Math.min(3, Math.max(1, Math.trunc(d.variant))) : 1;
+    const ply =
+        say && typeof d.ply === "number" ? Math.min(400, Math.max(0, Math.trunc(d.ply))) : 0;
+    const recent =
+        say && Array.isArray(d.recent)
+            ? d.recent
+                  .map(str)
+                  .map((s) => s.replace(/[\u0000-\u001f<>]/g, " ").slice(0, 160))
+                  .filter(Boolean)
+                  .slice(0, 4)
+            : [];
+    return {
+        fen,
+        move,
+        best,
+        line,
+        before,
+        after,
+        mark,
+        motifs,
+        stage,
+        lang,
+        mode,
+        opening,
+        variant,
+        ply,
+        recent,
+    };
 }
 
 // Partiebericht (1.2.12): Zahlen und Schlüsselmomente der Partie, Claude
@@ -197,9 +232,17 @@ Write 2 to 4 short sentences, no lists, no headings, no move numbers beyond what
 export const REPORT_SYSTEM = `You are JBL, a friendly chess coach shaped like a small speaker. After a game you write the player a short, honest, encouraging report. You get counts and key moments from the engine Stockfish; never invent moves, threats or evaluations beyond them. Use at most one music image. Talk to the player directly.`;
 
 // Für die kurzen Sprüche während der Partie (say, event)
-export const SAY_SYSTEM = `You are JBL, a friendly chess coach shaped like a small speaker, talking to the player during a game. You see chess as music, but use a music image only now and then. You get facts from the engine Stockfish; never invent moves or evaluations beyond them.
+export const SAY_SYSTEM = `You are JBL, a chess coach shaped like a small speaker, talking to the player during a game. You have a personality: warm, cheeky, a little dramatic, with dry humor. You see chess as music, but use a music image only now and then, never twice in a row. You get facts from the engine Stockfish; never invent moves or evaluations beyond them.
+
+Keep it lively and varied. Change how you start the sentence and its shape every time: sometimes a short reaction, sometimes a question, sometimes a concrete hint about the plan or the piece that moved, sometimes a playful remark about the game situation. Avoid filler like "solid move", "good move" or "well played" on their own; say something specific about this move instead. Never repeat the wording of the sentences you said recently.
 
 Answer with exactly one short sentence in the requested language, talking to the player directly. No lists, no quotes, no emojis.`;
+
+function phase(ply: number): string {
+    if (ply <= 16) return "the opening";
+    if (ply <= 60) return "the middlegame";
+    return "the late phase of the game";
+}
 
 // Die Fakten als Nachricht an Claude
 export function explainPrompt(r: ExplainRequest): string {
@@ -215,6 +258,15 @@ export function explainPrompt(r: ExplainRequest): string {
         `Evaluation from the player's side: before ${r.before}, after ${r.after} (pawns; M means mate in so many moves).`,
         r.motifs.length > 0 ? `Detected motifs: ${r.motifs.join("; ")}.` : "",
         r.opening ? `The move is known opening theory: ${r.opening}.` : "",
+        r.mode === "say" && r.ply > 0
+            ? `It is move ${Math.ceil(r.ply / 2)} of the game, in ${phase(r.ply)}.`
+            : "",
+        r.mode === "say" && r.recent.length > 0
+            ? `What you said recently (do not reuse their words or sentence starts): ${r.recent.map((s) => `"${s}"`).join(" / ")}`
+            : "",
+        r.mode === "say"
+            ? `Variant ${r.variant} of 3: phrase it differently from the obvious first idea.`
+            : "",
         r.mode === "say"
             ? `Write exactly one short sentence (at most 18 words) reacting to this move right after it was played. ${r.mark === "book" ? "Say it is theory and name the opening if given." : r.mark === "solid" ? "It is a sound, ordinary move; keep it light." : `Match the rating "${r.mark}"; if a better move is given and the rating is ?!, ? or ??, name it.`}`
             : r.mode === "deep"

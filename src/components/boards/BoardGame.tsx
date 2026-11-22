@@ -101,6 +101,7 @@ import {
 } from "@/components/coach/coachEggs";
 import {
   COACH_STRENGTHS,
+  coachNewGameAtom,
   coachStrengthAtom,
   coachXpAtom,
   levelProgress,
@@ -407,6 +408,17 @@ function BoardGame() {
       prev.map((tab) => (tab.value === activeTab ? { ...tab, type: "analysis" } : tab)),
     );
   }
+
+  // „Gegen JBL spielen“: immer eine neue Partie, auch wenn im Tab noch eine
+  // alte Partie oder ein Puzzle steht
+  const [coachNewGame, setCoachNewGame] = useAtom(coachNewGameAtom);
+  useEffect(() => {
+    if (!isCoachGame || coachNewGame !== activeTab) return;
+    setCoachNewGame(null);
+    if (gameId && gameState === "playing") commands.abortGame(gameId).catch(() => {});
+    void handleNewGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCoachGame, coachNewGame, activeTab]);
 
   // Vor der Partie gegen JBL zeigt das Brett die Grundstellung, nicht das,
   // was vorher im Tab stand

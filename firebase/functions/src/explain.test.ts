@@ -126,6 +126,30 @@ test("one sentence per move, with theory and solid marks only there", () => {
     );
 });
 
+test("say varies: variants, game context and recent sentences", () => {
+    const say = parseExplainRequest({
+        ...good,
+        mode: "say",
+        mark: "solid",
+        variant: 7,
+        ply: 21,
+        recent: ["Solider Zug.", "x".repeat(300), 5],
+    })!;
+    assert.equal(say.variant, 3);
+    assert.equal(say.ply, 21);
+    assert.deepEqual(say.recent, ["Solider Zug.", "x".repeat(160)]);
+    const p = explainPrompt(say);
+    assert.match(p, /move 11 of the game, in the middlegame/);
+    assert.match(p, /do not reuse/);
+    assert.match(p, /"Solider Zug\."/);
+    assert.notEqual(cacheKey(say), cacheKey({ ...say, variant: 2 }));
+    // Fassung 1 behält den alten Speicherplatz
+    const old = parseExplainRequest({ ...good, mode: "say", mark: "solid" })!;
+    assert.equal(cacheKey(old), cacheKey({ ...old, variant: 1, recent: ["a"], ply: 9 }));
+    // why bekommt nichts davon
+    assert.equal(parseExplainRequest({ ...good, recent: ["a"], variant: 2 })!.recent.length, 0);
+});
+
 test("game moments come in five variants", () => {
     const e = parseEventRequest({ event: "win", stage: "knows", lang: "de", variant: 3 })!;
     assert.equal(e.event, "win");
