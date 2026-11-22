@@ -2,6 +2,7 @@ import { Box, Button, Group, Paper, ScrollArea, Stack, Text } from "@mantine/cor
 import { IconArrowBackUp, IconBulb, IconReport } from "@tabler/icons-react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { makeUci } from "chessops";
+import { INITIAL_BOARD_FEN } from "chessops/fen";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Outcome } from "@/bindings";
@@ -415,6 +416,11 @@ export default function CoachGamePanel({
         void eventText("start", line("start")).then((text) => {
           if (gen === speechGen.current) speak([{ anim: "hello", text, sign: null }, ...rest]);
         });
+    }
+    // Eine Partie, die nicht aus der Grundstellung kam, zählt nicht
+    if (gameState === "gameOver" && root.fen.split(" ")[0] !== INITIAL_BOARD_FEN) {
+      speak([{ anim: "think", text: t("Coach.Game.NotCounted"), sign: null }]);
+      return;
     }
     if (gameState === "gameOver" && humanColor && result && result !== "*") {
       const outcome =

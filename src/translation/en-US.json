@@ -373,6 +373,7 @@
     "Coach.Game.NewLevel": "Level {{level}}!",
     "Coach.Game.NewTitle": "New title: {{title}}.",
     "Coach.Game.NoEngine": "JBL needs Stockfish. Set up Stockfish under Engines, then you can start.",
+    "Coach.Game.NotCounted": "Hold on, this game didn't start from the initial position. It doesn't count, just start a new one.",
     "Coach.Game.QuestDone": "Daily task done. +{{xp}} XP.",
     "Coach.Game.Random": "Random",
     "Coach.Game.Sparring": "Opening sparring",
