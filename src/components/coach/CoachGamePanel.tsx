@@ -16,6 +16,7 @@ import {
   saidRecently,
 } from "./coachGame";
 import CoachReceipt from "./CoachReceipt";
+import classes from "./CoachGamePanel.module.css";
 import { celebration, coachCelebrationAtom } from "./CoachCelebration";
 import CoachDeepDive from "./CoachDeepDive";
 import CoachReport, { type CoachReportData } from "./CoachReport";
@@ -72,10 +73,10 @@ type Say = { anim: CoachAnimation | null; text: string; sign: string | null };
 // So viele Sätze bleiben im Verlauf
 const LOG_MAX = 60;
 // So groß steht JBL während der Partie neben seinem Kommentar (1.2.19: 150,
-// vorher 96; 1.2.21: 200). Er ragt oben aus dem Rahmen heraus und steht im
+// vorher 96; 1.2.21: 200; 1.2.22: 260). Er ragt oben aus dem Rahmen heraus und steht im
 // Vordergrund, das wirkt näher.
-const FIGURE_SIZE = 200;
-const FIGURE_OVERHANG = 96;
+const FIGURE_SIZE = 260;
+const FIGURE_OVERHANG = 120;
 
 // So lange warten Start und Ende höchstens auf Claude
 const EVENT_TIMEOUT_MS = 2500;
@@ -652,17 +653,19 @@ export default function CoachGamePanel({
       style={{ overflow: "visible", position: "relative" }}
       data-tour="coach-game"
     >
-      {/* JBL groß und sichtbar (1.2.19): Figur, Zeichen und letzter Satz oben */}
-      <Group wrap="nowrap" align="center" gap="md">
+      {/* JBL groß im Vordergrund (1.2.22): die Figur steht auf einer Bühne und
+          ragt weit aus dem Rahmen, daneben groß das Zeichen, darunter die
+          Sprechblase über die ganze Breite */}
+      <Group wrap="nowrap" align="flex-end" gap="md" justify="center">
         <Box
           style={{
             flexShrink: 0,
             lineHeight: 0,
-            marginTop: -FIGURE_OVERHANG - 40,
-            marginBottom: -24,
+            marginTop: -FIGURE_OVERHANG - 48,
+            marginBottom: -28,
             position: "relative",
             zIndex: 2,
-            filter: "drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45))",
+            filter: "drop-shadow(0 14px 18px rgba(0, 0, 0, 0.55))",
           }}
         >
           <CoachFigure ref={figure} size={FIGURE_SIZE} title={t("Coach.Card.Title")} />
@@ -674,33 +677,40 @@ export default function CoachGamePanel({
         </Box>
         {cart && <LambruscoCart />}
         {blast && <BunnyBlast />}
-        <Box style={{ flex: 1, minWidth: 0 }} aria-live="polite">
-          {latest ? (
-            <Paper radius="lg" p="sm" bg="var(--mantine-color-default-hover)">
-              <Group wrap="nowrap" gap="sm" align="center">
-                {latest.sign && (
-                  <Text
-                    fw={900}
-                    fz={34}
-                    lh={1}
-                    c={SIGN_COLOR[latest.sign]}
-                    style={{ flexShrink: 0 }}
-                  >
-                    {latest.sign}
-                  </Text>
-                )}
-                <Text size="md" fw={500}>
-                  {latest.text}
-                </Text>
-              </Group>
-            </Paper>
-          ) : (
-            <Text size="md" c="dimmed">
-              {t("Coach.Game.Watching")}
-            </Text>
-          )}
-        </Box>
+        {latest?.sign && (
+          <Text
+            key={`sign-${latest.key}`}
+            fw={900}
+            fz={64}
+            lh={1}
+            mb="md"
+            c={SIGN_COLOR[latest.sign]}
+            className={classes.sign}
+            style={{ flexShrink: 0, textShadow: "0 4px 14px rgba(0, 0, 0, 0.5)" }}
+          >
+            {latest.sign}
+          </Text>
+        )}
       </Group>
+      <Box aria-live="polite" mt="sm" style={{ position: "relative", zIndex: 1 }}>
+        {latest ? (
+          <Paper
+            key={latest.key}
+            radius="lg"
+            p="sm"
+            bg="var(--mantine-color-default-hover)"
+            className={classes.bubble}
+          >
+            <Text size="lg" fw={600} lh={1.3}>
+              {latest.text}
+            </Text>
+          </Paper>
+        ) : (
+          <Text size="md" c="dimmed" ta="center">
+            {t("Coach.Game.Watching")}
+          </Text>
+        )}
+      </Box>
       <Box mt="xs">
         {older.length > 0 && (
           <ScrollArea.Autosize mah={120} viewportRef={logView} type="auto" offsetScrollbars>
