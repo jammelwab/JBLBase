@@ -19,3 +19,14 @@
   cursor: pointer;
   user-select: none;
 }
+
+/* Section headings: the player, then White and Black with an orange bar */
+.ownerTitle {
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--jbl-accent);
+}
+
+.groupHeader {
+  padding: 2px 0 2px 8px;
+  border-left: 3px solid var(--jbl-accent);
+}

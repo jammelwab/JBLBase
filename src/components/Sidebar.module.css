@@ -25,7 +25,8 @@
 }
 
 .active {
-  border-left-color: var(--mantine-primary-color-filled);
+  border-left-color: var(--jbl-accent);
+  background-color: var(--jbl-accent-soft);
 }
 
 [data-mantine-color-scheme="light"] .active {
