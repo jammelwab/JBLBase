@@ -17,6 +17,7 @@ import { coachIntroAtom } from "./coachIntroState";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
 import CoachWhy from "./CoachWhy";
 import { playCoachTone } from "./coachSound";
+import { coachPathEventAtom } from "./coachPath";
 import { type CoachMistake, finishCoachGameAtom, type ReceiptLine } from "./coachProgress";
 import { coachBonusTrackAtom, DAILY_QUEST_XP } from "./coachRewards";
 import type { CoachStrengthId } from "./coachState";
@@ -139,6 +140,7 @@ export default function CoachGamePanel({
   const logView = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const finishGame = useSetAtom(finishCoachGameAtom);
+  const pathEvent = useSetAtom(coachPathEventAtom);
   const stats = useRef({ brilliants: 0, goods: 0, blunders: 0 });
   const worst = useRef<{ severity: number; mistake: CoachMistake } | null>(null);
   const bonusTrack = useAtomValue(coachBonusTrackAtom);
@@ -424,6 +426,8 @@ export default function CoachGamePanel({
       playCoachTone(outcome);
       setDiary((d) => addToDiary(d, diaryGame(root, humanColor, outcome, marks.current, today())));
       if (plan?.index) setDeparture(repertoireDeparture(root, humanColor, plan.index));
+      // Zählt für den weiteren Pfad, bevor die Partie den Tag verändert
+      pathEvent("game");
       const done = finishGame({
         result: outcome,
         strength,

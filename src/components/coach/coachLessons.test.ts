@@ -16,6 +16,8 @@ import {
     newLesson,
     taskPosition,
     unlockedLessons,
+    extraLessonLevel,
+    visibleLessons,
 } from "./coachLessonsData";
 import { sanToSquares } from "@/utils/gamesTree";
 import { introDue, introReminder } from "./coachIntroState";
@@ -72,15 +74,34 @@ function motif(lesson: Lesson, task: LessonTask, san: string): boolean {
         }
         case "discovered":
             return after.ctx().checkers.without(move.to).nonEmpty();
+        case "doubleCheck":
+            return after.ctx().checkers.size() >= 2;
+        case "underpromotion":
+            return !!move.promotion && move.promotion !== "queen";
+        case "check":
+            return after.isCheck();
+        // Mit Stockfish geprüft (bester Zug, deutlich vor dem zweitbesten);
+        // hier zählt, dass die Lösung ein legaler Zug ist
+        case "decoy":
+        case "overload":
+        case "removeDefender":
+        case "opposition":
+        case "breakthrough":
+        case "square":
+            return true;
     }
 }
 
 describe("Lektionen", () => {
-    it("vier Pfade mit je drei Lektionen und drei Aufgaben", () => {
-        expect(LESSONS).toHaveLength(12);
+    it("acht Pfade mit je drei Lektionen und drei Aufgaben", () => {
+        expect(LESSONS).toHaveLength(24);
         for (const path of LESSON_PATHS)
             expect(LESSONS.filter((l) => l.path === path)).toHaveLength(3);
-        expect(new Set(LESSONS.map((l) => l.id)).size).toBe(12);
+        // Die Pfade liegen in Reihenfolge hintereinander
+        expect(LESSONS.map((l) => LESSON_PATHS.indexOf(l.path))).toEqual(
+            [...LESSONS.map((l) => LESSON_PATHS.indexOf(l.path))].sort((a, b) => a - b),
+        );
+        expect(new Set(LESSONS.map((l) => l.id)).size).toBe(24);
         for (const l of LESSONS) {
             expect(l.tasks).toHaveLength(3);
             taskPosition(l.example.fen);
@@ -119,6 +140,23 @@ describe("Lernpfad", () => {
         expect(unlockedLessons(1, "club")).toBe(10);
         expect(unlockedLessons(50, "club")).toBe(12);
         expect(unlockedLessons(1, null)).toBe(4);
+    });
+    it("weitere Reihen erscheinen erst nach der Reihe davor, mit Schloss", () => {
+        const ids = (from: number, to: number) => LESSONS.slice(from, to).map((l) => l.id);
+        expect(visibleLessons([])).toBe(12);
+        expect(visibleLessons(ids(0, 11))).toBe(12);
+        expect(visibleLessons(ids(0, 12))).toBe(15);
+        expect(visibleLessons(ids(0, 15))).toBe(18);
+        expect(visibleLessons(ids(0, 24))).toBe(24);
+        // Sichtbar, aber erst ab Level 10 und nach der vorigen Lektion offen
+        expect(unlockedLessons(9, "club", ids(0, 12))).toBe(12);
+        expect(unlockedLessons(10, "club", ids(0, 12))).toBe(13);
+        expect(unlockedLessons(30, "club", ids(0, 12))).toBe(13);
+        expect(unlockedLessons(30, "club", ids(0, 13))).toBe(14);
+        expect(unlockedLessons(11, "club", ids(0, 14))).toBe(14);
+        // Die nächste Reihe ist noch nicht sichtbar, also auch nicht offen
+        expect(unlockedLessons(30, "club", ids(0, 15))).toBe(16);
+        expect(extraLessonLevel(12)).toBe(10);
     });
     it("meldet eine neue Lektion nur einmal", () => {
         expect(newLesson(4, 3, [])?.id).toBe(LESSONS[3].id);

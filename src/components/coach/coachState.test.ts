@@ -100,6 +100,6 @@ describe("nächster Schritt auf der Coach-Seite", () => {
         expect(nextCoachStep({ ...base, boss: true })).toBe("boss");
         expect(nextCoachStep(base)).toBe("play");
         expect(nextCoachStep({ ...base, next: "done" })).toBe("quest");
-        expect(nextCoachStep({ ...base, next: "done", questDone: true })).toBe("done");
+        expect(nextCoachStep({ ...base, next: "done", questDone: true })).toBe("path");
     });
 });

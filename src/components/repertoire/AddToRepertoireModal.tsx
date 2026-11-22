@@ -1,10 +1,11 @@
 import { Alert, Button, Checkbox, Group, Modal, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
+import { coachPathEventAtom } from "@/components/coach/coachPath";
 import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { currentTabAtom } from "@/state/atoms";
 import { nodesOnPath } from "@/utils/repertoireTree";
@@ -39,6 +40,7 @@ export default function AddToRepertoireModal({
   withVariations?: boolean;
 }) {
   const { t } = useTranslation();
+  const coachPathEvent = useSetAtom(coachPathEventAtom);
   const navigate = useNavigate();
   const { documentDir } = useLoaderData({ from: "/" });
   const store = useContext(TreeStateContext)!;
@@ -114,6 +116,8 @@ export default function AddToRepertoireModal({
         });
         return;
       }
+      // Eine neue Linie zählt für den weiteren Pfad des Coaches
+      if (result.added > 0) coachPathEvent("line");
       notifications.show({
         color: result.added > 0 ? "green" : "gray",
         title: target.name,

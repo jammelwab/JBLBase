@@ -28,11 +28,14 @@ import {
   coachLessonsDoneAtom,
   coachOpenLessonAtom,
   completeLessonAtom,
+  BASE_LESSONS,
+  extraLessonLevel,
   judgeTask,
   LESSON_PATHS,
   LESSONS,
   type Lesson,
   unlockedLessons,
+  visibleLessons,
 } from "./coachLessonsData";
 import { coachXpAtom, levelProgress } from "./coachState";
 
@@ -45,7 +48,11 @@ export default function CoachLessons() {
   const done = useAtomValue(coachLessonsDoneAtom);
   const { level } = levelProgress(useAtomValue(coachXpAtom));
   const entry = useAtomValue(coachIntroAtom).entry;
-  const unlocked = unlockedLessons(level, entry);
+  const unlocked = unlockedLessons(level, entry, done);
+  // Weitere Reihen erscheinen erst, wenn die Reihe davor geschafft ist
+  const visible = visibleLessons(done);
+  const total = visible;
+  const doneVisible = LESSONS.slice(0, visible).filter((l) => done.includes(l.id)).length;
   const [open, setOpen] = useAtom(coachOpenLessonAtom);
   const [announced, setAnnounced] = useAtom(coachLessonAnnouncedAtom);
   const lesson = LESSONS.find((l) => l.id === open) ?? null;
@@ -71,7 +78,7 @@ export default function CoachLessons() {
                     n: nextIndex + 1,
                     name: t(`Coach.Lesson.${next.id}.Title`),
                   })
-                : done.length >= LESSONS.length
+                : doneVisible >= LESSONS.length
                   ? t("Coach.Lessons.AllDone")
                   : t("Coach.Lessons.WaitLevel")}
             </Text>
@@ -80,11 +87,11 @@ export default function CoachLessons() {
               size="sm"
               radius="xl"
               color="orange"
-              value={(done.length / LESSONS.length) * 100}
+              value={(doneVisible / total) * 100}
               aria-label={t("Coach.Lessons.Title")}
             />
             <Text size="xs" c="dimmed" mt={2}>
-              {t("Coach.Lessons.Progress", { done: done.length, total: LESSONS.length })}
+              {t("Coach.Lessons.Progress", { done: doneVisible, total })}
             </Text>
           </Box>
           {next && (
@@ -94,7 +101,10 @@ export default function CoachLessons() {
           )}
         </Group>
         {LESSON_PATHS.map((path) => {
-          const items = LESSONS.map((l, i) => ({ l, i })).filter(({ l }) => l.path === path);
+          const items = LESSONS.map((l, i) => ({ l, i })).filter(
+            ({ l, i }) => l.path === path && i < visible,
+          );
+          if (items.length === 0) return null;
           const pathDone = items.filter(({ l }) => done.includes(l.id)).length;
           return (
             <Group
@@ -152,7 +162,11 @@ export default function CoachLessons() {
                           </Text>
                           {locked && (
                             <Text size="xs" c="dimmed">
-                              {t("Coach.Lessons.Locked", { level: i - unlocked + level + 1 })}
+                              {i < BASE_LESSONS
+                                ? t("Coach.Lessons.Locked", { level: i - unlocked + level + 1 })
+                                : level < extraLessonLevel(i)
+                                  ? t("Coach.Lessons.Locked", { level: extraLessonLevel(i) })
+                                  : t("Coach.Lessons.After", { n: i })}
                             </Text>
                           )}
                         </Box>
