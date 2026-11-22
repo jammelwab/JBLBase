@@ -71,8 +71,11 @@ type Say = { anim: CoachAnimation | null; text: string; sign: string | null };
 
 // So viele Sätze bleiben im Verlauf
 const LOG_MAX = 60;
-// So groß steht JBL während der Partie neben seinem Kommentar (1.2.19, vorher 96)
-const FIGURE_SIZE = 150;
+// So groß steht JBL während der Partie neben seinem Kommentar (1.2.19: 150,
+// vorher 96; 1.2.21: 200). Er ragt oben aus dem Rahmen heraus und steht im
+// Vordergrund, das wirkt näher.
+const FIGURE_SIZE = 200;
+const FIGURE_OVERHANG = 96;
 
 // So lange warten Start und Ende höchstens auf Claude
 const EVENT_TIMEOUT_MS = 2500;
@@ -641,10 +644,27 @@ export default function CoachGamePanel({
     lastPly - comment.ply <= 1;
 
   return (
-    <Paper withBorder radius="md" p="sm" data-tour="coach-game">
+    <Paper
+      withBorder
+      radius="md"
+      p="sm"
+      mt={FIGURE_OVERHANG}
+      style={{ overflow: "visible", position: "relative" }}
+      data-tour="coach-game"
+    >
       {/* JBL groß und sichtbar (1.2.19): Figur, Zeichen und letzter Satz oben */}
       <Group wrap="nowrap" align="center" gap="md">
-        <Box style={{ flexShrink: 0, lineHeight: 0 }}>
+        <Box
+          style={{
+            flexShrink: 0,
+            lineHeight: 0,
+            marginTop: -FIGURE_OVERHANG - 40,
+            marginBottom: -24,
+            position: "relative",
+            zIndex: 2,
+            filter: "drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45))",
+          }}
+        >
           <CoachFigure ref={figure} size={FIGURE_SIZE} title={t("Coach.Card.Title")} />
           {dog && (
             <Box mt={4} ta="center">
