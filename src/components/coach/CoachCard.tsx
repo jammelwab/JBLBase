@@ -7,7 +7,7 @@ import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { RivalBar } from "./CoachDuel";
 import { CoachLevel } from "./CoachPage";
 import { coachIntroAtom, coachIntroOpenAtom } from "./coachIntroState";
-import { coachLessonAnnouncedAtom, coachOpenLessonAtom } from "./coachLessonsData";
+import { useCoachStepView } from "./CoachNextStep";
 import { useCoach } from "./useCoach";
 
 // Der Coach winkt nur einmal pro Programmstart, nicht bei jedem neuen Tab.
@@ -17,13 +17,11 @@ let greeted = false;
 export default function CoachCard({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
-  const { next, dueCount, actions, lock, streak, boss, lesson, unlocked, remindIntro } =
-    useCoach(id);
-  const setAnnounced = useSetAtom(coachLessonAnnouncedAtom);
-  const openLesson = useSetAtom(coachOpenLessonAtom);
+  const coach = useCoach(id);
+  const { step, actions, streak, remindIntro } = coach;
+  const view = useCoachStepView(coach);
   const openIntro = useSetAtom(coachIntroOpenAtom);
   const setIntro = useSetAtom(coachIntroAtom);
-  const showLesson = lock === 0 && lesson !== null;
   const remindDone = () => setIntro((s) => ({ ...s, reminded: true }));
 
   useEffect(() => {
@@ -53,18 +51,13 @@ export default function CoachCard({ id }: { id: string }) {
             {t("Coach.Card.NextLabel")}
           </Text>
           <Text size="sm" fw={500}>
-            {lock > 0
-              ? t("Coach.Card.Locked", { count: lock })
-              : showLesson
-                ? t("Coach.Lessons.New", { name: t(`Coach.Lesson.${lesson.id}.Title`) })
-                : boss
-                  ? t("Coach.Boss.Card")
-                  : next === "done"
-                    ? t("Coach.Card.AllDone")
-                    : next === "repertoire"
-                      ? t("Coach.Task.repertoire.Desc", { count: dueCount })
-                      : t(`Coach.Task.${next}.Title`)}
+            {view.title}
           </Text>
+          {view.progress && (
+            <Text size="xs" c="dimmed">
+              {view.progress.value} / {view.progress.target}
+            </Text>
+          )}
         </Box>
 
         <Stack gap={6} w="100%">
@@ -89,30 +82,14 @@ export default function CoachCard({ id }: { id: string }) {
               </Button>
             </Group>
           )}
-          {showLesson ? (
-            <Button
-              variant="filled"
-              color="orange"
-              fullWidth
-              radius="md"
-              onClick={() => {
-                setAnnounced(unlocked);
-                openLesson(lesson.id);
-                actions.openCoach();
-              }}
-            >
-              {t("Coach.Lessons.Open")}
+          {view.button && view.onClick && (
+            <Button variant="filled" color="orange" fullWidth radius="md" onClick={view.onClick}>
+              {view.button}
             </Button>
-          ) : (
-            next !== "done" && (
-              <Button variant="filled" color="orange" fullWidth radius="md" onClick={actions[next]}>
-                {t(`Coach.Task.${next}.Button`)}
-              </Button>
-            )
           )}
           <Button
-            variant={next === "done" ? "filled" : "light"}
-            color={next === "done" ? "orange" : undefined}
+            variant={step === "done" ? "filled" : "light"}
+            color={step === "done" ? "orange" : undefined}
             fullWidth
             radius="md"
             onClick={actions.openCoach}

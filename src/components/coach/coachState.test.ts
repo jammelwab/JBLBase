@@ -5,7 +5,9 @@ import {
     COACH_STRENGTHS,
     coachTitleKey,
     levelProgress,
+    nextCoachStep,
     nextCoachTask,
+    REPS_PER_DAY,
     today,
     xpForLevel,
 } from "./coachState";
@@ -67,5 +69,37 @@ describe("nächste Coach-Aufgabe", () => {
     it("schickt nach einer Niederlage erst zu den Puzzles", () => {
         expect(nextCoachTask(5, day(false, false), now, 3)).toBe("puzzles");
         expect(nextCoachTask(5, day(false, false), now, 0)).toBe("repertoire");
+    });
+});
+
+describe("nächster Schritt auf der Coach-Seite", () => {
+    const now = new Date(2026, 10, 20, 12);
+    const base = {
+        next: "play" as const,
+        lock: 0,
+        hasMistake: false,
+        hasLesson: false,
+        boss: false,
+        questDone: false,
+    };
+
+    it("hakt das Repertoire nach 10 Zügen am Tag ab, auch wenn noch mehr fällig ist", () => {
+        const day = { day: "2026-11-20", played: false, puzzles: false };
+        expect(nextCoachTask(300, { ...day, reps: REPS_PER_DAY - 1 }, now)).toBe("repertoire");
+        expect(nextCoachTask(300, { ...day, reps: REPS_PER_DAY }, now)).toBe("play");
+        // Züge von gestern zählen nicht
+        expect(nextCoachTask(300, { ...day, day: "2026-11-19", reps: 50 }, now)).toBe("repertoire");
+    });
+
+    it("zeigt genau einen Schritt in fester Reihenfolge", () => {
+        expect(nextCoachStep({ ...base, lock: 2, hasMistake: true, hasLesson: true })).toBe(
+            "mistake",
+        );
+        expect(nextCoachStep({ ...base, lock: 2, boss: true })).toBe("locked");
+        expect(nextCoachStep({ ...base, hasLesson: true, boss: true })).toBe("lesson");
+        expect(nextCoachStep({ ...base, boss: true })).toBe("boss");
+        expect(nextCoachStep(base)).toBe("play");
+        expect(nextCoachStep({ ...base, next: "done" })).toBe("quest");
+        expect(nextCoachStep({ ...base, next: "done", questDone: true })).toBe("done");
     });
 });

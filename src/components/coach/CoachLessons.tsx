@@ -56,7 +56,7 @@ export default function CoachLessons() {
           {t("Coach.Lessons.Progress", { done: done.length, total: LESSONS.length })}
         </Text>
       </Group>
-      <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} data-tour="coach-lessons">
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} data-tour="coach-lessons">
         {LESSON_PATHS.map((path) => (
           <Card key={path} withBorder radius="md" p="md">
             <Text fw={600} mb={6}>

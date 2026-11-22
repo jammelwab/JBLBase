@@ -71,7 +71,22 @@ export function coachTitleKey(level: number): string {
 
 // Was heute schon erledigt ist: gezählt, wenn eine Partie oder ein Puzzle
 // wirklich fertig ist.
-export type CoachDay = { day: string; played: boolean; puzzles: boolean; games?: number };
+// reps: heute auf Anhieb richtig gewusste Repertoire-Züge.
+export type CoachDay = {
+    day: string;
+    played: boolean;
+    puzzles: boolean;
+    games?: number;
+    reps?: number;
+};
+
+// So viele Repertoire-Züge am Tag reichen für die Aufgabe, auch wenn noch
+// mehr Stellungen fällig sind (sonst wäre sie bei großen Repertoires nie fertig).
+export const REPS_PER_DAY = 10;
+
+export function repsToday(day: CoachDay, now = new Date()): number {
+    return day.day === today(now) ? (day.reps ?? 0) : 0;
+}
 
 export const coachDayAtom = atomWithStorage<CoachDay>("jbl-coach-day", {
     day: "",
@@ -99,7 +114,7 @@ export function coachTasks(
 ): { id: Exclude<CoachTaskId, "done">; done: boolean; locked?: boolean }[] {
     const fresh = day.day === today(now);
     return [
-        { id: "repertoire", done: dueCount === 0 },
+        { id: "repertoire", done: dueCount === 0 || repsToday(day, now) >= REPS_PER_DAY },
         { id: "play", done: fresh && day.played, locked: lock > 0 },
         { id: "puzzles", done: lock === 0 && fresh && day.puzzles },
     ];
@@ -113,4 +128,35 @@ export function nextCoachTask(
 ): CoachTaskId {
     if (lock > 0) return "puzzles";
     return coachTasks(dueCount, day, now, lock).find((t) => !t.done)?.id ?? "done";
+}
+
+// Der eine nächste Schritt, den Startkarte und Coach-Seite groß zeigen.
+// Reihenfolge: Sperre (erst der eigene Fehler, dann Puzzles), neue Lektion,
+// Boss-Challenge, die drei Tagesaufgaben, dann die Tagesaufgabe für XP.
+export type CoachStepId =
+    | "mistake"
+    | "locked"
+    | "lesson"
+    | "boss"
+    | "repertoire"
+    | "play"
+    | "puzzles"
+    | "quest"
+    | "done";
+
+export type CoachStepInput = {
+    next: CoachTaskId;
+    lock: number;
+    hasMistake: boolean;
+    hasLesson: boolean;
+    boss: boolean;
+    questDone: boolean;
+};
+
+export function nextCoachStep(i: CoachStepInput): CoachStepId {
+    if (i.lock > 0) return i.hasMistake ? "mistake" : "locked";
+    if (i.hasLesson) return "lesson";
+    if (i.boss) return "boss";
+    if (i.next !== "done") return i.next;
+    return i.questDone ? "done" : "quest";
 }

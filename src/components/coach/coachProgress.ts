@@ -271,6 +271,9 @@ export const coachRepertoireMoveAtom = atom(null, (get, set) => {
     const xp = REPERTOIRE_XP + set(questEventAtom, "repertoire");
     set(coachXpAtom, get(coachXpAtom) + xp);
     set(touchStreakAtom);
+    const day = get(coachDayAtom);
+    const fresh = day.day === today() ? day : { day: today(), played: false, puzzles: false };
+    set(coachDayAtom, { ...fresh, reps: (fresh.reps ?? 0) + 1 });
 });
 
 export type CoachGameInput = Omit<
