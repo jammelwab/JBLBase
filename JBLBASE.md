@@ -706,6 +706,10 @@ Jedes Konto hat sein eigenes Profil auf dem Gerät. Zum Profil gehört alles, wa
 - Beim An- oder Abmelden mit einem anderen Konto speichert die App die Einstellungen des bisherigen Profils, lädt die des neuen und startet neu. Die Cloud gleicht erst ab, wenn das Profil zum Konto passt.
 - Code: `src/utils/profile.ts`, `src-tauri/src/profile.rs`, die Frage in `ProfileClaim.tsx`.
 
+### Sprache (ab 1.2.14)
+
+Beim ersten Start fragt die App, bevor die Anmeldung erscheint: Systemsprache oder Englisch (ist das System schon Englisch, ist Deutsch die zweite Wahl). Die Systemsprache kommt vom Betriebssystem; gibt es sie in der App nicht, gilt Englisch. Die Sprache liegt im localStorage (`i18nextLng`) und damit im Profil des Kontos: ein neues Konto bekommt die Frage beim ersten Anmelden noch einmal, ein Konto mit schon gewählter Sprache nicht. Wer vor 1.2.14 schon eine Sprache hatte, wird nicht gefragt. Ändern unter Einstellungen → Erscheinungsbild → Sprache. Code: `src/utils/language.ts`, `LanguagePrompt.tsx`.
+
 **JBLBase-Konto** (Einstellungen → JBLBase-Konto):
 
 - Anmelden oder registrieren mit E-Mail und Passwort, mit Bestätigungsmail

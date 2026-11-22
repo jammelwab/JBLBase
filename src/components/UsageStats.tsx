@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
 import { loginScreenOpenAtom } from "@/components/cloud/cloudUi";
+import { languagePromptAtom } from "@/utils/language";
 import { usageStatsAskedAtom, usageStatsAtom } from "@/state/atoms";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
 import {
@@ -63,6 +64,7 @@ export default function UsageStats() {
   const [enabled, setEnabled] = useAtom(usageStatsAtom);
   const [asked, setAsked] = useAtom(usageStatsAskedAtom);
   const loginOpen = useAtomValue(loginScreenOpenAtom);
+  const languageOpen = useAtomValue(languagePromptAtom) !== null;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const configured = usageStatsConfigured();
   const account = useAtomValue(cloudAccountAtom);
@@ -110,7 +112,7 @@ export default function UsageStats() {
 
   return (
     <Dialog
-      opened={!asked && !enabled && !loginOpen}
+      opened={!asked && !enabled && !loginOpen && !languageOpen}
       position={{ top: 56, right: 16 }}
       size="lg"
       radius="md"
