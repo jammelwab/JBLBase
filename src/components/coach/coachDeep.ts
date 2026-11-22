@@ -1,3 +1,7 @@
+import { makeSquare } from "chessops";
+import { Chess } from "chessops/chess";
+import { makeFen, parseFen } from "chessops/fen";
+import { parseSan } from "chessops/san";
 import { detectMotifs, type Motif } from "./coachMotifs";
 import type { CoachReaction } from "./coachGame";
 
@@ -54,4 +58,29 @@ export function reportMoments(moves: ReportMove[], max = 3): ReportMove[] {
 export function moveNumber(ply: number): string {
     const n = Math.ceil(ply / 2);
     return ply % 2 === 1 ? `${n}.` : `${n}...`;
+}
+
+export type LineStep = { san: string; fen: string; from: string; to: string };
+
+// Die Folgevariante Zug für Zug (höchstens max Halbzüge), für das Brett im
+// Erklärfenster. Bricht beim ersten ungültigen Zug ab.
+export function lineSteps(fenAfter: string, line: string[], max = 4): LineStep[] {
+    const setup = parseFen(fenAfter);
+    if (setup.isErr) return [];
+    const start = Chess.fromSetup(setup.value);
+    if (start.isErr) return [];
+    const pos = start.value;
+    const out: LineStep[] = [];
+    for (const san of line.slice(0, max)) {
+        const move = parseSan(pos, san);
+        if (!move || !("from" in move)) break;
+        pos.play(move);
+        out.push({
+            san,
+            fen: makeFen(pos.toSetup()),
+            from: makeSquare(move.from),
+            to: makeSquare(move.to),
+        });
+    }
+    return out;
 }

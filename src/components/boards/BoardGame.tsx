@@ -20,6 +20,7 @@ import {
   IconFileText,
   IconPlus,
   IconX,
+  IconArrowLeft,
   IconLock,
   IconZoomCheck,
 } from "@tabler/icons-react";
@@ -34,6 +35,7 @@ import { match } from "ts-pattern";
 import { useStore } from "zustand";
 import type { Annotation } from "@/utils/annotation";
 import { coachMoveMarksAtom } from "@/components/coach/coachMoveMarks";
+import { coachLockAtom } from "@/components/coach/coachProgress";
 import type { Outcome } from "@/bindings";
 import {
   commands,
@@ -107,6 +109,11 @@ import { type CoachPlan, coachSparringAtom, prepareCoachGame } from "@/component
 // So lange hält die Partie JBLs Antwortzug höchstens zurück, bis der
 // Kommentar zu deinem Zug fertig ist.
 const COACH_WAIT_MAX_MS = 7500;
+// So lange „denkt“ JBL mindestens über seinen Zug nach (zufällig dazwischen)
+const COACH_THINK_MIN_MS = 1500;
+const COACH_THINK_MAX_MS = 3500;
+const coachThinkTime = () =>
+  COACH_THINK_MIN_MS + Math.random() * (COACH_THINK_MAX_MS - COACH_THINK_MIN_MS);
 
 function gameResultToOutcome(result: GameResult): Outcome {
   if (result.type === "whiteWins") return "1-0";
@@ -126,6 +133,7 @@ function mapBackendMoves(moves: { uci: string; clock: bigint | null }[]): Backen
 function BoardGame() {
   const { t } = useTranslation();
   const activeTab = useAtomValue(activeTabAtom);
+  const coachLock = useAtomValue(coachLockAtom);
 
   const [editingMode, toggleEditingMode] = useToggle();
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
@@ -369,6 +377,17 @@ function BoardGame() {
     [root, setFen, appendMove],
   );
 
+  // Nach der Partie zurück zur Coach-Übersicht (im selben Tab)
+  function backToCoach() {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.value === activeTab
+          ? { ...tab, type: "coach", name: t("Coach.Card.Title"), coach: undefined }
+          : tab,
+      ),
+    );
+  }
+
   function changeToAnalysisMode() {
     setTabs((prev) =>
       prev.map((tab) => (tab.value === activeTab ? { ...tab, type: "analysis" } : tab)),
@@ -607,6 +626,7 @@ function BoardGame() {
     rootHalf: root.halfMoves,
   };
   const coachWaitRef = useRef(0);
+  const coachThinkRef = useRef({ ply: -1, until: 0 });
   const applyRef = useRef<() => void>(() => {});
 
   const applyPendingUpdates = useCallback(() => {
@@ -615,9 +635,15 @@ function BoardGame() {
       const plies = gate.rootHalf + pendingMovesRef.current.length;
       const humanLast = (plies % 2 === 1) === (gate.human === "white");
       const lastHuman = humanLast ? plies : plies - 1;
-      if (!humanLast && lastHuman > gate.rootHalf && lastHuman > gate.commented) {
-        if (!coachWaitRef.current) coachWaitRef.current = Date.now();
-        if (Date.now() - coachWaitRef.current < COACH_WAIT_MAX_MS) {
+      if (!humanLast && lastHuman > gate.rootHalf) {
+        const now = Date.now();
+        if (!coachWaitRef.current) coachWaitRef.current = now;
+        // JBL „denkt“ sichtbar nach, statt sofort zu ziehen
+        if (coachThinkRef.current.ply !== plies)
+          coachThinkRef.current = { ply: plies, until: now + coachThinkTime() };
+        const waitComment =
+          lastHuman > gate.commented && now - coachWaitRef.current < COACH_WAIT_MAX_MS;
+        if (waitComment || now < coachThinkRef.current.until) {
           throttleTimerRef.current = setTimeout(() => applyRef.current(), 100);
           return;
         }
@@ -982,7 +1008,13 @@ function BoardGame() {
                         {isEngineVsEngine ? "Abort" : "Resign"}
                       </Button>
                     )}
-                    {gameState === "gameOver" && (
+                    {gameState === "gameOver" && isCoachGame && (
+                      <Button color="orange" onClick={backToCoach} leftSection={<IconArrowLeft />}>
+                        {t("Coach.Game.BackToCoach")}
+                      </Button>
+                    )}
+                    {/* Gegen JBL nach einer Niederlage: erst die Aufgaben beim Coach */}
+                    {gameState === "gameOver" && !(isCoachGame && coachLock > 0) && (
                       <Button variant="default" onClick={handleNewGame} leftSection={<IconPlus />}>
                         New Game
                       </Button>

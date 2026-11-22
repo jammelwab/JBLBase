@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { countReactions } from "./coachCloud";
-import { mateInFromEval, moveNumber, type ReportMove, reportMoments } from "./coachDeep";
+import { lineSteps, mateInFromEval, moveNumber, type ReportMove, reportMoments } from "./coachDeep";
 
 const move = (ply: number, reaction: ReportMove["reaction"], sign = ""): ReportMove => ({
     reaction,
@@ -48,5 +48,15 @@ describe("coachDeep", () => {
                 "blunder",
             ]),
         ).toEqual({ book: 1, solid: 1, good: 2, dubious: 1, mistake: 0, blunder: 2 });
+    });
+});
+
+describe("lineSteps", () => {
+    it("walks the engine line up to four half-moves", () => {
+        const fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+        const steps = lineSteps(fen, ["e5", "Nf3", "Nc6", "Bb5", "a6"]);
+        expect(steps.map((s) => s.san)).toEqual(["e5", "Nf3", "Nc6", "Bb5"]);
+        expect(steps[1]).toMatchObject({ from: "g1", to: "f3" });
+        expect(lineSteps(fen, ["e5", "Qxf7"])).toHaveLength(1);
     });
 });
