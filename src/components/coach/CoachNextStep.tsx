@@ -89,8 +89,8 @@ function usePathStepView(coach: Coach) {
       case "addLine":
         return {
           title: t("Coach.Path.Step.addLine"),
-          desc: t(actions.addLine ? "Coach.Path.Desc.addLine" : "Coach.Path.Desc.noRepertoire"),
-          button: actions.addLine ? t("Coach.Path.OpenRepertoire") : null,
+          desc: t("Coach.Path.Desc.addLine"),
+          button: t("Coach.NewLine.Open"),
           onClick: actions.addLine,
         };
     }
