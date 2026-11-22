@@ -20,6 +20,7 @@ import {
   IconFolderPlus,
   IconSearch,
   IconFolder,
+  IconFiles,
 } from "@tabler/icons-react";
 import { useLoaderData } from "@tanstack/react-router";
 import { readDir, remove } from "@tauri-apps/plugin-fs";
@@ -271,13 +272,14 @@ function FilesPage() {
           metadata={selected as FileMetadata}
         />
       )}
-      <Group align="baseline" pl="lg" py="sm">
-        <Title>{t("Files.Title")}</Title>
+      <Group align="center" gap="sm" pl="md" pt="md" pb="xs">
+        <IconFiles size="1.75rem" />
+        <Title order={2}>{t("Files.Title")}</Title>
         <OpenFolderButton folder={documentDir} />
       </Group>
 
       <Group grow flex={1} style={{ overflow: "hidden" }} px="md" pb="md">
-        <Paper withBorder style={{ borderWidth: 2 }} h="100%">
+        <Paper withBorder h="100%">
           <Stack ref={dropzoneRef} gap={0} h="100%" style={{ overflow: "hidden" }}>
             <Group p="xs" gap="xs" data-tour="files-new">
               <Input
@@ -362,7 +364,7 @@ function FilesPage() {
               onConfirm={handleConfirmDelete}
             />
             {selected.type === "file" ? (
-              <Paper withBorder style={{ borderWidth: 2 }} pt="md" h="100%">
+              <Paper withBorder pt="md" h="100%">
                 <FileCard
                   selected={selected}
                   games={games}
@@ -371,7 +373,7 @@ function FilesPage() {
                 />
               </Paper>
             ) : (
-              <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%">
+              <Paper withBorder p="md" h="100%">
                 <Center h="100%">
                   <Stack align="center" gap="xs">
                     <ThemeIcon size={80} radius="100%" variant="light" color="gray">
@@ -391,7 +393,7 @@ function FilesPage() {
             )}
           </>
         ) : (
-          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%">
+          <Paper withBorder p="md" h="100%">
             <Center h="100%">
               <Stack align="center" gap="sm">
                 <ThemeIcon size={80} radius="100%" variant="light" color="gray">

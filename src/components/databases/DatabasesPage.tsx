@@ -158,13 +158,14 @@ export default function DatabasesPage() {
         setDatabases={mutate}
       />
 
-      <Group align="baseline" pl="lg" py="sm">
-        <Title>{t("Databases.Title")}</Title>
+      <Group align="center" gap="sm" pl="md" pt="md" pb="xs">
+        <IconDatabase size="1.75rem" />
+        <Title order={2}>{t("Databases.Title")}</Title>
         <OpenFolderButton base="Database" folder={databaseDir} />
       </Group>
 
       <Group grow flex={1} style={{ overflow: "hidden" }} align="start" px="md" pb="md">
-        <Paper withBorder style={{ borderWidth: 2 }} h="100%" data-tour="db-list">
+        <Paper withBorder h="100%" data-tour="db-list">
           <Stack gap={0} h="100%" style={{ overflow: "hidden" }}>
             <Group p="xs" gap="xs">
               <Input
@@ -303,7 +304,7 @@ export default function DatabasesPage() {
         </Paper>
 
         {selectedDatabase === null ? (
-          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%">
+          <Paper withBorder p="md" h="100%">
             <Center h="100%">
               <Stack align="center" gap="sm">
                 <ThemeIcon size={80} radius="100%" variant="light" color="gray">
@@ -316,7 +317,7 @@ export default function DatabasesPage() {
             </Center>
           </Paper>
         ) : (
-          <Paper withBorder style={{ borderWidth: 2 }} p="md" h="100%" data-tour="db-details">
+          <Paper withBorder p="md" h="100%" data-tour="db-details">
             <ScrollArea h="100%" offsetScrollbars>
               <Stack>
                 {selectedDatabase.type === "error" ? (

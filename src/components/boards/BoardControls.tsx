@@ -1,4 +1,4 @@
-import { ActionIcon, Stack, Tooltip } from "@mantine/core";
+import { ActionIcon, Divider, Menu, Stack, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   IconArrowBack,
@@ -6,6 +6,7 @@ import {
   IconBinaryTree,
   IconBookmarkPlus,
   IconCamera,
+  IconDots,
   IconDeviceFloppy,
   IconEdit,
   IconEditOff,
@@ -163,13 +164,12 @@ function BoardControls({
       });
   };
 
+  const isAnalysis = currentTab?.type === "analysis";
+
+  // Everyday actions stay on the bar; the rest sits in the "more" menu so the bar
+  // stays short.
   return (
     <Stack gap={4} align="center">
-      <Tooltip position="right" label={t("Board.Action.TakeSnapshot")}>
-        <ActionIcon onClick={() => takeSnapshot()}>
-          <IconCamera size="1.2rem" />
-        </ActionIcon>
-      </Tooltip>
       {canTakeBack && onTakeBack && (
         <Tooltip label={t("Board.TakeBack")} position="right">
           <ActionIcon onClick={() => onTakeBack()}>
@@ -177,22 +177,53 @@ function BoardControls({
           </ActionIcon>
         </Tooltip>
       )}
-      <Tooltip position="right" label={modeActionLabel}>
-        <ActionIcon
-          onClick={changeTabType}
-          aria-label={modeActionLabel}
-          aria-busy={isCreatingPlayTab}
-          loading={isCreatingPlayTab}
-        >
-          {currentTab?.type === "analysis" ? (
-            <IconTarget size="1.2rem" />
-          ) : (
+      {!isAnalysis && (
+        <Tooltip position="right" label={modeActionLabel}>
+          <ActionIcon onClick={changeTabType} aria-label={modeActionLabel}>
             <IconZoomCheck size="1.2rem" />
-          )}
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <Tooltip
+        position="right"
+        label={t("Board.Action.FlipBoard", {
+          key: keyMap.SWAP_ORIENTATION.keys,
+        })}
+      >
+        <ActionIcon onClick={() => toggleOrientation()}>
+          <IconSwitchVertical size="1.2rem" />
         </ActionIcon>
       </Tooltip>
+      {(!disableVariations || allowEditing) && (
+        <Tooltip position="right" label={t("Board.Action.EditPosition")}>
+          <ActionIcon onClick={() => toggleEditingMode()}>
+            {editingMode ? <IconEditOff size="1.2rem" /> : <IconEdit size="1.2rem" />}
+          </ActionIcon>
+        </Tooltip>
+      )}
+      {saveFile && (
+        <Tooltip position="right" label={t("Board.Action.SavePGN", { key: keyMap.SAVE_FILE.keys })}>
+          <ActionIcon
+            onClick={() => saveFile()}
+            variant={dirty && !autoSave ? "default" : "transparent"}
+          >
+            <IconDeviceFloppy size="1.2rem" />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      {isAnalysis && (
+        <Tooltip position="right" label={t("Repertoire.Add.Title")}>
+          <ActionIcon
+            data-tour="board-add-repertoire"
+            onClick={() => setAddingToRepertoire("line")}
+          >
+            <IconBookmarkPlus size="1.2rem" />
+          </ActionIcon>
+        </Tooltip>
+      )}
       {explorerArrows && (
         <>
+          <Divider w="60%" my={2} />
           <Tooltip position="right" label={t("Board.Action.LichessArrows")}>
             <ActionIcon
               variant={arrowsShown.lichess ? "filled" : "subtle"}
@@ -215,64 +246,45 @@ function BoardControls({
           </Tooltip>
         </>
       )}
-      {!eraseDrawablesOnClick && (
-        <Tooltip position="right" label={t("Board.Action.ClearDrawings")}>
-          <ActionIcon onClick={() => clearShapes()}>
-            <IconEraser size="1.2rem" />
-          </ActionIcon>
-        </Tooltip>
-      )}
-      {(!disableVariations || allowEditing) && (
-        <Tooltip position="right" label={t("Board.Action.EditPosition")}>
-          <ActionIcon onClick={() => toggleEditingMode()}>
-            {editingMode ? <IconEditOff size="1.2rem" /> : <IconEdit size="1.2rem" />}
-          </ActionIcon>
-        </Tooltip>
-      )}
-
-      {saveFile && (
-        <Tooltip position="right" label={t("Board.Action.SavePGN", { key: keyMap.SAVE_FILE.keys })}>
-          <ActionIcon
-            onClick={() => saveFile()}
-            variant={dirty && !autoSave ? "default" : "transparent"}
-          >
-            <IconDeviceFloppy size="1.2rem" />
-          </ActionIcon>
-        </Tooltip>
-      )}
-      <Tooltip
-        position="right"
-        label={t("Board.Action.FlipBoard", {
-          key: keyMap.SWAP_ORIENTATION.keys,
-        })}
-      >
-        <ActionIcon onClick={() => toggleOrientation()}>
-          <IconSwitchVertical size="1.2rem" />
-        </ActionIcon>
-      </Tooltip>
-      {currentTab?.type === "analysis" && (
-        <>
-          <Tooltip position="right" label={t("Repertoire.Add.Title")}>
-            <ActionIcon
-              data-tour="board-add-repertoire"
-              onClick={() => setAddingToRepertoire("line")}
-            >
-              <IconBookmarkPlus size="1.2rem" />
+      <Menu position="right-start" shadow="md" withinPortal>
+        <Menu.Target>
+          <Tooltip position="right" label={t("Board.Action.More")}>
+            <ActionIcon aria-label={t("Board.Action.More")} loading={isCreatingPlayTab}>
+              <IconDots size="1.2rem" />
             </ActionIcon>
           </Tooltip>
-          <Tooltip position="right" label={t("Repertoire.Add.TitleWithVariations")}>
-            <ActionIcon onClick={() => setAddingToRepertoire("variations")}>
-              <IconBinaryTree size="1.2rem" />
-            </ActionIcon>
-          </Tooltip>
-          {addingToRepertoire && (
-            <AddToRepertoireModal
-              opened
-              withVariations={addingToRepertoire === "variations"}
-              onClose={() => setAddingToRepertoire(null)}
-            />
+        </Menu.Target>
+        <Menu.Dropdown>
+          {isAnalysis && (
+            <Menu.Item leftSection={<IconTarget size="1rem" />} onClick={changeTabType}>
+              {modeActionLabel}
+            </Menu.Item>
           )}
-        </>
+          {isAnalysis && (
+            <Menu.Item
+              leftSection={<IconBinaryTree size="1rem" />}
+              onClick={() => setAddingToRepertoire("variations")}
+            >
+              {t("Repertoire.Add.TitleWithVariations")}
+            </Menu.Item>
+          )}
+          <Menu.Divider />
+          {!eraseDrawablesOnClick && (
+            <Menu.Item leftSection={<IconEraser size="1rem" />} onClick={() => clearShapes()}>
+              {t("Board.Action.ClearDrawings")}
+            </Menu.Item>
+          )}
+          <Menu.Item leftSection={<IconCamera size="1rem" />} onClick={() => takeSnapshot()}>
+            {t("Board.Action.TakeSnapshot")}
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+      {isAnalysis && addingToRepertoire && (
+        <AddToRepertoireModal
+          opened
+          withVariations={addingToRepertoire === "variations"}
+          onClose={() => setAddingToRepertoire(null)}
+        />
       )}
     </Stack>
   );

@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Collapse,
   CopyButton,
   Group,
   rem,
@@ -10,8 +11,9 @@ import {
   Text,
   Textarea,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
-import { IconCheck, IconCopy } from "@tabler/icons-react";
+import { IconCheck, IconChevronRight, IconCopy } from "@tabler/icons-react";
 import deepEqual from "fast-deep-equal";
 import { useAtom } from "jotai";
 import { useContext, useEffect, useMemo, useState } from "react";
@@ -59,9 +61,23 @@ function PgnInput() {
     setTmp(pgn);
   }, [pgn]);
 
+  // The raw PGN is rarely needed while analysing: folded away until opened
+  const [open, setOpen] = useState(false);
+
+  const header = (
+    <UnstyledButton onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <Group gap={6}>
+        <IconChevronRight
+          size="0.9rem"
+          style={{ transform: open ? "rotate(90deg)" : undefined, transition: "transform 150ms" }}
+        />
+        <Text fw="bold">PGN</Text>
+      </Group>
+    </UnstyledButton>
+  );
+
   const controls = (
     <>
-      <Text fw="bold">PGN</Text>
       <Group my="sm">
         <Checkbox
           label={t("PgnInput.Comments")}
@@ -134,8 +150,11 @@ function PgnInput() {
 
   return (
     <Stack gap={0}>
-      {controls}
-      {pgnArea}
+      {header}
+      <Collapse expanded={open}>
+        {controls}
+        {pgnArea}
+      </Collapse>
     </Stack>
   );
 }

@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   Group,
+  Menu,
   Modal,
   Paper,
   Tooltip,
@@ -40,6 +41,7 @@ import {
   IconPlus,
   IconCopy,
   IconShare,
+  IconDots,
 } from "@tabler/icons-react";
 import { useLoaderData, useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
@@ -218,46 +220,50 @@ function RepertoireCard({
           <Text fw={600} truncate style={{ flex: 1 }}>
             {repertoire.name}
           </Text>
-          {!shared && (
-            <Tooltip label={t("Repertoire.Share.Button")}>
+          <Menu position="bottom-end" shadow="md" withinPortal>
+            <Menu.Target>
               <ActionIcon
                 variant="subtle"
                 color="gray"
                 size="sm"
-                aria-label={t("Repertoire.Share.Button")}
+                aria-label={t("Repertoire.More")}
                 data-tour="rep-share"
-                onClick={() => setSharing(true)}
               >
-                <IconShare size="1rem" />
+                <IconDots size="1rem" />
               </ActionIcon>
-            </Tooltip>
-          )}
-          <Tooltip label={t("Repertoire.Folder.Move")}>
-            <ActionIcon variant="subtle" color="gray" size="sm" onClick={onMove}>
-              <IconFolderShare size="1rem" />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label={t("Repertoire.History.Button")}>
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              size="sm"
-              onClick={() => setShowHistory(true)}
-            >
-              <IconHistory size="1rem" />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label={t("Repertoire.Delete.Button")}>
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              size="sm"
-              aria-label={t("Repertoire.Delete.Button")}
-              onClick={() => setConfirmDelete(true)}
-            >
-              <IconTrash size="1rem" />
-            </ActionIcon>
-          </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<IconTargetArrow size="1rem" />}
+                onClick={() => setSearchingTactics(true)}
+              >
+                {t("Repertoire.Tactics.Button")}
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconHistory size="1rem" />}
+                onClick={() => setShowHistory(true)}
+              >
+                {t("Repertoire.History.Button")}
+              </Menu.Item>
+              <Menu.Divider />
+              {!shared && (
+                <Menu.Item leftSection={<IconShare size="1rem" />} onClick={() => setSharing(true)}>
+                  {t("Repertoire.Share.Button")}
+                </Menu.Item>
+              )}
+              <Menu.Item leftSection={<IconFolderShare size="1rem" />} onClick={onMove}>
+                {t("Repertoire.Folder.Move")}
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item
+                color="red"
+                leftSection={<IconTrash size="1rem" />}
+                onClick={() => setConfirmDelete(true)}
+              >
+                {t("Repertoire.Delete.Button")}
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
         <Group gap="xs">
           <Text size="sm" c="dimmed">
@@ -286,26 +292,19 @@ function RepertoireCard({
             </Tooltip>
           )}
         </Group>
-        <Group gap="lg">
-          <Stack gap={0}>
-            <Text fw={600}>{stats.moves}</Text>
-            <Text size="xs" c="dimmed">
-              {t("Repertoire.Stats.Moves")}
-            </Text>
-          </Stack>
-          <Stack gap={0}>
-            <Text fw={600}>{stats.leaves}</Text>
-            <Text size="xs" c="dimmed">
-              {t("Repertoire.Stats.Lines")}
-            </Text>
-          </Stack>
-          <Stack gap={0}>
-            <Text fw={600}>{Math.ceil(stats.depth / 2)}</Text>
-            <Text size="xs" c="dimmed">
-              {t("Repertoire.Stats.Depth")}
-            </Text>
-          </Stack>
-        </Group>
+        <Text size="xs" c="dimmed">
+          <Text span fw={600} c="var(--mantine-color-text)">
+            {stats.moves}
+          </Text>{" "}
+          {t("Repertoire.Stats.Moves")} ·{" "}
+          <Text span fw={600} c="var(--mantine-color-text)">
+            {stats.leaves}
+          </Text>{" "}
+          {t("Repertoire.Stats.Lines")} · {t("Repertoire.Stats.Depth")}{" "}
+          <Text span fw={600} c="var(--mantine-color-text)">
+            {Math.ceil(stats.depth / 2)}
+          </Text>
+        </Text>
         <Group grow gap="xs">
           <Button
             variant="light"
@@ -334,33 +333,29 @@ function RepertoireCard({
             {t("Common.Open")}
           </Button>
         </Group>
-        <Button
-          variant="light"
-          color="yellow"
-          size="xs"
-          leftSection={<IconListSearch size="1rem" />}
-          data-tour="rep-check"
-          onClick={onCheck}
-        >
-          {t("Repertoire.Check.Button")}
-        </Button>
-        <Button
-          variant="subtle"
-          size="xs"
-          leftSection={<IconGitCompare size="1rem" />}
-          data-tour="rep-compare"
-          onClick={onCompare}
-        >
-          {t("Repertoire.Compare.Button")}
-        </Button>
-        <Button
-          variant="subtle"
-          size="xs"
-          leftSection={<IconTargetArrow size="1rem" />}
-          onClick={() => setSearchingTactics(true)}
-        >
-          {t("Repertoire.Tactics.Button")}
-        </Button>
+        <Group grow gap="xs">
+          <Button
+            variant="subtle"
+            color="gray"
+            size="xs"
+            leftSection={<IconListSearch size="1rem" />}
+            data-tour="rep-check"
+            onClick={onCheck}
+          >
+            {t("Repertoire.Check.Button")}
+          </Button>
+          <Button
+            variant="subtle"
+            color="gray"
+            size="xs"
+            leftSection={<IconGitCompare size="1rem" />}
+            data-tour="rep-compare"
+            onClick={onCompare}
+            title={t("Repertoire.Compare.Button")}
+          >
+            {t("Repertoire.Compare.Short")}
+          </Button>
+        </Group>
         {shared && (
           <Button
             variant="light"
@@ -1190,21 +1185,32 @@ export default function RepertoiresPage() {
                   })}
                 </Button>
               )}
-              <Button
-                variant="light"
-                leftSection={<IconFileImport size="1rem" />}
-                disabled={!repertoires?.length}
-                onClick={() => setImporting(true)}
-              >
-                {t("Repertoire.Course.Button")}
-              </Button>
-              <Button
-                variant="light"
-                leftSection={<IconFolderDown size="1rem" />}
-                onClick={() => setImportingFolder(true)}
-              >
-                {t("Repertoire.FolderImport.Button")}
-              </Button>
+              <Menu position="bottom-end" shadow="md">
+                <Menu.Target>
+                  <Button
+                    variant="default"
+                    leftSection={<IconFileImport size="1rem" />}
+                    rightSection={<IconChevronDown size="0.9rem" />}
+                  >
+                    {t("Repertoire.Page.Import")}
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item
+                    leftSection={<IconFileImport size="1rem" />}
+                    disabled={!repertoires?.length}
+                    onClick={() => setImporting(true)}
+                  >
+                    {t("Repertoire.Course.Button")}
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconFolderDown size="1rem" />}
+                    onClick={() => setImportingFolder(true)}
+                  >
+                    {t("Repertoire.FolderImport.Button")}
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
               <Button
                 data-tour="rep-new"
                 leftSection={<IconPlus size="1rem" />}
