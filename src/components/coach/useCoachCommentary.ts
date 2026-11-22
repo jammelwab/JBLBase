@@ -15,6 +15,7 @@ import {
     notationSign,
     playedScore,
     REACTION_SIGN,
+    recentlySaid,
     reactionFor,
 } from "./coachGame";
 import { coachIntroAtom } from "./coachIntroState";
@@ -219,6 +220,11 @@ export function useCoachCommentary(
                         stage: st,
                         lang,
                         opening,
+                        // Abwechslung (1.2.19): eine von drei Fassungen, der
+                        // Halbzug und was JBL zuletzt gesagt hat
+                        variant: 1 + Math.floor(Math.random() * 3),
+                        ply: last.halfMoves,
+                        recent: recentlySaid(4),
                     }).catch(() => null),
                     SAY_TIMEOUT_MS,
                 );
