@@ -227,7 +227,7 @@ export default function NewTabHome({ id }: { id: string }) {
             >
               <Stack align="center" h="100%" justify="space-between">
                 <Stack align="center" gap="sm">
-                  {card.icon}
+                  <Box className={classes.homeIcon}>{card.icon}</Box>
                   <Box style={{ textAlign: "center" }}>
                     <Text fw={600}>{card.title}</Text>
                     <Text size="sm" c="dimmed">

@@ -804,7 +804,7 @@ export default function InsightPage() {
     <ScrollArea h="100%" px="md" py="sm">
       <Stack maw={1200} mx="auto">
         <Group gap="xs">
-          <IconChartBar size="1.6rem" />
+          <IconChartBar size="1.75rem" className="jbl-page-icon" />
           <Title order={2}>{t("SideBar.Insight")}</Title>
         </Group>
         <Text c="dimmed" size="sm">

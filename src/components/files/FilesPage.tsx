@@ -273,7 +273,7 @@ function FilesPage() {
         />
       )}
       <Group align="center" gap="sm" pl="md" pt="md" pb="xs">
-        <IconFiles size="1.75rem" />
+        <IconFiles size="1.75rem" className="jbl-page-icon" />
         <Title order={2}>{t("Files.Title")}</Title>
         <OpenFolderButton folder={documentDir} />
       </Group>

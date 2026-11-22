@@ -88,3 +88,8 @@
 .chevron[data-open] {
   transform: rotate(90deg);
 }
+
+/* The settings panel is one big card: no hover frame here */
+.card:hover {
+  border-color: var(--paper-border-color);
+}

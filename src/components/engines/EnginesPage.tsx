@@ -100,7 +100,7 @@ export default function EnginesPage() {
     <Stack h="100%">
       <AddEngine opened={opened} setOpened={setOpened} />
       <Group align="center" gap="sm" pl="md" pt="md" pb="xs">
-        <IconCpu size="1.75rem" />
+        <IconCpu size="1.75rem" className="jbl-page-icon" />
         <Title order={2}>{t("Engines.Title")}</Title>
         <OpenFolderButton base="Engines" folder="engines" />
       </Group>

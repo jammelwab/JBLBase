@@ -984,7 +984,7 @@ function ColorGroup({
     : actions;
   return (
     <Stack gap="xs">
-      <Group justify="space-between" wrap="nowrap">
+      <Group justify="space-between" wrap="nowrap" className={classes.groupHeader}>
         <Group gap={6}>
           <ColorDot color={actions.color} />
           <Text fw={600}>{colorName(actions.color)}</Text>
@@ -1169,7 +1169,7 @@ export default function RepertoiresPage() {
         <Stack p="md" gap="lg" maw={1100}>
           <Group justify="space-between">
             <Group gap="sm">
-              <IconBooks size="1.75rem" />
+              <IconBooks size="1.75rem" className="jbl-page-icon" />
               <Title order={2}>{t("Repertoire.Page.Title")}</Title>
             </Group>
             <Group>
@@ -1233,7 +1233,9 @@ export default function RepertoiresPage() {
           )}
           {[...byOwner.entries()].map(([owner, list]) => (
             <Stack key={owner} gap="sm">
-              <Title order={4}>{owner}</Title>
+              <Title order={4} className={classes.ownerTitle}>
+                {owner}
+              </Title>
               {(["white", "black"] as const)
                 .map((color) => ({
                   color,

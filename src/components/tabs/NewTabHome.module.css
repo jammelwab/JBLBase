@@ -22,3 +22,8 @@
   padding-bottom: var(--mantine-spacing-xs);
   border-bottom: 2px solid var(--jbl-accent);
 }
+
+.homeIcon {
+  color: var(--jbl-accent);
+  line-height: 0;
+}

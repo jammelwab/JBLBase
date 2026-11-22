@@ -159,7 +159,7 @@ export default function DatabasesPage() {
       />
 
       <Group align="center" gap="sm" pl="md" pt="md" pb="xs">
-        <IconDatabase size="1.75rem" />
+        <IconDatabase size="1.75rem" className="jbl-page-icon" />
         <Title order={2}>{t("Databases.Title")}</Title>
         <OpenFolderButton base="Database" folder={databaseDir} />
       </Group>
