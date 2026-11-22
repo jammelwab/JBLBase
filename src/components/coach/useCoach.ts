@@ -33,9 +33,12 @@ import {
     coachTasks,
     coachXpAtom,
     levelProgress,
+    nextCoachStep,
     nextCoachTask,
+    repsToday,
     today,
 } from "./coachState";
+import { coachQuestAtom, currentQuest } from "./coachRewards";
 
 // Fällige und neue Stellungen in den zuletzt geöffneten Repertoires.
 const repertoireDueAtom = atom((get) => {
@@ -115,5 +118,31 @@ export function useCoach(tabId: string) {
     );
     const remindIntro = introReminder(intro);
 
-    return { next, tasks, dueCount, actions, lock, streak, boss, lesson, unlocked, remindIntro };
+    // Der eine nächste Schritt für Startkarte und Coach-Seite
+    const quest = currentQuest(useAtomValue(coachQuestAtom), today(now));
+    const step = nextCoachStep({
+        next,
+        lock,
+        hasMistake,
+        hasLesson: lesson !== null,
+        boss,
+        questDone: quest.done,
+    });
+    const reps = repsToday(day, now);
+
+    return {
+        next,
+        step,
+        quest,
+        reps,
+        tasks,
+        dueCount,
+        actions,
+        lock,
+        streak,
+        boss,
+        lesson,
+        unlocked,
+        remindIntro,
+    };
 }

@@ -7,13 +7,18 @@ import {
   Progress,
   ScrollArea,
   Select,
-  SimpleGrid,
   Stack,
   Text,
   Title,
   UnstyledButton,
 } from "@mantine/core";
-import { IconChess, IconPuzzle, IconTargetArrow, IconCalendarCheck } from "@tabler/icons-react";
+import {
+  IconCalendarCheck,
+  IconChess,
+  IconCircleCheck,
+  IconPuzzle,
+  IconTargetArrow,
+} from "@tabler/icons-react";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,18 +30,16 @@ import {
   coachTitleKey,
   coachXpAtom,
   levelProgress,
-  today,
+  REPS_PER_DAY,
 } from "./coachState";
-import CoachMistakeTask from "./CoachMistakeTask";
+import CoachNextStep from "./CoachNextStep";
 import { coachMistakeAtom } from "./coachProgress";
 import {
   coachBestEstimateAtom,
   coachSpecialTitlesAtom,
   coachFrameAtom,
-  coachQuestAtom,
   coachResultsAtom,
   coachShownTitleAtom,
-  currentQuest,
   DAILY_QUEST_XP,
   estimateStrength,
   frameColor,
@@ -52,10 +55,73 @@ import { PatriciaEars, PatriciaPopup, usePatriciaPeek } from "./PatriciaPeek";
 import { useCoach } from "./useCoach";
 
 const TASK_ICONS: Record<string, ReactNode> = {
-  repertoire: <IconTargetArrow size={36} />,
-  play: <IconChess size={36} />,
-  puzzles: <IconPuzzle size={36} />,
+  repertoire: <IconTargetArrow size={24} />,
+  play: <IconChess size={24} />,
+  puzzles: <IconPuzzle size={24} />,
 };
+
+// Eine Zeile im Tagesplan: Symbol, Text, Status und ein kleiner Knopf.
+function PlanRow({
+  icon,
+  title,
+  desc,
+  status,
+  button,
+}: {
+  icon: ReactNode;
+  title: string;
+  desc: string;
+  status: "now" | "done" | "open" | "bonus";
+  button: { label: string; onClick: () => void; disabled: boolean } | null;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Group
+      wrap="nowrap"
+      gap="md"
+      px="lg"
+      py="sm"
+      style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
+      opacity={status === "done" ? 0.6 : 1}
+    >
+      <Box
+        c={status === "done" ? "teal" : status === "now" ? "orange" : "dimmed"}
+        style={{ lineHeight: 0 }}
+      >
+        {status === "done" ? <IconCircleCheck size={24} /> : icon}
+      </Box>
+      <Box style={{ flex: 1, minWidth: 0 }}>
+        <Text fw={600} size="sm" td={status === "done" ? "line-through" : undefined}>
+          {title}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {desc}
+        </Text>
+      </Box>
+      {status === "now" && (
+        <Badge color="orange" variant="light">
+          {t("Coach.Page.Now")}
+        </Badge>
+      )}
+      {status === "bonus" && (
+        <Badge color="gray" variant="light">
+          {t("Coach.Page.Bonus")}
+        </Badge>
+      )}
+      {button && status !== "done" && (
+        <Button
+          size="compact-sm"
+          variant="subtle"
+          color="gray"
+          disabled={button.disabled}
+          onClick={button.onClick}
+        >
+          {button.label}
+        </Button>
+      )}
+    </Group>
+  );
+}
 
 export function StrengthSelect() {
   const { t } = useTranslation();
@@ -113,7 +179,8 @@ export default function CoachPage({ id }: { id: string }) {
   const { t } = useTranslation();
   const figure = useRef<CoachFigureHandle>(null);
   const [bunny, setBunny] = usePatriciaPeek();
-  const { next, tasks, dueCount, actions, lock, streak, boss } = useCoach(id);
+  const coach = useCoach(id);
+  const { step, tasks, dueCount, actions, lock, streak, quest, reps } = coach;
   const { level } = levelProgress(useAtomValue(coachXpAtom));
   const frame = useAtomValue(coachFrameAtom);
   const title = shownTitle(
@@ -124,12 +191,11 @@ export default function CoachPage({ id }: { id: string }) {
   const mistake = useAtomValue(coachMistakeAtom);
   const estimate = estimateStrength(useAtomValue(coachResultsAtom));
   const best = useAtomValue(coachBestEstimateAtom);
-  const quest = currentQuest(useAtomValue(coachQuestAtom), today());
 
   return (
     <ScrollArea h="100%" type="auto">
       <Stack gap="lg" p="md" maw={1100} mx="auto">
-        <Card withBorder radius="md" px="xl" pt={36} pb="xl" data-tour="coach-header">
+        <Card withBorder radius="md" px="xl" pt="xl" pb="lg" data-tour="coach-header">
           <Group wrap="wrap" align="flex-start" gap={40}>
             <Stack align="center" gap={6} style={{ flexShrink: 0 }}>
               <Box
@@ -142,12 +208,12 @@ export default function CoachPage({ id }: { id: string }) {
               >
                 <PatriciaEars stage={bunny} setStage={setBunny} figure={figure} />
                 <UnstyledButton
-                  onClick={() => figure.current?.play(next === "done" ? "win" : "hello")}
+                  onClick={() => figure.current?.play(step === "done" ? "win" : "hello")}
                   aria-label={t("Coach.Card.Poke.Label")}
                   pos="relative"
                   style={{ lineHeight: 0, zIndex: 1 }}
                 >
-                  <CoachFigure ref={figure} size={180} title={t("Coach.Card.Title")} />
+                  <CoachFigure ref={figure} size={140} title={t("Coach.Card.Title")} />
                 </UnstyledButton>
                 {frame === "carrot" && (
                   <Box pos="absolute" right={-14} bottom={-14} style={{ lineHeight: 0, zIndex: 2 }}>
@@ -169,11 +235,7 @@ export default function CoachPage({ id }: { id: string }) {
                 </Badge>
               </Group>
               <Text size="lg" aria-live="polite">
-                {lock > 0
-                  ? t("Coach.Say.locked")
-                  : boss
-                    ? t("Coach.Boss.Card")
-                    : t(`Coach.Say.${next}`, { count: dueCount })}
+                {t(`Coach.Say.${step}`, { count: dueCount })}
               </Text>
               <Box maw={380}>
                 <CoachLevel streak={streak} />
@@ -185,102 +247,70 @@ export default function CoachPage({ id }: { id: string }) {
                 )}
               </Box>
             </Stack>
-
-            <Box style={{ flex: "1 1 300px", minWidth: 0 }} data-tour="coach-showcase">
-              <CoachShowcase level={level} />
-            </Box>
           </Group>
         </Card>
 
-        <Title order={3}>{t("Coach.Page.Today")}</Title>
-        {lock > 0 && mistake && <CoachMistakeTask mistake={mistake} />}
-        <SimpleGrid cols={{ base: 1, sm: 3 }}>
-          {tasks.map((task) => (
-            <Card
-              key={task.id}
-              withBorder
-              radius="md"
-              p="lg"
-              style={
-                task.id === next
-                  ? { borderColor: "var(--mantine-color-orange-6)", borderWidth: 2 }
-                  : undefined
-              }
-            >
-              <Stack h="100%" justify="space-between" gap="sm">
-                <Group justify="space-between" align="flex-start">
-                  {TASK_ICONS[task.id]}
-                  {task.id === next ? (
-                    <Badge color="orange">{t("Coach.Page.Next")}</Badge>
-                  ) : task.done ? (
-                    <Badge color="teal" variant="light">
-                      {t("Coach.Page.Done")}
-                    </Badge>
-                  ) : null}
-                </Group>
-                <Box>
-                  <Text fw={600}>{t(`Coach.Task.${task.id}.Title`)}</Text>
-                  <Text size="sm" c="dimmed">
-                    {task.locked
-                      ? t("Coach.Card.Locked", { count: lock })
-                      : task.id === "repertoire" && dueCount === 0
-                        ? t("Coach.Task.repertoire.Nothing")
-                        : t(`Coach.Task.${task.id}.Desc`, { count: dueCount })}
-                  </Text>
-                </Box>
-                <Stack gap={6}>
-                  {task.id === "play" && <StrengthSelect />}
-                  <Button
-                    radius="md"
-                    variant={task.id === next ? "filled" : "light"}
-                    color={task.id === next ? "orange" : undefined}
-                    disabled={(task.id === "repertoire" && dueCount === 0) || task.locked}
-                    onClick={actions[task.id]}
-                  >
-                    {t(`Coach.Task.${task.id}.Button`)}
-                  </Button>
-                </Stack>
-              </Stack>
-            </Card>
-          ))}
-        </SimpleGrid>
+        <CoachNextStep coach={coach} mistake={mistake} />
 
-        <Card withBorder radius="md" p="md">
-          <Group wrap="nowrap" align="center" gap="md">
-            <IconCalendarCheck size={32} />
-            <Box style={{ flex: 1, minWidth: 0 }}>
-              <Group justify="space-between" gap="xs">
-                <Text fw={600}>
-                  {t("Coach.Quest.Label")}: {t(`Coach.Quest.${quest.id}`)}
-                </Text>
-                {quest.done ? (
-                  <Badge color="teal" variant="light">
-                    {t("Coach.Page.Done")}
-                  </Badge>
-                ) : (
-                  <Badge color="orange" variant="light">
-                    +{DAILY_QUEST_XP} XP
-                  </Badge>
-                )}
-              </Group>
-              <Progress
-                mt={6}
-                size="sm"
-                radius="xl"
-                color={quest.done ? "teal" : "orange"}
-                value={(quest.progress / questTarget(quest.id)) * 100}
-                aria-label={t("Coach.Quest.Label")}
-              />
-              <Text size="xs" c="dimmed" mt={2}>
-                {quest.progress} / {questTarget(quest.id)}
-              </Text>
-            </Box>
+        <Card withBorder radius="md" p={0}>
+          <Group justify="space-between" px="lg" pt="md" pb="xs">
+            <Title order={4}>{t("Coach.Page.Today")}</Title>
+            <Text size="sm" c="dimmed">
+              {t("Coach.Page.DoneCount", {
+                done: tasks.filter((task) => task.done).length,
+                total: tasks.length,
+              })}
+            </Text>
           </Group>
+          {tasks.map((task, i) => (
+            <PlanRow
+              key={task.id}
+              icon={TASK_ICONS[task.id]}
+              title={`${i + 1}. ${t(`Coach.Task.${task.id}.Title`)}`}
+              desc={
+                task.locked
+                  ? t("Coach.Card.Locked", { count: lock })
+                  : task.id === "repertoire"
+                    ? dueCount === 0
+                      ? t("Coach.Task.repertoire.Nothing")
+                      : t("Coach.Task.repertoire.Reps", { reps, target: REPS_PER_DAY })
+                    : t(`Coach.Task.${task.id}.Desc`, { count: dueCount })
+              }
+              status={task.id === step ? "now" : task.done ? "done" : "open"}
+              button={
+                task.id === step
+                  ? null
+                  : {
+                      label: t(`Coach.Task.${task.id}.Button`),
+                      onClick: actions[task.id],
+                      disabled: (task.id === "repertoire" && dueCount === 0) || !!task.locked,
+                    }
+              }
+            />
+          ))}
+          <PlanRow
+            icon={<IconCalendarCheck size={24} />}
+            title={`${t("Coach.Quest.Label")}: ${t(`Coach.Quest.${quest.id}`)}`}
+            desc={`${quest.progress} / ${questTarget(quest.id)} · +${DAILY_QUEST_XP} XP`}
+            status={step === "quest" ? "now" : quest.done ? "done" : "bonus"}
+            button={null}
+          />
         </Card>
 
         <CoachLessons />
-        <CoachHints level={level} />
-        <CoachDuel />
+
+        <Stack gap="sm">
+          <Title order={3}>{t("Coach.Page.Showcase")}</Title>
+          <Card withBorder radius="md" p="lg" data-tour="coach-showcase">
+            <CoachShowcase level={level} />
+          </Card>
+        </Stack>
+
+        <Stack gap="sm">
+          <Title order={3}>{t("Coach.Page.More")}</Title>
+          <CoachHints level={level} />
+          <CoachDuel />
+        </Stack>
       </Stack>
     </ScrollArea>
   );

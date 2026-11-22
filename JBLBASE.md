@@ -512,6 +512,8 @@ Der Code: `coachGame.ts` (Stärke, Reaktionen, Sprüche), `useCoachCommentary.ts
 
 Seit 1.2.2 gibt es für Partien gegen JBL XP. Nach dem Partieende zeigt JBL einen **Kassenzettel**: 20 XP fürs Spielen, 50 für einen Sieg oder 25 für ein Remis, jeweils mal dem Faktor der Stärke (0,5 bei „Sehr leicht“ bis 3 bei „Sehr schwer“), 30 XP je !! und 10 je !. Ab der vierten Partie am Tag gibt es nur noch die halbe Basis. Darauf kommen Prozent-Boni: +20 % für eine saubere Partie (kein ?? und nichts zurückgenommen) und der Serien-Bonus (+1 % pro Serientag). Ein richtig gelöstes Puzzle gibt 10 XP. Steigt das Level, sagt JBL das an.
 
+Seit 1.2.11 ist die Coach-Seite so geordnet: oben JBL mit Titel, einem Satz und dem Level; darunter die große Karte **„Als Nächstes“** mit genau einem Knopf (`nextCoachStep` in `coachState.ts`, Reihenfolge: eigener Fehler nach einer Niederlage, restliche Puzzles der Sperre, neue Lektion, Boss-Challenge, Repertoire, Partie, Puzzles, dann die Tagesaufgabe als Bonus); die Startkarte zeigt denselben Schritt (`useCoachStepView` in `CoachNextStep.tsx`). Darunter „Dein Plan für heute“ als Liste mit Haken und der Tagesaufgabe, dann Lernpfad, Vitrine und „Tipps und Duell“. Die Repertoire-Aufgabe ist erledigt, wenn nichts mehr fällig ist oder du heute 10 Züge auf Anhieb gewusst hast (`REPS_PER_DAY`, gezählt in `coachDayAtom.reps`).
+
 Die **Serie** zählt Tage in Folge mit mindestens einer Partie oder einem Puzzle; ein verpasster Tag pro Woche wird überbrückt. Sie steht mit Flamme auf Karte und Coach-Seite.
 
 Die **Sperre**: nach einer Niederlage sind drei Puzzles fällig, nach einem Remis eines, bevor „Gegen JBL spielen“ wieder geht. Karte und Coach-Seite zeigen, wie viele noch fehlen.
