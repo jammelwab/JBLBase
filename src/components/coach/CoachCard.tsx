@@ -7,7 +7,7 @@ import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { RivalBar } from "./CoachDuel";
 import { CoachLevel } from "./CoachPage";
 import { coachIntroAtom, coachIntroOpenAtom } from "./coachIntroState";
-import { useCoachStepView } from "./CoachNextStep";
+import { mainIsPlay, useCoachStepView } from "./CoachNextStep";
 import { useCoach } from "./useCoach";
 
 // Der Coach winkt nur einmal pro Programmstart, nicht bei jedem neuen Tab.
@@ -85,6 +85,11 @@ export default function CoachCard({ id }: { id: string }) {
           {view.button && view.onClick && (
             <Button variant="filled" color="orange" fullWidth radius="md" onClick={view.onClick}>
               {view.button}
+            </Button>
+          )}
+          {coach.lock === 0 && step !== "mistake" && !mainIsPlay(coach, view.onClick) && (
+            <Button variant="light" color="orange" fullWidth radius="md" onClick={actions.play}>
+              {t("Coach.Task.play.Button")}
             </Button>
           )}
           <Button

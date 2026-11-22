@@ -307,8 +307,58 @@ export default function CoachNextStep({
             )}
           </Group>
         )}
+        <FreePlay coach={coach} mainOnClick={view.onClick} />
       </Stack>
     </Card>
+  );
+}
+
+// Ist der große Knopf schon „Gegen JBL spielen“?
+export function mainIsPlay(coach: Coach, mainOnClick: (() => void) | null | undefined) {
+  return (
+    coach.step === "play" ||
+    mainOnClick === coach.actions.play ||
+    (coach.step === "path" && pathStep(coach.path.index).id === "play")
+  );
+}
+
+// Gegen JBL spielen geht immer, außer nach einer Niederlage (Sperre)
+function FreePlay({
+  coach,
+  mainOnClick,
+}: {
+  coach: Coach;
+  mainOnClick: (() => void) | null | undefined;
+}) {
+  const { t } = useTranslation();
+  if (coach.step === "mistake" || coach.step === "locked" || mainIsPlay(coach, mainOnClick))
+    return null;
+  const locked = coach.lock > 0;
+  return (
+    <Group
+      gap="sm"
+      wrap="wrap"
+      pt="sm"
+      style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
+    >
+      <Text size="sm" c="dimmed" style={{ flex: "1 1 220px" }}>
+        {locked ? t("Coach.FreePlay.Locked", { count: coach.lock }) : t("Coach.FreePlay.Desc")}
+      </Text>
+      {!locked && (
+        <Group gap={6} wrap="nowrap">
+          <StrengthSelect />
+          <Button
+            variant="light"
+            color="orange"
+            radius="md"
+            leftSection={<IconChess size={18} />}
+            onClick={coach.actions.play}
+          >
+            {t("Coach.Task.play.Button")}
+          </Button>
+        </Group>
+      )}
+    </Group>
   );
 }
 
