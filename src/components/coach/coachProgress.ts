@@ -130,6 +130,9 @@ export const XP = {
     lambruscoPercent: 10,
     // ab der 4. Partie am Tag halbe Basis-XP
     tiredFromGame: 4,
+    // Krasse Momente (1.2.20): Sieg durch Matt, erster Sieg auf einer Stufe
+    mate: 25,
+    firstWin: 40,
 } as const;
 
 export type ReceiptInput = {
@@ -150,6 +153,10 @@ export type ReceiptInput = {
     questXp?: number;
     // Boss-Challenge gewonnen: dreifache XP
     bossWin?: boolean;
+    // Gewonnen durch Matt (1.2.20)
+    mateWin?: boolean;
+    // Erster Sieg überhaupt auf dieser Stufe (1.2.20)
+    firstWin?: boolean;
 };
 
 export type ReceiptLine = {
@@ -176,6 +183,10 @@ export function computeReceipt(input: ReceiptInput): { lines: ReceiptLine[]; tot
         });
     if (input.goods > 0)
         lines.push({ key: "good", xp: input.goods * XP.good, count: input.goods, kind: "base" });
+    if (input.result === "win" && input.mateWin)
+        lines.push({ key: "mate", xp: XP.mate, kind: "base" });
+    if (input.result === "win" && input.firstWin)
+        lines.push({ key: "firstWin", xp: XP.firstWin, kind: "base" });
 
     let base = lines.reduce((sum, l) => sum + l.xp, 0);
     if (input.gameOfDay >= XP.tiredFromGame) {
@@ -294,7 +305,7 @@ export const coachRepertoireMoveAtom = atom(null, (get, set) => {
 
 export type CoachGameInput = Omit<
     ReceiptInput,
-    "streakDays" | "gameOfDay" | "birthday" | "bonusTrack" | "questXp" | "bossWin"
+    "streakDays" | "gameOfDay" | "birthday" | "bonusTrack" | "questXp" | "bossWin" | "firstWin"
 > & {
     mistake?: CoachMistake | null;
     // Die Partie war die Boss-Challenge
@@ -318,7 +329,12 @@ export type CoachGameSummary = {
     estimate: number | null;
     newBest: boolean;
     lock: number;
+    // Erster Sieg auf dieser Stufe (1.2.20)
+    firstWin: boolean;
 };
+
+// Stufen, auf denen man JBL schon besiegt hat (1.2.20)
+export const coachBeatenAtom = atomWithStorage<string[]>("jbl-coach-beaten", []);
 
 // Eine Partie gegen JBL ist zu Ende: XP gutschreiben, Serie, Tageszähler,
 // Sperre, Tagesaufgabe, Trophäen und Stärke-Schätzung.
@@ -344,8 +360,18 @@ export const finishCoachGameAtom = atom(
         const bonusTrack = get(coachBonusTrackAtom);
         const birthday = get(isBirthdayAtom);
         const { boss: wasBoss = false, isAdmin = false, mistake, ...receiptGame } = game;
+        // Erster Sieg auf dieser Stufe: nicht gemerkt und nicht in den letzten Ergebnissen
+        const beaten = get(coachBeatenAtom);
+        const elo = strengthElo(game.strength);
+        const firstWin =
+            game.result === "win" &&
+            !beaten.includes(game.strength) &&
+            !get(coachResultsAtom).some((r) => r.elo === elo && r.score === 1);
+        if (game.result === "win" && !beaten.includes(game.strength))
+            set(coachBeatenAtom, [...beaten, game.strength]);
         const receipt = computeReceipt({
             ...receiptGame,
+            firstWin,
             bossWin: wasBoss && game.result === "win",
             streakDays,
             gameOfDay,
@@ -407,6 +433,7 @@ export const finishCoachGameAtom = atom(
             estimate,
             newBest: newBest && best > 0,
             lock: get(coachLockAtom),
+            firstWin,
         };
     },
 );

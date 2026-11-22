@@ -18,7 +18,10 @@ export type CoachTone =
     | "win"
     | "draw"
     | "loss"
-    | "lesson";
+    | "lesson"
+    // Krasse Momente (1.2.20): Jubel und großer Jubel
+    | "fanfare"
+    | "mega";
 
 // Ein Ton: Frequenz (Hz), Beginn und Dauer (s), optional ein Gleiten zur
 // Zielfrequenz (für die traurige Posaune)
@@ -85,6 +88,28 @@ export const COACH_TONES: Record<CoachTone, Note[]> = {
         { f: A4 / 2 + 20, at: 0, dur: 0.3, wave: "sawtooth" },
         { f: A4 / 2, at: 0.32, dur: 0.3, wave: "sawtooth" },
         { f: G3 + 10, at: 0.64, dur: 0.7, to: G3 - 20, wave: "sawtooth" },
+    ],
+    // Schnelles Arpeggio über zwei Oktaven, am Ende ein voller Akkord
+    fanfare: [
+        { f: C5, at: 0, dur: 0.1 },
+        { f: E5, at: 0.07, dur: 0.1 },
+        { f: G5, at: 0.14, dur: 0.1 },
+        { f: C6, at: 0.21, dur: 0.1 },
+        { f: C6 * 1.26, at: 0.28, dur: 0.1 },
+        { f: C6, at: 0.4, dur: 0.6 },
+        { f: G5, at: 0.4, dur: 0.6 },
+        { f: E5, at: 0.4, dur: 0.6 },
+    ],
+    // Siegesfanfare: Ta-ta-taa, dann ein großer Dur-Akkord mit Bass
+    mega: [
+        { f: G5, at: 0, dur: 0.12, wave: "triangle" },
+        { f: G5, at: 0.14, dur: 0.12, wave: "triangle" },
+        { f: G5, at: 0.28, dur: 0.12, wave: "triangle" },
+        { f: C6, at: 0.42, dur: 0.3, wave: "triangle" },
+        { f: C6, at: 0.78, dur: 0.7 },
+        { f: E5 * 2, at: 0.78, dur: 0.7 },
+        { f: G5, at: 0.78, dur: 0.7 },
+        { f: C5 / 2, at: 0.78, dur: 0.7, wave: "triangle" },
     ],
     lesson: [
         { f: E5, at: 0, dur: 0.1 },
