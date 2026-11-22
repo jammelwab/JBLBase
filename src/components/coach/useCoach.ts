@@ -21,6 +21,7 @@ import {
     currentStreak,
 } from "./coachProgress";
 import { coachIntroAtom, introReminder } from "./coachIntroState";
+import { coachLineWizardAtom } from "./coachLines";
 import { coachPathAtom } from "./coachPath";
 import { coachPuzzleElo, coachPuzzleStartAtom } from "./coachPuzzleStart";
 import {
@@ -52,17 +53,14 @@ import {
 const repertoireDueAtom = atom((get) => {
     let total = 0;
     let best: { file: RecentFile; due: number } | null = null;
-    // Irgendein Repertoire, für „Linie hinzufügen“ im weiteren Pfad
-    let first: RecentFile | null = null;
     for (const file of get(recentFilesAtom)) {
         if (file.type !== "repertoire") continue;
-        first ??= file;
         const stats = getStats(get(deckAtomFamily({ file: file.path, game: 0 })).positions);
         const due = stats.due + stats.unseen;
         total += due;
         if (due > 0 && (!best || due > best.due)) best = { file, due };
     }
-    return { total, best, first };
+    return { total, best };
 });
 
 export function useCoach(tabId: string) {
@@ -72,7 +70,7 @@ export function useCoach(tabId: string) {
     const lock = useAtomValue(coachLockAtom);
     const hasMistake = useAtomValue(coachMistakeAtom) !== null;
     const streak = currentStreak(useAtomValue(coachStreakAtom), today());
-    const { total: dueCount, best, first: anyRepertoire } = useAtomValue(repertoireDueAtom);
+    const { total: dueCount, best } = useAtomValue(repertoireDueAtom);
     const openRecentFile = useOpenRecentFile();
     const mateDrill = useAtomValue(coachMateDrillAtom);
     const setPuzzleTheme = useSetAtom(puzzleThemeAtom);
@@ -80,6 +78,7 @@ export function useCoach(tabId: string) {
     const results = useAtomValue(coachResultsAtom);
     const bestEstimate = useAtomValue(coachBestEstimateAtom);
     const strength = useAtomValue(coachStrengthAtom);
+    const setLineWizard = useSetAtom(coachLineWizardAtom);
 
     const turnTabInto = useCallback(
         (type: Tab["type"], name: string, coach = false) =>
@@ -112,7 +111,7 @@ export function useCoach(tabId: string) {
                 turnTabInto("puzzles", t("Home.PuzzleTraining"), true);
             },
             repertoire: () => {
-                if (best) openRecentFile(best.file);
+                if (best) openRecentFile(best.file, { coach: true });
             },
             // Weiterer Pfad: Taktik-Puzzles zu einem Thema
             tactic: (theme: string) => {
@@ -120,8 +119,11 @@ export function useCoach(tabId: string) {
                 setPuzzleStart(coachPuzzleElo(results, bestEstimate, strength));
                 turnTabInto("puzzles", t("Home.PuzzleTraining"), true);
             },
-            // Weiterer Pfad: eine Linie ins Repertoire, dort über „Hinzufügen“
-            addLine: anyRepertoire ? () => openRecentFile(anyRepertoire) : null,
+            // Neue Linie: der Assistent auf der Coach-Seite (Züge erst nach Bestätigung)
+            addLine: () => {
+                turnTabInto("coach", t("Coach.Card.Title"));
+                setLineWizard(tabId);
+            },
         }),
         [
             turnTabInto,
@@ -135,8 +137,9 @@ export function useCoach(tabId: string) {
             strength,
             t,
             best,
-            anyRepertoire,
             openRecentFile,
+            setLineWizard,
+            tabId,
         ],
     );
 

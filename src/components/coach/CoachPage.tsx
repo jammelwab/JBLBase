@@ -32,6 +32,7 @@ import {
   levelProgress,
   REPS_PER_DAY,
 } from "./coachState";
+import CoachLineWizard from "./CoachLineWizard";
 import CoachNextStep from "./CoachNextStep";
 import { coachMistakeAtom } from "./coachProgress";
 import {
@@ -251,6 +252,7 @@ export default function CoachPage({ id }: { id: string }) {
         </Card>
 
         <CoachNextStep coach={coach} mistake={mistake} />
+        <CoachLineWizard tabId={id} />
 
         <Card withBorder radius="md" p={0}>
           <Group justify="space-between" px="lg" pt="md" pb="xs">

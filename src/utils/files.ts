@@ -40,6 +40,8 @@ export async function openFile(
     options?: {
         gameNumber?: number;
         pgn?: string;
+        // Vom Coach geöffnet: das Training zeigt danach „Zum Coach“
+        coach?: boolean;
     },
 ) {
     const store = getDefaultStore();
@@ -90,6 +92,7 @@ export async function openFile(
         tab: {
             name: tabName,
             type: "analysis",
+            coach: options?.coach || undefined,
         },
         setTabs,
         setActiveTab,
