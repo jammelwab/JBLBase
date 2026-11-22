@@ -408,6 +408,13 @@ function BoardGame() {
     );
   }
 
+  // Vor der Partie gegen JBL zeigt das Brett die Grundstellung, nicht das,
+  // was vorher im Tab stand
+  useEffect(() => {
+    if (!isCoachGame || gameState !== "settingUp") return;
+    if (root.fen !== INITIAL_FEN || root.children.length > 0) resetTree();
+  }, [isCoachGame, gameState, root, resetTree]);
+
   const [pos, error] = useMemo(() => {
     let node = root;
     while (node.children.length > 0) {
@@ -474,7 +481,9 @@ function BoardGame() {
     const newGameId = `${activeTab}-game`;
     setGameId(newGameId);
 
-    const initialMoves = getTreeMoves();
+    // Gegen JBL immer aus der Grundstellung, ohne Züge aus dem Tab davor
+    // (z. B. einem Puzzle im selben Tab)
+    const initialMoves = isCoachGame ? [] : getTreeMoves();
 
     let plan: CoachPlan | null = null;
     if (isCoachGame) {
@@ -500,7 +509,7 @@ function BoardGame() {
             increment: playerSettings.black.timeControl.increment ?? 0,
           }
         : null,
-      initialFen: root.fen === INITIAL_FEN ? null : root.fen,
+      initialFen: isCoachGame || root.fen === INITIAL_FEN ? null : root.fen,
       initialMoves,
       openingBook:
         !isCoachGame && openingBookEnabled && openingBookPath

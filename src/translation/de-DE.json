@@ -373,6 +373,7 @@
     "Coach.Game.NewLevel": "Level {{level}}!",
     "Coach.Game.NewTitle": "Neuer Titel: {{title}}.",
     "Coach.Game.NoEngine": "Für JBL fehlt Stockfish. Richte Stockfish unter Engines ein, dann kann es losgehen.",
+    "Coach.Game.NotCounted": "Moment, diese Partie begann nicht in der Grundstellung. Sie zählt nicht, starte einfach eine neue.",
     "Coach.Game.QuestDone": "Tagesaufgabe geschafft. +{{xp}} XP.",
     "Coach.Game.Random": "Zufall",
     "Coach.Game.Sparring": "Eröffnungs-Sparring",
