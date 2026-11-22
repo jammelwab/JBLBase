@@ -9,7 +9,9 @@ import { cloudAccountAtom, signedInBefore, startCloudSync } from "@/utils/cloud/
 import { linkLichess, loginScreenOpenAtom, loginSkipped } from "./cloudUi";
 import ConsentGate from "./ConsentGate";
 import LoginScreen from "./LoginScreen";
+import LanguagePrompt from "./LanguagePrompt";
 import ProfileClaim from "./ProfileClaim";
+import { languagePromptAtom } from "@/utils/language";
 
 /**
  * App-wide part of the JBLBase account: starts the sync, shows the sign-in
@@ -24,6 +26,8 @@ export default function CloudRoot() {
   useEffect(() => startDailyBackup(), []);
 
   useEffect(() => {
+    // Asking for the language first: the prompt opens the sign-in afterwards
+    if (getDefaultStore().get(languagePromptAtom)) return;
     if (!signedInBefore() && !loginSkipped()) {
       getDefaultStore().set(loginScreenOpenAtom, true);
     }
@@ -71,6 +75,7 @@ export default function CloudRoot() {
 
   return (
     <>
+      <LanguagePrompt />
       <LoginScreen />
       <ConsentGate />
       <ProfileClaim />

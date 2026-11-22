@@ -90,6 +90,7 @@ import { cloudAccountAtom } from "@/utils/cloud/sync";
 import classes from "./SettingsPage.module.css";
 import { LegalLinks } from "@/components/cloud/LegalText";
 import { usageStatsConfigured } from "@/utils/usageStats";
+import { LANGUAGE_NAMES, LANGUAGES, markLanguageChosen } from "@/utils/language";
 import SettingsSwitch from "./SettingsSwitch";
 import { coachSoundAtom } from "@/components/coach/coachSound";
 import SoundSelect from "./SoundSelect";
@@ -447,27 +448,13 @@ export default function Page() {
         render: () => (
           <Select
             allowDeselect={false}
-            data={[
-              { value: "be_BY", label: "Belarusian" },
-              { value: "zh_CN", label: "Chinese (Simplified)" },
-              { value: "zh_TW", label: "Chinese (Traditional)" },
-              { value: "en_GB", label: "English (UK)" },
-              { value: "en_US", label: "English (US)" },
-              { value: "fr_FR", label: "Français" },
-              { value: "pl_PL", label: "Polish" },
-              { value: "nb_NO", label: "Norsk bokmål" },
-              { value: "pt_PT", label: "Portuguese" },
-              { value: "ru_RU", label: "Russian" },
-              { value: "es_ES", label: "Spanish" },
-              { value: "it_IT", label: "Italian" },
-              { value: "uk_UA", label: "Ukrainian" },
-              { value: "tr_TR", label: "Türkçe" },
-              { value: "ko_KR", label: "한국어" },
-              { value: "de_DE", label: "Deutsch" },
-            ]}
-            value={i18n.language.replace("-", "_")}
+            data={LANGUAGES.map((lng) => ({ value: lng, label: LANGUAGE_NAMES[lng] })).sort(
+              (a, b) => a.label.localeCompare(b.label),
+            )}
+            value={i18n.resolvedLanguage ?? i18n.language}
             onChange={(val) => {
-              i18n.changeLanguage(val?.replace("_", "-") || "en-US");
+              void i18n.changeLanguage(val || "en-US");
+              markLanguageChosen();
             }}
           />
         ),
