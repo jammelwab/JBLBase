@@ -10,8 +10,19 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { budgetExceeded, parseNotification } from "./budget.js";
-import { type MailKind, maySend, parseEmail, parseLang, renderMail } from "./mail.js";
-import { lichessListed, lichessUid, parseLichessAccount, parseToken } from "./lichess.js";
+import {
+    type MailKind,
+    maySend,
+    parseEmail,
+    parseLang,
+    renderMail,
+} from "./mail.js";
+import {
+    lichessListed,
+    lichessUid,
+    parseLichessAccount,
+    parseToken,
+} from "./lichess.js";
 import Anthropic from "@anthropic-ai/sdk";
 import {
     EXPLAIN_DAILY_LIMIT,
@@ -93,42 +104,57 @@ export const budgetGuard = onMessagePublished(BUDGET_TOPIC, async (event) => {
  * Creating custom tokens needs the role "Service Account Token Creator" for
  * the function's service account (see SETUP.md).
  */
-export const lichessLogin = onCall({ cors: true, timeoutSeconds: 15 }, async (request) => {
-    const token = parseToken(request.data);
-    if (!token) throw new HttpsError("invalid-argument", "Lichess token missing");
+export const lichessLogin = onCall(
+    { cors: true, timeoutSeconds: 15 },
+    async (request) => {
+        const token = parseToken(request.data);
+        if (!token)
+            throw new HttpsError("invalid-argument", "Lichess token missing");
 
-    const res = await fetch("https://lichess.org/api/account", {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-    });
-    if (res.status === 401) throw new HttpsError("unauthenticated", "Lichess token rejected");
-    if (!res.ok) throw new HttpsError("unavailable", `Lichess answered ${res.status}`);
+        const res = await fetch("https://lichess.org/api/account", {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(10_000),
+        });
+        if (res.status === 401)
+            throw new HttpsError("unauthenticated", "Lichess token rejected");
+        if (!res.ok)
+            throw new HttpsError(
+                "unavailable",
+                `Lichess answered ${res.status}`,
+            );
 
-    const account = parseLichessAccount(await res.json());
-    if (!account) throw new HttpsError("internal", "Unexpected Lichess answer");
+        const account = parseLichessAccount(await res.json());
+        if (!account)
+            throw new HttpsError("internal", "Unexpected Lichess answer");
 
-    const uid = lichessUid(account);
-    const auth = getAuth();
+        const uid = lichessUid(account);
+        const auth = getAuth();
 
-    // Private cloud: only listed accounts (or existing admins) get an account.
-    const access = await getFirestore().doc("config/access").get();
-    if (!lichessListed(access.data(), account)) {
-        const existing = await auth.getUser(uid).catch(() => null);
-        if (existing?.customClaims?.admin !== true) {
-            logger.info("Lichess login refused, not on the allowlist");
-            throw new HttpsError("permission-denied", "Account not on the allowlist");
+        // Private cloud: only listed accounts (or existing admins) get an account.
+        const access = await getFirestore().doc("config/access").get();
+        if (!lichessListed(access.data(), account)) {
+            const existing = await auth.getUser(uid).catch(() => null);
+            if (existing?.customClaims?.admin !== true) {
+                logger.info("Lichess login refused, not on the allowlist");
+                throw new HttpsError(
+                    "permission-denied",
+                    "Account not on the allowlist",
+                );
+            }
         }
-    }
 
-    try {
-        await auth.updateUser(uid, { displayName: account.username });
-    } catch {
-        await auth.createUser({ uid, displayName: account.username });
-    }
-    const customToken = await auth.createCustomToken(uid, { lichess: account.username });
-    logger.info("Lichess login", { uid });
-    return { token: customToken, username: account.username };
-});
+        try {
+            await auth.updateUser(uid, { displayName: account.username });
+        } catch {
+            await auth.createUser({ uid, displayName: account.username });
+        }
+        const customToken = await auth.createCustomToken(uid, {
+            lichess: account.username,
+        });
+        logger.info("Lichess login", { uid });
+        return { token: customToken, username: account.username };
+    },
+);
 
 /**
  * Deletes the caller's account: everything below users/{uid} (profile,
@@ -136,35 +162,47 @@ export const lichessLogin = onCall({ cors: true, timeoutSeconds: 15 }, async (re
  * account itself. Runs on the server, so it works without a fresh sign-in
  * and also removes subcollections, which the app cannot list.
  */
-export const deleteAccount = onCall({ cors: true, timeoutSeconds: 120 }, async (request) => {
-    const uid = request.auth?.uid;
-    if (!uid) throw new HttpsError("unauthenticated", "Not signed in");
+export const deleteAccount = onCall(
+    { cors: true, timeoutSeconds: 120 },
+    async (request) => {
+        const uid = request.auth?.uid;
+        if (!uid) throw new HttpsError("unauthenticated", "Not signed in");
 
-    const db = getFirestore();
-    await db.recursiveDelete(db.doc(`users/${uid}`));
-    // Shared repertoires (#120): the account's own shares, the ones it accepted, and
-    // invitations still waiting for one of its addresses
-    const token: Record<string, unknown> = request.auth?.token ?? {};
-    const keys = [
-        token.email && token.email_verified ? `email:${String(token.email).toLowerCase()}` : null,
-        typeof token.lichess === "string" ? `lichess:${token.lichess.toLowerCase()}` : null,
-    ].filter((k): k is string => !!k);
-    const shares = db.collection("shares");
-    const found = [
-        await shares.where("ownerUid", "==", uid).get(),
-        await shares.where("recipientUid", "==", uid).get(),
-        ...(await Promise.all(keys.map((k) => shares.where("recipientKey", "==", k).get()))),
-    ];
-    const refs = new Map(found.flatMap((q) => q.docs.map((d) => [d.id, d.ref] as const)));
-    await Promise.all([...refs.values()].map((ref) => ref.delete()));
-    try {
-        await getAuth().deleteUser(uid);
-    } catch (e) {
-        if ((e as { code?: string }).code !== "auth/user-not-found") throw e;
-    }
-    logger.info("Account deleted", { uid });
-    return { deleted: true };
-});
+        const db = getFirestore();
+        await db.recursiveDelete(db.doc(`users/${uid}`));
+        // Shared repertoires (#120): the account's own shares, the ones it accepted, and
+        // invitations still waiting for one of its addresses
+        const token: Record<string, unknown> = request.auth?.token ?? {};
+        const keys = [
+            token.email && token.email_verified
+                ? `email:${String(token.email).toLowerCase()}`
+                : null,
+            typeof token.lichess === "string"
+                ? `lichess:${token.lichess.toLowerCase()}`
+                : null,
+        ].filter((k): k is string => !!k);
+        const shares = db.collection("shares");
+        const found = [
+            await shares.where("ownerUid", "==", uid).get(),
+            await shares.where("recipientUid", "==", uid).get(),
+            ...(await Promise.all(
+                keys.map((k) => shares.where("recipientKey", "==", k).get()),
+            )),
+        ];
+        const refs = new Map(
+            found.flatMap((q) => q.docs.map((d) => [d.id, d.ref] as const)),
+        );
+        await Promise.all([...refs.values()].map((ref) => ref.delete()));
+        try {
+            await getAuth().deleteUser(uid);
+        } catch (e) {
+            if ((e as { code?: string }).code !== "auth/user-not-found")
+                throw e;
+        }
+        logger.info("Account deleted", { uid });
+        return { deleted: true };
+    },
+);
 
 // ---------------------------------------------------------------------------
 // Own e-mails (confirmation, password reset) in the JBLBase design.
@@ -198,13 +236,20 @@ async function claimMailSlot(kind: MailKind, email: string) {
         tx.set(ref, { sentAt: now });
         return true;
     });
-    if (!allowed) throw new HttpsError("resource-exhausted", "Please wait a minute");
+    if (!allowed)
+        throw new HttpsError("resource-exhausted", "Please wait a minute");
 }
 
-async function sendMail(kind: MailKind, data: unknown, email: string, link: string) {
+async function sendMail(
+    kind: MailKind,
+    data: unknown,
+    email: string,
+    link: string,
+) {
     const user = SMTP_USER.value();
     const pass = SMTP_PASSWORD.value();
-    if (!user || !pass) throw new HttpsError("failed-precondition", "Mail sending not set up");
+    if (!user || !pass)
+        throw new HttpsError("failed-precondition", "Mail sending not set up");
     const mail = renderMail(kind, parseLang(data), { email, link });
     const transport = createTransport({
         host: SMTP_HOST,
@@ -255,7 +300,8 @@ export const sendPasswordResetMail = onCall(
     { cors: true, timeoutSeconds: 20, secrets: [SMTP_USER, SMTP_PASSWORD] },
     async (request) => {
         const email = parseEmail(request.data);
-        if (!email) throw new HttpsError("invalid-argument", "Invalid e-mail address");
+        if (!email)
+            throw new HttpsError("invalid-argument", "Invalid e-mail address");
         await claimMailSlot("reset", email);
         const user = await getAuth()
             .getUserByEmail(email)
@@ -287,7 +333,8 @@ export const coachExplain = onCall(
         const report = parseReportRequest(request.data);
         const event = report ? null : parseEventRequest(request.data);
         const req = report || event ? null : parseExplainRequest(request.data);
-        if (!report && !event && !req) throw new HttpsError("invalid-argument", "Bad request");
+        if (!report && !event && !req)
+            throw new HttpsError("invalid-argument", "Bad request");
 
         const db = getFirestore();
         const access = await db.doc("config/access").get();
@@ -295,7 +342,11 @@ export const coachExplain = onCall(
             throw new HttpsError("permission-denied", "Not a member");
         }
 
-        const key = report ? reportKey(report) : event ? eventKey(event) : cacheKey(req!);
+        const key = report
+            ? reportKey(report)
+            : event
+              ? eventKey(event)
+              : cacheKey(req!);
         const cached = await db.doc(`coachExplanations/${key}`).get();
         const cachedText = cached.data()?.text;
         if (typeof cachedText === "string" && cachedText) {
@@ -307,7 +358,9 @@ export const coachExplain = onCall(
         // Bericht und kurze Sprüche zählen zum hohen Limit
         const short = report !== null || event !== null || req!.mode === "say";
         const day = new Date().toISOString().slice(0, 10);
-        const usageRef = db.doc(`${short ? "coachSayUsage" : "coachExplainUsage"}/${auth.uid}`);
+        const usageRef = db.doc(
+            `${short ? "coachSayUsage" : "coachExplainUsage"}/${auth.uid}`,
+        );
         const allowed = await db.runTransaction(async (tx) => {
             const next = nextUsage(
                 (await tx.get(usageRef)).data(),
@@ -317,7 +370,8 @@ export const coachExplain = onCall(
             if (next.allowed) tx.set(usageRef, next.usage);
             return next.allowed;
         });
-        if (!allowed) throw new HttpsError("resource-exhausted", "Daily limit reached");
+        if (!allowed)
+            throw new HttpsError("resource-exhausted", "Daily limit reached");
 
         const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
         const response = await client.messages.create({
@@ -332,7 +386,11 @@ export const coachExplain = onCall(
             // Wenig Denkaufwand: nur formulieren, nicht rechnen
             thinking: { type: "disabled" },
             output_config: { effort: "low" },
-            system: report ? REPORT_SYSTEM : short ? SAY_SYSTEM : EXPLAIN_SYSTEM,
+            system: report
+                ? REPORT_SYSTEM
+                : short
+                  ? SAY_SYSTEM
+                  : EXPLAIN_SYSTEM,
             messages: [
                 {
                     role: "user",
@@ -352,7 +410,7 @@ export const coachExplain = onCall(
                 .filter((b) => b.type === "text")
                 .map((b) => b.text)
                 .join(" "),
-            report ? 900 : short ? 240 : req!.mode === "deep" ? 1400 : 600,
+            report ? 450 : short ? 160 : req!.mode === "deep" ? 700 : 300,
         );
         if (!text) throw new HttpsError("unavailable", "No explanation");
 
