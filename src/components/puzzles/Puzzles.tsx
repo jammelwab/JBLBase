@@ -22,6 +22,7 @@ import {
 import { useSessionStorage } from "@mantine/hooks";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconChartLine,
   IconEyeOff,
   IconFlag,
@@ -60,6 +61,7 @@ import {
 } from "@/state/atoms";
 import { positionFromFen } from "@/utils/chessops";
 import { formatThemeLabel, formatTime } from "@/utils/format";
+import { ensurePuzzleDatabase, preferredPuzzleDb } from "@/utils/lichessPuzzles";
 import { type Completion, getPuzzleDatabases, type Puzzle } from "@/utils/puzzles";
 import { streakRatingSpans, streakTargetRating } from "@/utils/puzzleStats";
 import { createTab } from "@/utils/tabs";
@@ -76,6 +78,7 @@ import PuzzleStatsModal from "./PuzzleStatsModal";
 import { getPuzzleStats, recordPuzzleAttempt, usePuzzleStats } from "./usePuzzleStats";
 import { coachMateDrillAtom, coachPuzzleDoneAtom } from "@/components/coach/coachProgress";
 import { MATE_DRILL_THEME } from "@/components/coach/coachEggs";
+import { coachPuzzleStartAtom, puzzleSpans } from "@/components/coach/coachPuzzleStart";
 import { ReportedPuzzlesModal, ReportPuzzleModal } from "./PuzzleReports";
 import GameTacticSearchModal from "./GameTacticSearchModal";
 
@@ -109,10 +112,14 @@ function Puzzles({ id }: { id: string }) {
   const [blindTextInput, setBlindTextInput] = useAtom(puzzleBlindTextInputAtom);
 
   useEffect(() => {
-    getPuzzleDatabases().then((databases) => {
-      setPuzzleDbs(databases);
-      setSelectedDb((current) => (databases.some((db) => db.path === current) ? current : null));
-    });
+    // Ohne Datenbank kommen die Starter-Puzzles dazu; die Lichess-Puzzles
+    // werden ausgewählt, sobald sie da sind (1.2.14)
+    getPuzzleDatabases()
+      .then(ensurePuzzleDatabase)
+      .then((databases) => {
+        setPuzzleDbs(databases);
+        setSelectedDb((current) => preferredPuzzleDb(databases, current));
+      });
   }, [setSelectedDb]);
 
   const [ratingRange, setRatingRange] = useAtom(puzzleRatingRangeAtom);
@@ -228,12 +235,19 @@ function Puzzles({ id }: { id: string }) {
     const res = streakMode
       ? await fetchStreakPuzzle(db)
       : await commands.getPuzzle(db, range[0], range[1], effectiveSelectedTheme);
-    const puzzle = unwrap(res);
+    addPuzzle(unwrap(res), db, streakMode);
+  }
+
+  function addPuzzle(
+    puzzle: Omit<Puzzle, "moves" | "completion"> & { moves: string },
+    db: string,
+    streak: boolean,
+  ) {
     const newPuzzle: Puzzle = {
       ...puzzle,
       moves: puzzle.moves.split(" "),
       completion: "incomplete",
-      streak: streakMode,
+      streak,
       db,
     };
     setPuzzles((puzzles) => {
@@ -243,6 +257,20 @@ function Puzzles({ id }: { id: string }) {
     setPuzzle(newPuzzle);
     if (trackTime) {
       setTimerStart(Date.now());
+    }
+  }
+
+  // Aus dem Coach geöffnet: sofort ein Puzzle in der geschätzten Stärke,
+  // notfalls mit weiterem Wertungsfenster
+  async function startCoachPuzzle(db: string, elo: number) {
+    solutionAbortRef.current?.abort();
+    setIsPlayingSolution(false);
+    for (const [min, max] of puzzleSpans(elo)) {
+      const res = await commands.getPuzzle(db, min, max, effectiveSelectedTheme);
+      if (res.status !== "ok") continue;
+      setRatingRange([min, max]);
+      addPuzzle(res.data, db, false);
+      return;
     }
   }
 
@@ -334,8 +362,27 @@ function Puzzles({ id }: { id: string }) {
     };
   }, [trackTime, timerStart, currentPuzzle, isPuzzleIncomplete, setPuzzles]);
 
-  const [, setTabs] = useAtom(tabsAtom);
+  const [tabs, setTabs] = useAtom(tabsAtom);
   const setActiveTab = useSetAtom(activeTabAtom);
+  // Aus dem Coach geöffnet: Knopf zurück zur Coach-Übersicht (1.2.14)
+  const fromCoach = tabs.find((tab) => tab.value === id)?.coach === true;
+  const backToCoach = () =>
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.value === id
+          ? { ...tab, type: "coach", name: t("Coach.Card.Title"), coach: undefined }
+          : tab,
+      ),
+    );
+  const [coachStart, setCoachStart] = useAtom(coachPuzzleStartAtom);
+  useEffect(() => {
+    if (coachStart === null || !selectedDb || !puzzleDbs.some((db) => db.path === selectedDb))
+      return;
+    setCoachStart(null);
+    if (streakMode) setMode("normal");
+    void startCoachPuzzle(selectedDb, coachStart);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachStart, selectedDb, puzzleDbs]);
 
   const current: Puzzle | undefined = puzzles[currentPuzzle];
   // In a streak the open puzzle has to be answered before the next one comes
@@ -435,6 +482,18 @@ function Puzzles({ id }: { id: string }) {
               onClose={() => setGameTacticsOpened(false)}
               onDone={async () => setPuzzleDbs(await getPuzzleDatabases())}
             />
+          )}
+          {fromCoach && (
+            <Button
+              fullWidth
+              mb="sm"
+              color="orange"
+              variant={puzzles[currentPuzzle]?.completion === "incomplete" ? "light" : "filled"}
+              leftSection={<IconArrowLeft size={18} />}
+              onClick={backToCoach}
+            >
+              {t("Coach.Game.BackToCoach")}
+            </Button>
           )}
           <Group justify="space-between" pb="sm">
             <Select

@@ -10,6 +10,7 @@ import { pickLine, REACTION_ANIMATION, REACTION_SIGN, readingTime } from "./coac
 import CoachReceipt from "./CoachReceipt";
 import CoachDeepDive from "./CoachDeepDive";
 import CoachReport, { type CoachReportData } from "./CoachReport";
+import { coachAnalyzeAtom, coachReportOpenAtom } from "./coachReportState";
 import { askCoach, countReactions } from "./coachCloud";
 import { DEEP_REACTIONS, motifsFor, type ReportMove, reportMoments } from "./coachDeep";
 import { coachIntroAtom } from "./coachIntroState";
@@ -111,6 +112,24 @@ export default function CoachGamePanel({
   const opening = useRef<string | null>(null);
   const [report, setReport] = useState<CoachReportData | null>(null);
   const [reportReady, setReportReady] = useState<CoachReportData | null>(null);
+  // „Analyse“ gedrückt, bevor der Bericht fertig war: das Fenster wartet
+  const [reportPending, setReportPending] = useState(false);
+  const reportRequest = useAtomValue(coachReportOpenAtom);
+  const seenRequest = useRef(reportRequest);
+  const goAnalyze = useSetAtom(coachAnalyzeAtom);
+  useEffect(() => {
+    if (reportRequest === seenRequest.current) return;
+    seenRequest.current = reportRequest;
+    if (reportReady) setReport(reportReady);
+    else setReportPending(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportRequest]);
+  useEffect(() => {
+    if (reportPending && reportReady) {
+      setReportPending(false);
+      setReport(reportReady);
+    }
+  }, [reportPending, reportReady]);
   const [deep, setDeep] = useState<CoachComment | null>(null);
   // Jede neue Partie oder jedes Ende macht ältere Claude-Antworten ungültig
   const speechGen = useRef(0);
@@ -381,6 +400,7 @@ export default function CoachGamePanel({
       opening.current = null;
       setReport(null);
       setReportReady(null);
+      setReportPending(false);
       setDeep(null);
       const gen = ++speechGen.current;
       const rest: Say[] = [
@@ -506,7 +526,7 @@ export default function CoachGamePanel({
       timers.current.push(setTimeout(() => setReceipt({ lines: done.lines, lock }), 2400));
       // Der Partiebericht kommt von selbst, wenn JBL fertig gesprochen hat
       const data: CoachReportData = {
-        id: gen,
+        id: Date.now(),
         outcome,
         opening: opening.current,
         counts: countReactions(history.current.map((m) => m.reaction)),
@@ -652,7 +672,19 @@ export default function CoachGamePanel({
         </Box>
       </Group>
       <CoachDeepDive comment={deep} onClose={() => setDeep(null)} />
-      <CoachReport report={report} onClose={() => setReport(null)} />
+      <CoachReport
+        report={report}
+        pending={reportPending}
+        onClose={() => {
+          setReport(null);
+          setReportPending(false);
+        }}
+        onAnalyze={() => {
+          setReport(null);
+          setReportPending(false);
+          goAnalyze((n) => n + 1);
+        }}
+      />
     </Paper>
   );
 }

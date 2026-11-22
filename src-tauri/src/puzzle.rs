@@ -475,6 +475,34 @@ pub async fn import_lichess_puzzles(
     Ok(count as i32)
 }
 
+/// The starter puzzles that ship with the app (1.2.14): 100 puzzles in the
+/// Lichess CSV layout, so a fresh install can train before any download.
+const STARTER_PUZZLES_CSV: &str = include_str!("../resources/starter_puzzles.csv");
+
+/// Builds the starter puzzle database at `dest` unless it is already there.
+/// Returns whether it was created.
+#[tauri::command]
+#[specta::specta]
+pub async fn install_starter_puzzles(dest: PathBuf) -> Result<bool, Error> {
+    if dest.exists() {
+        return Ok(false);
+    }
+    if let Some(dir) = dest.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let csv = dest.with_extension("csv.part");
+    let part = dest.with_extension("part");
+    std::fs::write(&csv, STARTER_PUZZLES_CSV)?;
+    let result = tokio::task::block_in_place(|| import_lichess_csv(&csv, &part, |_| {}));
+    let _ = remove_file(&csv);
+    if let Err(error) = result {
+        let _ = remove_file(&part);
+        return Err(error);
+    }
+    std::fs::rename(&part, &dest)?;
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -591,5 +619,21 @@ mod tests {
         let dest = dir.path().join("x.duckdb");
         assert!(import_lichess_csv(&source, &dest, |_| {}).is_err());
         assert!(!dest.exists());
+    }
+
+    #[test]
+    fn starter_puzzles_cover_all_levels() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("starter.csv");
+        std::fs::write(&source, STARTER_PUZZLES_CSV).unwrap();
+        let dest = dir.path().join("starter.duckdb");
+        assert_eq!(import_lichess_csv(&source, &dest, |_| {}).unwrap(), 100);
+        let file = dest.to_string_lossy().into_owned();
+        // Für Anfänger wie für Fortgeschrittene ist etwas dabei
+        for (min, max) in [(400, 1000), (1000, 1500), (1500, 2600)] {
+            let mut cache = PuzzleCache::new();
+            cache.get_puzzles(&file, min, max, &None).unwrap();
+            assert!(cache.get_next_puzzle().is_some(), "{min}-{max}");
+        }
     }
 }

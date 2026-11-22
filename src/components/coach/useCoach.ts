@@ -21,6 +21,7 @@ import {
     currentStreak,
 } from "./coachProgress";
 import { coachIntroAtom, introReminder } from "./coachIntroState";
+import { coachPuzzleElo, coachPuzzleStartAtom } from "./coachPuzzleStart";
 import {
     coachLessonAnnouncedAtom,
     coachLessonsDoneAtom,
@@ -30,6 +31,7 @@ import {
 import {
     type CoachTaskId,
     coachDayAtom,
+    coachStrengthAtom,
     coachTasks,
     coachXpAtom,
     levelProgress,
@@ -38,7 +40,12 @@ import {
     repsToday,
     today,
 } from "./coachState";
-import { coachQuestAtom, currentQuest } from "./coachRewards";
+import {
+    coachBestEstimateAtom,
+    coachQuestAtom,
+    coachResultsAtom,
+    currentQuest,
+} from "./coachRewards";
 
 // Fällige und neue Stellungen in den zuletzt geöffneten Repertoires.
 const repertoireDueAtom = atom((get) => {
@@ -65,6 +72,10 @@ export function useCoach(tabId: string) {
     const openRecentFile = useOpenRecentFile();
     const mateDrill = useAtomValue(coachMateDrillAtom);
     const setPuzzleTheme = useSetAtom(puzzleThemeAtom);
+    const setPuzzleStart = useSetAtom(coachPuzzleStartAtom);
+    const results = useAtomValue(coachResultsAtom);
+    const bestEstimate = useAtomValue(coachBestEstimateAtom);
+    const strength = useAtomValue(coachStrengthAtom);
 
     const turnTabInto = useCallback(
         (type: Tab["type"], name: string, coach = false) =>
@@ -91,13 +102,28 @@ export function useCoach(tabId: string) {
                 if (lock > 0 && hasMistake) return turnTabInto("coach", t("Coach.Card.Title"));
                 // Aarons Strafaufgaben: nur Matt in 1
                 if (lock > 0 && mateDrill) setPuzzleTheme(MATE_DRILL_THEME);
-                turnTabInto("puzzles", t("Home.PuzzleTraining"));
+                // Sofort ein Puzzle in der geschätzten Stärke
+                setPuzzleStart(coachPuzzleElo(results, bestEstimate, strength));
+                turnTabInto("puzzles", t("Home.PuzzleTraining"), true);
             },
             repertoire: () => {
                 if (best) openRecentFile(best.file);
             },
         }),
-        [turnTabInto, lock, hasMistake, mateDrill, setPuzzleTheme, t, best, openRecentFile],
+        [
+            turnTabInto,
+            lock,
+            hasMistake,
+            mateDrill,
+            setPuzzleTheme,
+            setPuzzleStart,
+            results,
+            bestEstimate,
+            strength,
+            t,
+            best,
+            openRecentFile,
+        ],
     );
 
     // Zeitpunkt beim Öffnen der Karte; reicht für die Tagesaufgaben.

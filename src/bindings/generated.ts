@@ -446,6 +446,14 @@ async importLichessPuzzles(id: string, source: string | null, dest: string) : Pr
     else return { status: "error", error: e  as any };
 }
 },
+async installStarterPuzzles(dest: string) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("install_starter_puzzles", { dest }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async findTacticsInLines(id: string, options: TacticSearchOptions) : Promise<Result<TacticSearchResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("find_tactics_in_lines", { id, options }) };
@@ -1073,7 +1081,13 @@ export type GameConfig = { white: PlayerConfig; black: PlayerConfig; whiteTimeCo
  * Moves the engine side plays instead of searching, chosen by weight
  * (JBL Coach: diary, opening sparring). Keyed by the position's EPD.
  */
-moveBook?: BookMove[] }
+moveBook?: BookMove[]; 
+/**
+ * Share of moves (0 to 1) the engine side plays like a beginner instead
+ * of searching: a random move, as a human misses things (JBL Coach, the
+ * easy levels).
+ */
+randomMoveChance?: number | null }
 export type BookMove = { 
 /**
  * Position as the first four FEN fields (pieces, turn, castling, en passant)

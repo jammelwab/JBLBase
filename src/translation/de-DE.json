@@ -589,6 +589,7 @@
     "Coach.Receipt.Title": "JBL COACH · KASSENZETTEL",
     "Coach.Receipt.total": "Summe",
     "Coach.Receipt.win": "Sieg",
+    "Coach.Report.Analyze": "Zur Analyse",
     "Coach.Report.Better": "besser: {{move}}",
     "Coach.Report.Count.blunder": "{{count}} Patzer (??)",
     "Coach.Report.Count.book": "{{count}} Theorie",

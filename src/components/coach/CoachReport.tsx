@@ -1,4 +1,5 @@
 import { Badge, Box, Button, Group, Loader, Modal, Paper, Stack, Text } from "@mantine/core";
+import { IconZoomCheck } from "@tabler/icons-react";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,15 +33,21 @@ const REPORT_TIMEOUT_MS = 9000;
 // Automatischer Partiebericht nach jeder Partie gegen JBL (1.2.12)
 export default function CoachReport({
   report,
+  pending = false,
   onClose,
+  onAnalyze,
 }: {
   report: CoachReportData | null;
+  // Bericht angefordert, aber noch nicht fertig
+  pending?: boolean;
   onClose: () => void;
+  // Weiter zur Analyse der Partie
+  onAnalyze?: () => void;
 }) {
   const { t } = useTranslation();
   return (
     <Modal
-      opened={report !== null}
+      opened={report !== null || pending}
       onClose={onClose}
       title={t("Coach.Report.Title")}
       centered
@@ -48,24 +55,42 @@ export default function CoachReport({
       padding="xl"
       styles={{ title: { fontWeight: 700, fontSize: "var(--mantine-font-size-xl)" } }}
     >
-      {report && <ReportView key={report.id} report={report} onClose={onClose} />}
+      {report ? (
+        <ReportView key={report.id} report={report} onClose={onClose} onAnalyze={onAnalyze} />
+      ) : (
+        <Group gap="xs" wrap="nowrap">
+          <Loader size="xs" color="orange" />
+          <Text size="sm">{t("Coach.Report.Writing")}</Text>
+        </Group>
+      )}
     </Modal>
   );
 }
 
-function ReportView({ report, onClose }: { report: CoachReportData; onClose: () => void }) {
+// Schon geschriebene Berichte: beim zweiten Öffnen nicht noch einmal fragen
+const written = new Map<number, string | null>();
+
+function ReportView({
+  report,
+  onClose,
+  onAnalyze,
+}: {
+  report: CoachReportData;
+  onClose: () => void;
+  onAnalyze?: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const account = useAtomValue(cloudAccountAtom);
   const stage = useAtomValue(coachIntroAtom).entry ?? "knows";
   const figure = useRef<CoachFigureHandle>(null);
-  const [text, setText] = useState<string | null>(null);
-  const [busy, setBusy] = useState(!!account);
+  const [text, setText] = useState<string | null>(written.get(report.id) ?? null);
+  const [busy, setBusy] = useState(!!account && !written.has(report.id));
 
   useEffect(() => {
     figure.current?.play(
       report.outcome === "win" ? "win" : report.outcome === "loss" ? "good" : "think",
     );
-    if (!account) return;
+    if (!account || written.has(report.id)) return;
     let alive = true;
     void askCoach(
       {
@@ -84,6 +109,7 @@ function ReportView({ report, onClose }: { report: CoachReportData; onClose: () 
       },
       REPORT_TIMEOUT_MS,
     ).then((answer) => {
+      written.set(report.id, answer);
       if (!alive) return;
       setText(answer);
       setBusy(false);
@@ -187,6 +213,16 @@ function ReportView({ report, onClose }: { report: CoachReportData; onClose: () 
       )}
 
       <Group justify="flex-end">
+        {onAnalyze && (
+          <Button
+            variant="default"
+            radius="md"
+            leftSection={<IconZoomCheck size={18} />}
+            onClick={onAnalyze}
+          >
+            {t("Coach.Report.Analyze")}
+          </Button>
+        )}
         <Button color="orange" radius="md" onClick={onClose}>
           {t("Coach.Lessons.Close")}
         </Button>

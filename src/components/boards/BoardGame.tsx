@@ -36,6 +36,7 @@ import { useStore } from "zustand";
 import type { Annotation } from "@/utils/annotation";
 import { coachMoveMarksAtom } from "@/components/coach/coachMoveMarks";
 import { coachLockAtom } from "@/components/coach/coachProgress";
+import { coachAnalyzeAtom, coachReportOpenAtom } from "@/components/coach/coachReportState";
 import type { Outcome } from "@/bindings";
 import {
   commands,
@@ -82,6 +83,7 @@ import {
   findStockfish,
   jblEngineSetup,
   jblEngineSettings,
+  jblRandomMoveChance,
   REACTION_SIGN,
 } from "@/components/coach/coachGame";
 import {
@@ -390,6 +392,16 @@ function BoardGame() {
     );
   }
 
+  const openCoachReport = useSetAtom(coachReportOpenAtom);
+  const coachAnalyze = useAtomValue(coachAnalyzeAtom);
+  const seenAnalyze = useRef(coachAnalyze);
+  useEffect(() => {
+    if (coachAnalyze === seenAnalyze.current) return;
+    seenAnalyze.current = coachAnalyze;
+    if (isCoachGame) changeToAnalysisMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachAnalyze]);
+
   function changeToAnalysisMode() {
     setTabs((prev) =>
       prev.map((tab) => (tab.value === activeTab ? { ...tab, type: "analysis" } : tab)),
@@ -495,6 +507,8 @@ function BoardGame() {
           ? { path: openingBookPath, maxPly: Math.max(1, openingBookMaxPly) }
           : null,
       moveBook: plan?.book ?? [],
+      // Die leichten Stufen machen echte Anfängerfehler (nicht der Boss)
+      randomMoveChance: isCoachGame && !bossPending ? jblRandomMoveChance(coachStrength) : null,
     } as GameConfig;
 
     try {
@@ -1037,7 +1051,12 @@ function BoardGame() {
                     ) : (
                       <Button
                         variant="default"
-                        onClick={() => changeToAnalysisMode()}
+                        onClick={() =>
+                          // Gegen JBL: erst der Partiebericht, von dort zur Analyse
+                          isCoachGame && gameState === "gameOver"
+                            ? openCoachReport((n) => n + 1)
+                            : changeToAnalysisMode()
+                        }
                         leftSection={<IconZoomCheck />}
                       >
                         Analyze

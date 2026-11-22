@@ -27,6 +27,16 @@ export function jblEngineSetup(strength: CoachStrengthId): {
     };
 }
 
+// Wie oft JBL auf den leichten Stufen wie ein Anfänger zieht (zufälliger
+// Zug statt Suche, 1.2.14): Skill Level 0 allein spielt viel zu gut.
+export function jblRandomMoveChance(strength: CoachStrengthId): number {
+    const elo = COACH_STRENGTHS.find((s) => s.id === strength)?.elo ?? 1200;
+    if (elo <= 600) return 0.4;
+    if (elo <= 900) return 0.2;
+    if (elo <= 1200) return 0.07;
+    return 0;
+}
+
 // Stockfish aus den eingerichteten Engines, sonst nichts.
 export function findStockfish(engines: unknown[] | null | undefined): LocalEngine | null {
     const local = (engines ?? []).filter(

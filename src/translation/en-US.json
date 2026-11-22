@@ -589,6 +589,7 @@
     "Coach.Receipt.Title": "JBL COACH · RECEIPT",
     "Coach.Receipt.total": "Total",
     "Coach.Receipt.win": "Win",
+    "Coach.Report.Analyze": "Analyze the game",
     "Coach.Report.Better": "better: {{move}}",
     "Coach.Report.Count.blunder": "{{count}} blunders (??)",
     "Coach.Report.Count.book": "{{count}} theory",

@@ -64,7 +64,7 @@ use crate::oauth::{authenticate, authenticate_cloud};
 use crate::pgn::{count_pgn_games, delete_game, read_games, write_game};
 use crate::puzzle::{
     delete_puzzle_database, get_puzzle, get_puzzle_db_info, get_puzzle_themes,
-    get_themes_for_puzzle, import_lichess_puzzles,
+    get_themes_for_puzzle, import_lichess_puzzles, install_starter_puzzles,
 };
 use crate::sound::get_sound_server_port;
 use crate::{
@@ -202,6 +202,7 @@ fn main() {
             get_themes_for_puzzle,
             delete_puzzle_database,
             import_lichess_puzzles,
+            install_starter_puzzles,
             tactics::find_tactics_in_lines,
             tactics::games::find_tactics_in_games,
             tactics::games::count_tactic_games,
