@@ -265,6 +265,8 @@
     "Classification.Great": "Great move",
     "Classification.Inaccuracy": "Inaccuracy",
     "Classification.Mistake": "Mistake",
+    "Coach.Admin.LevelDown": "Level down (admin)",
+    "Coach.Admin.LevelUp": "Level up (admin)",
     "Coach.Birthday.Blow": "Blow out the candles",
     "Coach.Birthday.Gift": "Your gift: {{xp}} XP and the party hat to keep. Today you get double XP and no required tasks.",
     "Coach.Birthday.Hint": "Click the cake and blow out the candles.",
