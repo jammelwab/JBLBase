@@ -7,7 +7,7 @@ import { atomWithStorage } from "jotai/utils";
 import type { CoachStrengthId } from "./coachState";
 import { coachXpAtom } from "./coachState";
 
-// Lernpfad (1.2.8): vier Pfade mit je drei Lektionen. Eine Lektion hat ein
+// Lernpfad (1.2.8, ab 1.2.25 zehn Reihen): vier Pfade mit je drei Lektionen. Eine Lektion hat ein
 // Beispiel mit Pfeilen und drei Aufgaben. Die Texte stehen in den
 // Übersetzungen unter Coach.Lesson.<id>.
 
@@ -20,7 +20,10 @@ export type LessonPath =
     | "mates"
     | "combos"
     | "deep"
-    | "endgame";
+    | "endgame"
+    // Ab 1.2.25: Stellungsspiel nach der Taktik
+    | "position"
+    | "structure";
 export const LESSON_PATHS: LessonPath[] = [
     "game",
     "principles",
@@ -30,6 +33,8 @@ export const LESSON_PATHS: LessonPath[] = [
     "combos",
     "deep",
     "endgame",
+    "position",
+    "structure",
 ];
 
 // Was eine richtige Lösung ausmacht. Bei "mate" zählt jedes Matt, sonst die
@@ -52,7 +57,14 @@ export type LessonCheck =
     | "removeDefender"
     | "opposition"
     | "breakthrough"
-    | "square";
+    | "square"
+    // Ab 1.2.25: Stellungsspiel
+    | "outpost"
+    | "openFile"
+    | "seventhRank"
+    | "blockade"
+    | "passedPawn"
+    | "umbrella";
 
 export type LessonTask = { fen: string; solutions: string[] };
 
@@ -464,6 +476,113 @@ export const LESSONS: Lesson[] = [
             { fen: "7k/8/8/p7/8/8/7P/5K2 w - - 0 1", solutions: ["Ke2", "Ke1"] },
             { fen: "k7/8/8/7p/8/8/P7/2K5 w - - 0 1", solutions: ["Kd2", "Kd1"] },
             { fen: "7k/8/p7/8/8/8/7P/6K1 w - - 0 1", solutions: ["Kf2", "Kf1"] },
+        ],
+    },
+    // ---------- 9. Stellungsspiel (1.2.25) ----------
+    // Alle Aufgaben mit Stockfish (Tiefe 22) geprüft: die Lösung ist der beste
+    // Zug oder höchstens 0,1 dahinter.
+    {
+        id: "outpost",
+        path: "position",
+        check: "outpost",
+        example: {
+            fen: "2b3k1/pp3pp1/4p2p/4P3/2N5/7P/PP3PP1/6K1 w - - 0 1",
+            arrows: [
+                ["c4", "d6"],
+                ["e5", "d6"],
+            ],
+        },
+        tasks: [
+            { fen: "2b3k1/pp3ppp/4p3/4P3/2N5/8/PP3PPP/6K1 w - - 0 1", solutions: ["Nd6"] },
+            {
+                fen: "r5k1/1p3ppp/p1n5/2p1p3/4P3/2NP4/PP3PPP/R5K1 w - - 0 1",
+                solutions: ["Nd5"],
+            },
+            { fen: "6k1/pp2bppp/3p4/4p3/4P3/2N5/PP3PPP/6K1 w - - 0 1", solutions: ["Nd5"] },
+        ],
+    },
+    {
+        id: "openFile",
+        path: "position",
+        check: "openFile",
+        example: {
+            fen: "6k1/pp3ppp/4p3/8/8/4P3/PP3PPP/2R3K1 w - - 0 1",
+            arrows: [["c1", "c8"]],
+        },
+        tasks: [
+            { fen: "r5k1/pp3ppp/2p1p3/8/8/2P1P3/PP3PPP/R5K1 w - - 0 1", solutions: ["Rd1"] },
+            {
+                fen: "r5k1/1p3pp1/p1p1p2p/8/8/P1P1P2P/1P3PP1/5RK1 w - - 0 1",
+                solutions: ["Rd1"],
+            },
+            {
+                fen: "2r3k1/pp3pp1/4p2p/8/8/4P2P/PP3PP1/R5K1 w - - 0 1",
+                solutions: ["Rd1", "Rc1"],
+            },
+        ],
+    },
+    {
+        id: "seventhRank",
+        path: "position",
+        check: "seventhRank",
+        example: {
+            fen: "1r4k1/p4pp1/7p/8/8/P6P/5PP1/2R3K1 w - - 0 1",
+            arrows: [
+                ["c1", "c7"],
+                ["c7", "a7"],
+                ["c7", "f7"],
+            ],
+        },
+        tasks: [
+            { fen: "3r2k1/p4ppp/1p6/8/8/6P1/P4P1P/2R3K1 w - - 0 1", solutions: ["Rc7"] },
+            { fen: "4r1k1/pp3pp1/7p/8/8/7P/P4PP1/2R3K1 w - - 0 1", solutions: ["Rc7"] },
+            { fen: "2r3k1/1p3ppp/p7/8/8/P6P/1P3PP1/3R2K1 w - - 0 1", solutions: ["Rd7"] },
+        ],
+    },
+    // ---------- 10. Bauern und Könige (1.2.25) ----------
+    {
+        id: "blockade",
+        path: "structure",
+        check: "blockade",
+        example: {
+            fen: "6k1/5ppp/8/3p4/8/1N6/5PPP/6K1 w - - 0 1",
+            arrows: [["b3", "d4"]],
+        },
+        tasks: [
+            { fen: "6k1/5ppp/8/2b5/3p4/8/1N3PPP/6K1 w - - 0 1", solutions: ["Nd3"] },
+            { fen: "6k1/5ppp/8/8/3p4/8/1N3PPP/6K1 w - - 0 1", solutions: ["Nd3"] },
+            { fen: "6k1/5pp1/7p/8/2b1p3/8/5PPP/3N2K1 w - - 0 1", solutions: ["Ne3"] },
+        ],
+    },
+    {
+        id: "passedPawn",
+        path: "structure",
+        check: "passedPawn",
+        example: {
+            fen: "8/8/3P4/2K3p1/8/8/8/4k3 w - - 0 1",
+            arrows: [["d6", "d8"]],
+        },
+        tasks: [
+            { fen: "8/5K2/8/3p2P1/4k3/8/8/8 w - - 0 1", solutions: ["g6"] },
+            { fen: "8/8/8/2P5/k7/6p1/4K3/8 w - - 0 1", solutions: ["c6"] },
+            { fen: "8/6K1/5P2/8/p7/8/k7/8 w - - 0 1", solutions: ["f7"] },
+        ],
+    },
+    {
+        id: "umbrella",
+        path: "structure",
+        check: "umbrella",
+        example: {
+            fen: "3Q4/2P5/1p6/K7/8/8/8/qk6 w - - 0 1",
+            arrows: [
+                ["a5", "b5"],
+                ["b6", "b5"],
+            ],
+        },
+        tasks: [
+            { fen: "8/2P5/8/3q2Kp/4k3/8/8/5Q2 w - - 0 1", solutions: ["Kh4"] },
+            { fen: "8/2P3k1/3p4/4p3/3K4/7Q/8/6q1 w - - 0 1", solutions: ["Ke4"] },
+            { fen: "8/1P3Q2/8/4k3/8/q3Kp2/8/8 w - - 0 1", solutions: ["Kf2"] },
         ],
     },
 ];
