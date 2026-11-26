@@ -1,5 +1,5 @@
-import { attacks } from "chessops/attacks";
-import { opposite } from "chessops/util";
+import { attacks, pawnAttacks } from "chessops/attacks";
+import { opposite, squareFile, squareRank } from "chessops/util";
 import { parseSan } from "chessops/san";
 import { makeUci, type NormalMove } from "chessops";
 import { createStore } from "jotai";
@@ -89,19 +89,65 @@ function motif(lesson: Lesson, task: LessonTask, san: string): boolean {
         case "breakthrough":
         case "square":
             return true;
+        // Stellungsspiel (1.2.25): die Idee im Brett nachprüfen
+        case "outpost": {
+            // Springer im gegnerischen Lager, vom eigenen Bauern gedeckt, und
+            // kein gegnerischer Bauer kann ihn je vertreiben
+            const rank = squareRank(move.to);
+            const file = squareFile(move.to);
+            const forward = pos.turn === "white" ? 1 : -1;
+            const deep = pos.turn === "white" ? rank >= 4 : rank <= 3;
+            const guarded = pawnAttacks(them, move.to)
+                .intersect(after.board.pawn)
+                .intersect(after.board[pos.turn])
+                .nonEmpty();
+            const chaser = [...after.board.pawn.intersect(after.board[them])].some(
+                (s) => Math.abs(squareFile(s) - file) === 1 && (squareRank(s) - rank) * forward > 0,
+            );
+            return piece.role === "knight" && deep && guarded && !chaser;
+        }
+        case "openFile": {
+            const file = squareFile(move.to);
+            const pawnOnFile = [...after.board.pawn].some((s) => squareFile(s) === file);
+            return piece.role === "rook" && squareFile(move.from) !== file && !pawnOnFile;
+        }
+        case "seventhRank":
+            return piece.role === "rook" && squareRank(move.to) === (pos.turn === "white" ? 6 : 1);
+        case "blockade": {
+            // Springer direkt vor einem gegnerischen Bauern
+            const ahead = move.to + (pos.turn === "white" ? 8 : -8);
+            const p = after.board.get(ahead);
+            return piece.role === "knight" && p?.role === "pawn" && p.color === them;
+        }
+        case "passedPawn": {
+            // Ein Freibauer läuft: vor ihm und daneben keine gegnerischen Bauern
+            const file = squareFile(move.from);
+            const rank = squareRank(move.from);
+            const forward = pos.turn === "white" ? 1 : -1;
+            const stopper = [...pos.board.pawn.intersect(pos.board[them])].some(
+                (s) => Math.abs(squareFile(s) - file) <= 1 && (squareRank(s) - rank) * forward > 0,
+            );
+            return piece.role === "pawn" && !stopper;
+        }
+        case "umbrella": {
+            // Der König stellt sich direkt vor einen gegnerischen Bauern
+            const ahead = move.to + (pos.turn === "white" ? 8 : -8);
+            const p = after.board.get(ahead);
+            return piece.role === "king" && p?.role === "pawn" && p.color === them;
+        }
     }
 }
 
 describe("Lektionen", () => {
-    it("acht Pfade mit je drei Lektionen und drei Aufgaben", () => {
-        expect(LESSONS).toHaveLength(24);
+    it("zehn Pfade mit je drei Lektionen und drei Aufgaben", () => {
+        expect(LESSONS).toHaveLength(30);
         for (const path of LESSON_PATHS)
             expect(LESSONS.filter((l) => l.path === path)).toHaveLength(3);
         // Die Pfade liegen in Reihenfolge hintereinander
         expect(LESSONS.map((l) => LESSON_PATHS.indexOf(l.path))).toEqual(
             [...LESSONS.map((l) => LESSON_PATHS.indexOf(l.path))].sort((a, b) => a - b),
         );
-        expect(new Set(LESSONS.map((l) => l.id)).size).toBe(24);
+        expect(new Set(LESSONS.map((l) => l.id)).size).toBe(30);
         for (const l of LESSONS) {
             expect(l.tasks).toHaveLength(3);
             taskPosition(l.example.fen);
@@ -147,7 +193,18 @@ describe("Lernpfad", () => {
         expect(visibleLessons(ids(0, 11))).toBe(12);
         expect(visibleLessons(ids(0, 12))).toBe(15);
         expect(visibleLessons(ids(0, 15))).toBe(18);
-        expect(visibleLessons(ids(0, 24))).toBe(24);
+        expect(visibleLessons(ids(0, 24))).toBe(27);
+        expect(visibleLessons(ids(0, 27))).toBe(30);
+        expect(visibleLessons(ids(0, 30))).toBe(30);
+        // Stellungsspiel kommt erst nach allen Taktik- und Endspiel-Reihen
+        expect(LESSONS.slice(24).map((l) => l.path)).toEqual([
+            "position",
+            "position",
+            "position",
+            "structure",
+            "structure",
+            "structure",
+        ]);
         // Sichtbar, aber erst ab Level 10 und nach der vorigen Lektion offen
         expect(unlockedLessons(9, "club", ids(0, 12))).toBe(12);
         expect(unlockedLessons(10, "club", ids(0, 12))).toBe(13);
