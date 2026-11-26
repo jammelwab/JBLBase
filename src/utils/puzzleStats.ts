@@ -44,8 +44,15 @@ export const STREAK_STEP = 50;
 
 const MAX_STREAKS = 100;
 const MAX_HISTORY = 500;
-/** The rating moves fast for the first puzzles and settles afterwards. */
-const PROVISIONAL_ATTEMPTS = 20;
+/**
+ * How much one puzzle can move the rating. Like Glicko's uncertainty the step
+ * shrinks smoothly with every puzzle played: K is 32 for the very first one,
+ * 20 after 10, about 14 after 30, about 10 after 100 and never below 8.
+ */
+const K_START = 32;
+const K_MIN = 8;
+/** After this many puzzles K has come halfway down from K_START to K_MIN. */
+const K_HALF_LIFE = 10;
 
 export function defaultPuzzleStats(): PuzzleStats {
     return {
@@ -110,7 +117,8 @@ export function expectedScore(elo: number, rating: number): number {
 }
 
 export function kFactor(attempts: number): number {
-    return attempts < PROVISIONAL_ATTEMPTS ? 40 : 20;
+    const played = Math.max(0, attempts);
+    return K_MIN + ((K_START - K_MIN) * K_HALF_LIFE) / (K_HALF_LIFE + played);
 }
 
 export function nextElo(elo: number, rating: number, correct: boolean, attempts: number): number {

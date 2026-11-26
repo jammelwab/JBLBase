@@ -2,11 +2,11 @@ import { expect, test } from "vitest";
 import {
     defaultPuzzleStats,
     expectedScore,
+    kFactor,
     nextElo,
     parsePuzzleStats,
     recordAttempt,
     START_ELO,
-    STREAK_STEP,
     streakRatingSpans,
     streakStartRating,
     streakTargetRating,
@@ -24,12 +24,25 @@ test("an equally rated puzzle is a coin flip", () => {
 });
 
 test("the rating rises when solving and falls when failing", () => {
-    expect(nextElo(1500, 1500, true, 0)).toBe(1520);
-    expect(nextElo(1500, 1500, false, 0)).toBe(1480);
+    expect(nextElo(1500, 1500, true, 0)).toBe(1516);
+    expect(nextElo(1500, 1500, false, 0)).toBe(1484);
     // After the first puzzles the rating moves in smaller steps
-    expect(nextElo(1500, 1500, true, 50)).toBe(1510);
+    expect(nextElo(1500, 1500, true, 50)).toBe(1506);
+    expect(nextElo(1500, 1500, false, 500)).toBe(1496);
     // Solving a far too easy puzzle is worth almost nothing
     expect(nextElo(1500, 700, true, 50)).toBe(1500);
+});
+
+test("the step shrinks smoothly with every puzzle and never below the floor", () => {
+    expect(kFactor(0)).toBe(32);
+    expect(kFactor(10)).toBe(20);
+    let previous = kFactor(0);
+    for (let n = 1; n <= 2000; n++) {
+        const k = kFactor(n);
+        expect(k).toBeLessThan(previous);
+        expect(k).toBeGreaterThanOrEqual(8);
+        previous = k;
+    }
 });
 
 test("each solved puzzle makes the next one harder", () => {
@@ -54,7 +67,9 @@ test("each solved puzzle makes the next one harder", () => {
 
 test("a wrong answer ends the streak and resets the difficulty", () => {
     let stats = defaultPuzzleStats();
+    let top = 0;
     for (let i = 0; i < 6; i++) {
+        top = Math.max(top, streakTargetRating(stats));
         stats = recordAttempt(stats, attempt(streakTargetRating(stats), true));
     }
     const hard = streakTargetRating(stats);
@@ -64,7 +79,7 @@ test("a wrong answer ends the streak and resets the difficulty", () => {
     expect(stats.bestStreak).toBe(6);
     expect(stats.streaks).toHaveLength(1);
     expect(stats.streaks[0].length).toBe(6);
-    expect(stats.streaks[0].topRating).toBe(hard - STREAK_STEP);
+    expect(stats.streaks[0].topRating).toBe(top);
     expect(streakTargetRating(stats)).toBe(streakStartRating(stats.elo));
     expect(streakTargetRating(stats)).toBeLessThan(hard);
     expect(stats.failed).toBe(1);
