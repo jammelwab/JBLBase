@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import de from "@/translation/de-DE.json";
 import en from "@/translation/en-US.json";
 import {
+    ADMIN_MAX_LEVEL,
+    adminLevelXp,
     COACH_STRENGTHS,
     coachTitleKey,
     levelProgress,
@@ -101,5 +103,16 @@ describe("nächster Schritt auf der Coach-Seite", () => {
         expect(nextCoachStep(base)).toBe("play");
         expect(nextCoachStep({ ...base, next: "done" })).toBe("quest");
         expect(nextCoachStep({ ...base, next: "done", questDone: true })).toBe("path");
+    });
+});
+
+describe("Admin-Level", () => {
+    it("setzt die XP auf den Anfang des Levels, ohne die anderen Rechner zu löschen", () => {
+        expect(adminLevelXp(5, 0)).toBe(xpForLevel(5));
+        expect(levelProgress(adminLevelXp(5, 0)).level).toBe(5);
+        expect(adminLevelXp(0, 0)).toBe(0);
+        expect(adminLevelXp(999, 0)).toBe(xpForLevel(ADMIN_MAX_LEVEL));
+        // Weiter runter als die XP anderer Rechner geht nicht
+        expect(adminLevelXp(1, 500)).toBe(500);
     });
 });
