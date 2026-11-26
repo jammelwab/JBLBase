@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Badge,
   Box,
   Button,
@@ -16,19 +17,24 @@ import {
   IconCalendarCheck,
   IconChess,
   IconCircleCheck,
+  IconMinus,
+  IconPlus,
   IconPuzzle,
   IconTargetArrow,
 } from "@tabler/icons-react";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
+import { useIsAdmin } from "@/components/tutorial/tutorialState";
 import {
+  adminLevelXp,
   COACH_STRENGTHS,
   type CoachStrengthId,
   coachStrengthAtom,
   coachTitleKey,
   coachXpAtom,
+  coachXpOthersAtom,
   levelProgress,
   REPS_PER_DAY,
 } from "./coachState";
@@ -159,11 +165,49 @@ export function CoachLevel({ size = "sm", streak = 0 }: { size?: "xs" | "sm"; st
   const xp = useAtomValue(coachXpAtom);
   const { level, intoLevel, needed } = levelProgress(xp);
   const left = needed - intoLevel;
+  const isAdmin = useIsAdmin();
+  const setXp = useSetAtom(coachXpAtom);
+  const othersXp = useAtomValue(coachXpOthersAtom);
+  const setLevel = (target: number) => setXp(adminLevelXp(target, othersXp));
   return (
     <Box w="100%">
-      <Text size={size} c="dimmed">
-        {t("Coach.Card.Level", { level, title: t(`Coach.Title.${coachTitleKey(level)}`) })}
-      </Text>
+      <Group gap={6} wrap="nowrap" justify={size === "xs" ? "center" : "space-between"}>
+        <Text size={size} c="dimmed">
+          {t("Coach.Card.Level", { level, title: t(`Coach.Title.${coachTitleKey(level)}`) })}
+        </Text>
+        {/* Nur für Admins: Level zum Testen von Hand setzen */}
+        {isAdmin && (
+          <Group gap={2} wrap="nowrap" data-coach-admin-level>
+            <ActionIcon
+              size="xs"
+              variant="light"
+              color="orange"
+              aria-label={t("Coach.Admin.LevelDown")}
+              title={t("Coach.Admin.LevelDown")}
+              disabled={level <= 1}
+              onClick={(e) => {
+                e.stopPropagation();
+                setLevel(level - 1);
+              }}
+            >
+              <IconMinus size={12} />
+            </ActionIcon>
+            <ActionIcon
+              size="xs"
+              variant="light"
+              color="orange"
+              aria-label={t("Coach.Admin.LevelUp")}
+              title={t("Coach.Admin.LevelUp")}
+              onClick={(e) => {
+                e.stopPropagation();
+                setLevel(level + 1);
+              }}
+            >
+              <IconPlus size={12} />
+            </ActionIcon>
+          </Group>
+        )}
+      </Group>
       <Progress
         value={needed ? (intoLevel / needed) * 100 : 0}
         size="sm"

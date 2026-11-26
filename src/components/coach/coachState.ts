@@ -53,6 +53,14 @@ export function levelProgress(totalXp: number): {
     return { level, intoLevel: xp - start, needed: xpForLevel(level + 1) - start };
 }
 
+// Admins können das Level zum Testen von Hand setzen (1.2.26). Die XP der
+// anderen Rechner bleiben, der eigene Anteil darf nicht unter 0 fallen.
+export const ADMIN_MAX_LEVEL = 60;
+export function adminLevelXp(target: number, othersXp: number): number {
+    const level = Math.min(ADMIN_MAX_LEVEL, Math.max(1, Math.round(target)));
+    return Math.max(Math.max(0, othersXp), xpForLevel(level));
+}
+
 // Titel je Level-Stufe, wie im Konzept.
 const TITLES: [number, string][] = [
     [1, "PawnPusher"],

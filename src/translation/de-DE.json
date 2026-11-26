@@ -265,6 +265,8 @@
     "Classification.Great": "Starker Zug",
     "Classification.Inaccuracy": "Ungenauigkeit",
     "Classification.Mistake": "Fehler",
+    "Coach.Admin.LevelDown": "Level runter (Admin)",
+    "Coach.Admin.LevelUp": "Level hoch (Admin)",
     "Coach.Birthday.Blow": "Kerzen auspusten",
     "Coach.Birthday.Gift": "Geschenk: {{xp}} XP und das Partyhütchen zum Behalten. Heute gibt's doppelte XP und keine Pflichtaufgaben.",
     "Coach.Birthday.Hint": "Klick auf die Torte und puste die Kerzen aus.",
