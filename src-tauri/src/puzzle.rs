@@ -7,6 +7,7 @@ use std::{
 
 use duckdb::{params, AccessMode, Config, Connection};
 use once_cell::sync::Lazy;
+use rand::seq::SliceRandom;
 use serde::Serialize;
 use specta::Type;
 
@@ -28,6 +29,62 @@ pub(crate) fn open_database(path: &Path) -> Result<Connection, Error> {
         path,
         Config::default().access_mode(AccessMode::ReadOnly)?,
     )?)
+}
+
+/// Puzzles fetched at once for the same rating range and theme.
+const BATCH_SIZE: usize = 20;
+/// How many of them need at least two moves of your own.
+const MULTI_MOVE_SHARE: usize = 15;
+/// The stored line starts with the opponent's move, so four moves or more
+/// (three spaces) mean at least two moves to find.
+const MULTI_MOVE_FILTER: &str =
+    " AND length(p.moves) - length(replace(p.moves, ' ', '')) >= 3";
+
+fn query_puzzles(
+    db: &Connection,
+    min_rating: u16,
+    max_rating: u16,
+    theme: &Option<String>,
+    filter: &str,
+    limit: usize,
+) -> Result<Vec<Puzzle>, Error> {
+    let mut query = String::from(
+        "SELECT p.id, p.fen, p.moves, p.rating, p.rating_deviation, p.popularity, p.nb_plays
+         FROM puzzles p WHERE p.rating BETWEEN ? AND ?",
+    );
+    if theme.is_some() {
+        query.push_str(
+            " AND EXISTS (SELECT 1 FROM puzzle_themes pt
+              JOIN themes t ON t.id = pt.theme_id
+              WHERE pt.puzzle_id = p.id AND t.name = ?)",
+        );
+    }
+    query.push_str(filter);
+    query.push_str(&format!(" ORDER BY random() LIMIT {limit}"));
+    let mut statement = db.prepare(&query)?;
+    let read_puzzle = |row: &duckdb::Row<'_>| {
+        Ok(Puzzle {
+            id: row.get(0)?,
+            fen: row.get(1)?,
+            moves: row.get(2)?,
+            rating: row.get(3)?,
+            rating_deviation: row.get(4)?,
+            popularity: row.get(5)?,
+            nb_plays: row.get(6)?,
+        })
+    };
+    let rows = if let Some(theme_name) = theme {
+        statement.query_map(
+            params![i32::from(min_rating), i32::from(max_rating), theme_name],
+            read_puzzle,
+        )?
+    } else {
+        statement.query_map(
+            params![i32::from(min_rating), i32::from(max_rating)],
+            read_puzzle,
+        )?
+    };
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 static PUZZLE_CACHE: Lazy<Mutex<PuzzleCache>> = Lazy::new(|| Mutex::new(PuzzleCache::new()));
@@ -67,42 +124,27 @@ impl PuzzleCache {
         {
             self.cache.clear();
             let db = open_database(Path::new(file))?;
-            let mut query = String::from(
-                "SELECT p.id, p.fen, p.moves, p.rating, p.rating_deviation, p.popularity, p.nb_plays
-                 FROM puzzles p WHERE p.rating BETWEEN ? AND ?",
-            );
-            if theme.is_some() {
-                query.push_str(
-                    " AND EXISTS (SELECT 1 FROM puzzle_themes pt
-                      JOIN themes t ON t.id = pt.theme_id
-                      WHERE pt.puzzle_id = p.id AND t.name = ?)",
-                );
+            // Most puzzles need more than one move of your own. A plain random
+            // pick brings many one-movers, above all in the lower ratings.
+            let mut puzzles = query_puzzles(
+                &db,
+                min_rating,
+                max_rating,
+                theme,
+                MULTI_MOVE_FILTER,
+                MULTI_MOVE_SHARE,
+            )?;
+            let rest = query_puzzles(&db, min_rating, max_rating, theme, "", BATCH_SIZE)?;
+            for puzzle in rest {
+                if puzzles.len() >= BATCH_SIZE {
+                    break;
+                }
+                if !puzzles.iter().any(|p| p.id == puzzle.id) {
+                    puzzles.push(puzzle);
+                }
             }
-            query.push_str(" ORDER BY random() LIMIT 20");
-            let mut statement = db.prepare(&query)?;
-            let read_puzzle = |row: &duckdb::Row<'_>| {
-                Ok(Puzzle {
-                    id: row.get(0)?,
-                    fen: row.get(1)?,
-                    moves: row.get(2)?,
-                    rating: row.get(3)?,
-                    rating_deviation: row.get(4)?,
-                    popularity: row.get(5)?,
-                    nb_plays: row.get(6)?,
-                })
-            };
-            let rows = if let Some(theme_name) = theme {
-                statement.query_map(
-                    params![i32::from(min_rating), i32::from(max_rating), theme_name],
-                    read_puzzle,
-                )?
-            } else {
-                statement.query_map(
-                    params![i32::from(min_rating), i32::from(max_rating)],
-                    read_puzzle,
-                )?
-            };
-            self.cache = rows.collect::<Result<_, _>>()?;
+            puzzles.shuffle(&mut rand::thread_rng());
+            self.cache = puzzles.into();
             self.file = file.to_owned();
             self.min_rating = min_rating;
             self.max_rating = max_rating;
@@ -567,6 +609,42 @@ mod tests {
         assert_eq!(puzzle.rating, 1296);
         assert_eq!(puzzle.moves, "e7f7 f5e5 e2f1 e5e6");
         assert!(cache.get_next_puzzle().is_none());
+
+    }
+
+    /// Puzzles with two or more own moves fill most of a batch, one-movers
+    /// only make up the rest.
+    #[test]
+    fn prefers_puzzles_with_several_moves() {
+        let mut csv = String::from(
+            "PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags\n",
+        );
+        for i in 0..40 {
+            let moves = if i < 20 { "e7f7 f5e5" } else { "e7f7 f5e5 e2f1 e5e6" };
+            csv.push_str(&format!(
+                "{i:05X},8/4R3/1p2P3/p4r2/P6p/1P3Pk1/4K3/8 w - - 1 64,{moves},1300,75,91,632,endgame,https://lichess.org/x,\n"
+            ));
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("puzzles.csv");
+        std::fs::write(&source, csv).unwrap();
+        let dest = dir.path().join("lichess.duckdb");
+        import_lichess_csv(&source, &dest, |_| {}).unwrap();
+
+        let mut cache = PuzzleCache::new();
+        cache
+            .get_puzzles(&dest.to_string_lossy(), 1200, 1400, &None)
+            .unwrap();
+        let mut multi = 0;
+        let mut total = 0;
+        while let Some(puzzle) = cache.get_next_puzzle() {
+            total += 1;
+            if puzzle.moves.split(' ').count() >= 4 {
+                multi += 1;
+            }
+        }
+        assert_eq!(total, BATCH_SIZE);
+        assert!(multi >= MULTI_MOVE_SHARE, "only {multi} of {total} with several moves");
     }
 
     #[test]

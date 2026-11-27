@@ -113,13 +113,31 @@ function PuzzleBoard({
   const [phase, setPhase] = useState<"preview" | "hidden" | "off">(() =>
     blind && puzzle?.completion === "incomplete" ? "preview" : "off",
   );
-  const [previewEnd] = useState(() => Date.now() + blindSeconds * 1000);
   const [remaining, setRemaining] = useState(blindSeconds);
+
+  // The board stays mounted from puzzle to puzzle: a new board would start
+  // without its size for a moment and the screen would flash dark. So the
+  // state of one puzzle starts over here when the next one comes.
+  const puzzleKey = `${currentPuzzle}:${puzzle?.fen ?? ""}`;
+  const [shownPuzzle, setShownPuzzle] = useState(puzzleKey);
+  const [typed, setTyped] = useState("");
+  const [typedError, setTypedError] = useState(false);
+  if (shownPuzzle !== puzzleKey) {
+    setShownPuzzle(puzzleKey);
+    setEnded(false);
+    setPendingMove(null);
+    setTyped("");
+    setTypedError(false);
+    setPhase(blind && puzzle?.completion === "incomplete" ? "preview" : "off");
+    setRemaining(blindSeconds);
+  }
   useEffect(() => {
     if (!blind) setPhase("off");
   }, [blind]);
   useEffect(() => {
     if (phase !== "preview") return;
+    // The countdown starts anew with every puzzle
+    const previewEnd = Date.now() + blindSeconds * 1000;
     const tick = () => {
       const left = Math.max(0, Math.ceil((previewEnd - Date.now()) / 1000));
       setRemaining(left);
@@ -128,7 +146,7 @@ function PuzzleBoard({
     tick();
     const interval = setInterval(tick, 200);
     return () => clearInterval(interval);
-  }, [phase, previewEnd]);
+  }, [phase, shownPuzzle, blindSeconds]);
   // A finished puzzle shows its pieces again
   const solving = puzzle?.completion === "incomplete";
   const piecesHidden = phase === "hidden" && solving;
@@ -149,8 +167,6 @@ function PuzzleBoard({
       : [];
   const lastOpponentMove = [...played].reverse().find((m) => m.byOpponent);
 
-  const [typed, setTyped] = useState("");
-  const [typedError, setTypedError] = useState(false);
   function submitTyped() {
     if (!pos || !canMove) return;
     const move = parseMoveInput(pos, typed);
@@ -293,7 +309,8 @@ function PuzzleBoard({
           />
           <Chessground
             animation={{
-              enabled: true,
+              // A new puzzle appears at once instead of sliding the old pieces over
+              enabled: currentMove > 1,
             }}
             // Chessground draws coordinates only when it starts, so a change needs a new board
             key={coordinates}

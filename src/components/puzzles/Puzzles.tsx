@@ -128,9 +128,11 @@ function Puzzles({ id }: { id: string }) {
   const [ratingRange, setRatingRange] = useAtom(puzzleRatingRangeAtom);
 
   const [selectedTheme, setSelectedTheme] = useAtom(puzzleThemeAtom);
-  // Nach den Matt-in-1-Strafaufgaben des Coaches wieder alle Themen
+  // Nach den Matt-in-1-Strafaufgaben des Coaches wieder alle Themen. Auch
+  // beim Öffnen der Seite: endeten die Strafaufgaben, während sie zu war,
+  // blieb sonst Matt in 1 hängen und es kamen nur noch Ein-Zug-Puzzles.
   const mateDrill = useAtomValue(coachMateDrillAtom);
-  const wasDrill = useRef(mateDrill);
+  const wasDrill = useRef(true);
   useEffect(() => {
     if (wasDrill.current && !mateDrill && selectedTheme === MATE_DRILL_THEME)
       setSelectedTheme(null);
@@ -427,8 +429,6 @@ function Puzzles({ id }: { id: string }) {
     <>
       <Portal target="#left" style={{ height: "100%" }}>
         <PuzzleBoard
-          // A new puzzle in the same slot (after clearing the session) starts fresh too
-          key={`${currentPuzzle}:${puzzles[currentPuzzle]?.fen ?? ""}`}
           puzzles={puzzles}
           currentPuzzle={currentPuzzle}
           changeCompletion={changeCompletion}
