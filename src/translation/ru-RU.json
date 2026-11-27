@@ -1717,6 +1717,8 @@
     "Settings.Repertoire.Trash.Days_other": "",
     "Settings.Repertoire.Trash.Desc": "",
     "Settings.Repertoire.Trash.Forever": "",
+    "Settings.RightClickClearsDrawings": "",
+    "Settings.RightClickClearsDrawings.Desc": "",
     "Settings.ScrollThroughMoves": "Прокрутка ходов",
     "Settings.ScrollThroughMoves.Desc": "Включить или отключить прокрутку ходов на доске",
     "Settings.Section.App": "",

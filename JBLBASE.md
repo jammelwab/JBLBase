@@ -650,6 +650,10 @@ Der Code: `coachExplain.ts`, `CoachWhy.tsx`, `coachSound.ts` und `firebase/funct
 
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
+## Pfeile und Kreise löschen (ab 1.2.32)
+
+Ein einfacher Rechtsklick aufs Brett, ohne zu ziehen, entfernt alle gezeichneten Pfeile und Kreise. Das gilt für jedes Brett der App, weil es zentral in `src/chessground/Chessground.tsx` sitzt: ein `mouseup`-Listener im Capture am `window` läuft vor dem von Chessground, bricht das Zeichnen ab, leert die Formen (`api.setShapes([])`) und ruft `drawable.onChange([])`, damit Bretter mit eigener Speicherung (Analyse, Puzzles) die Formen am Zug ebenfalls leeren. Ein Rechtsklick mit Ziehen malt weiter einen Pfeil. Kreise gibt es mit Umschalt + Klick (grün) oder Rechtsklick mit Umschalt, Alt oder Strg (andere Farben). Abschalten lässt es sich unter Einstellungen > Brett > Pfeile („Rechtsklick löscht Zeichnungen“, `rightClickClearsDrawingsAtom`), dann malt ein Rechtsklick wieder einen Kreis.
+
 ## Engines einrichten
 
 Seit 1.1.12 bringt der Installer **Stockfish 19** und **Patricia 5.1** mit

@@ -2281,6 +2281,8 @@
     "Settings.Repertoire.Trash.Days_other": "{{count}} Tage",
     "Settings.Repertoire.Trash.Desc": "Wie lange gelöschte Repertoires aufgehoben werden, bevor sie endgültig verschwinden",
     "Settings.Repertoire.Trash.Forever": "Für immer behalten",
+    "Settings.RightClickClearsDrawings": "Rechtsklick löscht Zeichnungen",
+    "Settings.RightClickClearsDrawings.Desc": "Ein einfacher Rechtsklick aufs Brett (ohne Ziehen) entfernt alle gezeichneten Pfeile und Kreise. Kreise malst du dann mit Umschalt + Klick",
     "Settings.ScrollThroughMoves": "Züge durchscrollen",
     "Settings.ScrollThroughMoves.Desc": "Aktiviere oder deaktiviere das Durchscrollen von Zügen auf dem Schachbrett",
     "Settings.Section.App": "App",

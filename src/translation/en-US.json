@@ -2287,6 +2287,8 @@
     "Settings.Repertoire.Trash.Days_other": "{{count}} days",
     "Settings.Repertoire.Trash.Desc": "How long deleted repertoires are kept before they are removed for good",
     "Settings.Repertoire.Trash.Forever": "Keep for ever",
+    "Settings.RightClickClearsDrawings": "Right-click clears drawings",
+    "Settings.RightClickClearsDrawings.Desc": "A single right-click on the board (without dragging) removes all drawn arrows and circles. Draw circles with Shift + click",
     "Settings.ScrollThroughMoves": "Scroll Through Moves",
     "Settings.ScrollThroughMoves.Desc": "Enable or disable scrolling through moves on the chessboard",
     "Settings.Section.App": "App",
