@@ -48,9 +48,27 @@ export async function findReferenceDatabase(): Promise<PuzzleDatabaseInfo | null
     return pickReferenceDatabase(await getPuzzleDatabases());
 }
 
-// Die mitgelieferten Starter-Puzzles (1.2.14): 100 Aufgaben, damit man ohne
-// Download trainieren kann.
-export const STARTER_PUZZLE_FILE = "JBL Starter-Puzzles.duckdb";
+// Die kleine Puzzle-Auswahl (1.2.31): rund 32 000 beliebte Lichess-Puzzles
+// über alle Stufen, 1,3 MB zum Herunterladen statt der ganzen Lichess-Datenbank.
+// Sie ersetzt die selbst gebauten JBL-Starter-Puzzles.
+export const PUZZLE_SELECTION_FILE = "Puzzle-Auswahl.duckdb";
+export const PUZZLE_SELECTION_PROGRESS = "puzzle_db_selection";
+// Die alten Starter-Puzzles (1.2.14 bis 1.2.26), werden gelöscht
+const OLD_STARTER_PUZZLE_FILE = "JBL Starter-Puzzles.duckdb";
+
+export async function puzzleSelectionPath(): Promise<string> {
+    return resolve(await getPuzzlesDir(), PUZZLE_SELECTION_FILE);
+}
+
+// Lädt die Puzzle-Auswahl herunter (neu). Fortschritt unter PUZZLE_SELECTION_PROGRESS.
+export async function importPuzzleSelection() {
+    const result = await commands.importPuzzleSelection(
+        PUZZLE_SELECTION_PROGRESS,
+        await puzzleSelectionPath(),
+    );
+    if (result.status === "error") await commands.clearProgress(PUZZLE_SELECTION_PROGRESS);
+    return result;
+}
 
 // Eigene Taktik-Dateien zählen nicht als Puzzle-Datenbank
 function isTrainingDb(db: PuzzleDatabaseInfo): boolean {
@@ -59,45 +77,55 @@ function isTrainingDb(db: PuzzleDatabaseInfo): boolean {
     );
 }
 
-// Legt die Starter-Puzzles an, wenn noch keine Puzzle-Datenbank da ist.
-// Gibt die Liste der Datenbanken danach zurück.
+let selectionStarted: Promise<PuzzleDatabaseInfo[]> | null = null;
+
+// Räumt die alten Starter-Puzzles weg und lädt die Puzzle-Auswahl, wenn noch
+// keine Puzzle-Datenbank da ist. Gibt die Liste der Datenbanken danach zurück.
 export async function ensurePuzzleDatabase(
     dbs: PuzzleDatabaseInfo[],
 ): Promise<PuzzleDatabaseInfo[]> {
+    const old = dbs.find((db) => db.title === OLD_STARTER_PUZZLE_FILE);
+    if (old) {
+        await commands.deletePuzzleDatabase(old.path);
+        dbs = dbs.filter((db) => db !== old);
+    }
     if (dbs.some(isTrainingDb)) return dbs;
-    const res = await commands.installStarterPuzzles(
-        await resolve(await getPuzzlesDir(), STARTER_PUZZLE_FILE),
-    );
-    if (res.status !== "ok" || !res.data) return dbs;
-    return getPuzzleDatabases();
+    selectionStarted ??= importPuzzleSelection()
+        .then(() => getPuzzleDatabases())
+        .finally(() => {
+            selectionStarted = null;
+        });
+    return selectionStarted;
 }
 
 // Welche Datenbank ist ausgewählt? Die Lichess-Puzzles, sobald sie da sind,
-// sonst die bisherige, sonst die erste zum Trainieren.
+// sonst die bisherige, sonst die Puzzle-Auswahl, sonst die erste zum Trainieren.
 export function preferredPuzzleDb(
     dbs: PuzzleDatabaseInfo[],
     current: string | null,
 ): string | null {
     const lichess = dbs.find((db) => db.title === LICHESS_PUZZLE_FILE);
-    const starter = dbs.find((db) => db.title === STARTER_PUZZLE_FILE);
-    if (lichess && (current === null || current === starter?.path)) return lichess.path;
+    const selection = dbs.find((db) => db.title === PUZZLE_SELECTION_FILE);
+    if (lichess && (current === null || current === selection?.path)) return lichess.path;
     if (current && dbs.some((db) => db.path === current)) return current;
-    return (lichess ?? dbs.find(isTrainingDb) ?? null)?.path ?? null;
+    return (lichess ?? selection ?? dbs.find(isTrainingDb) ?? null)?.path ?? null;
 }
 
-let lichessStarted = false;
+let selectionOnce = false;
 
-// Bei der ersten Einführung: die Lichess-Puzzles im Hintergrund laden. Danach
-// wählt die Puzzle-Seite sie von selbst aus.
-export async function downloadLichessPuzzlesOnce(onDone?: (path: string) => void) {
-    if (lichessStarted) return;
-    lichessStarted = true;
+// Bei der ersten Einführung: die kleine Puzzle-Auswahl im Hintergrund laden.
+// Danach wählt die Puzzle-Seite sie von selbst aus. Die ganze Lichess-Datenbank
+// gibt es weiter unter „Puzzle-Datenbank hinzufügen“.
+export async function downloadPuzzlesOnce(onDone?: (path: string) => void) {
+    if (selectionOnce) return;
+    selectionOnce = true;
     try {
         const dbs = await getPuzzleDatabases();
-        if (dbs.some((db) => db.title === LICHESS_PUZZLE_FILE)) return;
-        const res = await importLichessPuzzles(null);
-        if (res.status === "ok") onDone?.(await lichessPuzzlePath());
+        if (dbs.some(isTrainingDb)) return;
+        const after = await ensurePuzzleDatabase(dbs);
+        const selection = after.find((db) => db.title === PUZZLE_SELECTION_FILE);
+        if (selection) onDone?.(selection.path);
     } catch (e) {
-        console.error("Lichess puzzle download failed", e);
+        console.error("Puzzle download failed", e);
     }
 }

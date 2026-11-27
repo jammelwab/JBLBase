@@ -28,6 +28,7 @@ import {
   IconEyeOff,
   IconFlag,
   IconFlame,
+  IconTrophy,
   IconListCheck,
   IconPlus,
   IconSettings,
@@ -115,8 +116,8 @@ function Puzzles({ id }: { id: string }) {
   const [blindTextInput, setBlindTextInput] = useAtom(puzzleBlindTextInputAtom);
 
   useEffect(() => {
-    // Ohne Datenbank kommen die Starter-Puzzles dazu; die Lichess-Puzzles
-    // werden ausgewählt, sobald sie da sind (1.2.14)
+    // Ohne Datenbank lädt die kleine Puzzle-Auswahl (1.2.31); die Lichess-Puzzles
+    // werden ausgewählt, sobald sie da sind
     getPuzzleDatabases()
       .then(ensurePuzzleDatabase)
       .then((databases) => {
@@ -128,9 +129,11 @@ function Puzzles({ id }: { id: string }) {
   const [ratingRange, setRatingRange] = useAtom(puzzleRatingRangeAtom);
 
   const [selectedTheme, setSelectedTheme] = useAtom(puzzleThemeAtom);
-  // Nach den Matt-in-1-Strafaufgaben des Coaches wieder alle Themen
+  // Nach den Matt-in-1-Strafaufgaben des Coaches wieder alle Themen. Auch
+  // beim Öffnen der Seite: endeten die Strafaufgaben, während sie zu war,
+  // blieb sonst Matt in 1 hängen und es kamen nur noch Ein-Zug-Puzzles.
   const mateDrill = useAtomValue(coachMateDrillAtom);
-  const wasDrill = useRef(mateDrill);
+  const wasDrill = useRef(true);
   useEffect(() => {
     if (wasDrill.current && !mateDrill && selectedTheme === MATE_DRILL_THEME)
       setSelectedTheme(null);
@@ -427,8 +430,6 @@ function Puzzles({ id }: { id: string }) {
     <>
       <Portal target="#left" style={{ height: "100%" }}>
         <PuzzleBoard
-          // A new puzzle in the same slot (after clearing the session) starts fresh too
-          key={`${currentPuzzle}:${puzzles[currentPuzzle]?.fen ?? ""}`}
           puzzles={puzzles}
           currentPuzzle={currentPuzzle}
           changeCompletion={changeCompletion}
@@ -750,6 +751,20 @@ function Puzzles({ id }: { id: string }) {
               </Group>
             </Paper>
 
+            {streakMode && (
+              <Paper withBorder p="xs">
+                <Text size="xs" c="dimmed">
+                  {t("Puzzle.Streak.Record")}
+                </Text>
+                <Group gap={2}>
+                  <Text fw={700} size="lg">
+                    {stats.bestStreak}
+                  </Text>
+                  <IconTrophy size={20} color="var(--mantine-color-yellow-6)" />
+                </Group>
+              </Paper>
+            )}
+
             {trackTime && avgTimeSeconds > 0 && (
               <Paper withBorder p="xs">
                 <Text size="xs" c="dimmed">
@@ -768,9 +783,17 @@ function Puzzles({ id }: { id: string }) {
               color={streakOver ? "red" : "orange"}
               icon={<IconFlame />}
               title={
-                streakOver
-                  ? t("Puzzle.Streak.Over", { count: current?.endedStreak ?? 0 })
-                  : t("Puzzle.Streak.Running", { count: stats.run.length })
+                <Group gap="xs">
+                  {streakOver
+                    ? t("Puzzle.Streak.Over", { count: current?.endedStreak ?? 0 })
+                    : t("Puzzle.Streak.Running", { count: stats.run.length })}
+                  {/* Die laufende Serie ist gerade der Rekord */}
+                  {!streakOver && stats.run.length > 0 && stats.run.length >= stats.bestStreak && (
+                    <Badge color="yellow" leftSection={<IconTrophy size={12} />}>
+                      {t("Puzzle.Streak.NewRecord")}
+                    </Badge>
+                  )}
+                </Group>
               }
             >
               <Stack gap="xs" align="flex-start">

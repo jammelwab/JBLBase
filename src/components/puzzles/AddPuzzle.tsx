@@ -1,7 +1,10 @@
 import {
   importLichessPuzzles,
+  importPuzzleSelection,
   LICHESS_PUZZLE_FILE,
   LICHESS_PUZZLE_PROGRESS,
+  PUZZLE_SELECTION_FILE,
+  PUZZLE_SELECTION_PROGRESS,
 } from "@/utils/lichessPuzzles";
 import {
   Alert,
@@ -49,6 +52,10 @@ function AddPuzzle({
     <Modal opened={opened} onClose={() => setOpened(false)} title={t("Databases.Add.Title")}>
       <ScrollArea.Autosize mah={500} offsetScrollbars>
         <Stack>
+          <PuzzleSelectionCard
+            setPuzzleDbs={setPuzzleDbs}
+            initInstalled={puzzleDbs.some((e) => e.title === PUZZLE_SELECTION_FILE)}
+          />
           <LichessPuzzleCard
             setPuzzleDbs={setPuzzleDbs}
             initInstalled={puzzleDbs.some((e) => e.title === LICHESS_PUZZLE_FILE)}
@@ -72,6 +79,71 @@ function AddPuzzle({
         </Stack>
       </ScrollArea.Autosize>
     </Modal>
+  );
+}
+
+/**
+ * The small puzzle selection: about 32 000 Lichess puzzles over all levels,
+ * a 1.3 MB download that can be fetched again at any time.
+ */
+function PuzzleSelectionCard({
+  setPuzzleDbs,
+  initInstalled,
+}: {
+  setPuzzleDbs: Dispatch<SetStateAction<PuzzleDatabaseInfo[]>>;
+  initInstalled: boolean;
+}) {
+  const { t } = useTranslation();
+  const [inProgress, setInProgress] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function download() {
+    setError(null);
+    setInProgress(true);
+    try {
+      const result = await importPuzzleSelection();
+      if (result.status === "error") setError(result.error);
+      setPuzzleDbs(await getPuzzleDatabases());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setInProgress(false);
+    }
+  }
+
+  return (
+    <Paper withBorder radius="md" p="md">
+      <Text tt="uppercase" c="dimmed" fw={700} size="xs">
+        {t("Puzzle.Database")}
+      </Text>
+      <Text fw="bold" mb="xs">
+        {t("Puzzle.Selection.Title")}
+      </Text>
+      <Text size="xs" c="dimmed" mb="md">
+        {t("Puzzle.Selection.Desc")}
+      </Text>
+      <Stack gap="xs">
+        <ProgressButton
+          id={PUZZLE_SELECTION_PROGRESS}
+          initInstalled={initInstalled && !inProgress}
+          redoable
+          labels={{
+            completed: t("Puzzle.Lichess.Update"),
+            action: t("Puzzle.Lichess.Download"),
+            inProgress: t("Puzzle.Lichess.Importing"),
+            finalizing: t("Puzzle.Lichess.Finalizing"),
+          }}
+          onClick={download}
+          inProgress={inProgress}
+          setInProgress={setInProgress}
+        />
+        {error && (
+          <Alert icon={<IconAlertCircle size="1rem" />} title={t("Common.Error")} color="red">
+            {error}
+          </Alert>
+        )}
+      </Stack>
+    </Paper>
   );
 }
 

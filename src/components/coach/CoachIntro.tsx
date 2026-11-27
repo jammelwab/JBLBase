@@ -19,7 +19,7 @@ import { selectedPuzzleDbAtom, sessionsAtom } from "@/state/atoms";
 import { getChessComAccount } from "@/utils/chess.com/api";
 import { cloudAccountAtom, cloudSyncStatusAtom } from "@/utils/cloud/sync";
 import { getLichessAccount } from "@/utils/lichess/api";
-import { downloadLichessPuzzlesOnce } from "@/utils/lichessPuzzles";
+import { downloadPuzzlesOnce } from "@/utils/lichessPuzzles";
 import { addSession } from "@/utils/session";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import {
@@ -54,11 +54,11 @@ export default function CoachIntro() {
   const opened = forced || introDue(state, !!account, synced);
   const setPuzzleDb = useSetAtom(selectedPuzzleDbAtom);
 
-  // Bei der ersten Einführung laden die Lichess-Puzzles im Hintergrund und
-  // sind danach ausgewählt (1.2.14)
+  // Bei der ersten Einführung lädt die kleine Puzzle-Auswahl im Hintergrund
+  // und ist danach ausgewählt (1.2.31)
   useEffect(() => {
     if (!opened || state.done) return;
-    void downloadLichessPuzzlesOnce((path) => setPuzzleDb(path));
+    void downloadPuzzlesOnce((path) => setPuzzleDb(path));
   }, [opened, state.done, setPuzzleDb]);
 
   useEffect(() => {

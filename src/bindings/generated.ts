@@ -446,9 +446,9 @@ async importLichessPuzzles(id: string, source: string | null, dest: string) : Pr
     else return { status: "error", error: e  as any };
 }
 },
-async installStarterPuzzles(dest: string) : Promise<Result<boolean, string>> {
+async importPuzzleSelection(id: string, dest: string) : Promise<Result<number, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("install_starter_puzzles", { dest }) };
+    return { status: "ok", data: await TAURI_INVOKE("import_puzzle_selection", { id, dest }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
