@@ -1,5 +1,5 @@
 import { makeFen } from "chessops/fen";
-import { makeSquare, parseSquare } from "chessops";
+import { makeSquare, parseSquare, type Role } from "chessops";
 import { normalizeMove } from "chessops/chess";
 import { chessgroundDests } from "chessops/compat";
 import { makeSan, parseSan } from "chessops/san";
@@ -177,14 +177,22 @@ export function boardMoves(fen: string): {
 }
 
 // The SAN of a move dragged on the board (castling either way, promotion to a queen).
-export function squaresToSan(fen: string, orig: string, dest: string): string | null {
+// Ohne gewählte Figur wird eine Dame daraus
+export function squaresToSan(
+    fen: string,
+    orig: string,
+    dest: string,
+    promotion?: Role,
+): string | null {
     const [pos] = positionFromFen(fen);
     const from = parseSquare(orig);
     const to = parseSquare(dest);
     if (!pos || from === undefined || to === undefined) return null;
     const piece = pos.board.get(from);
     const promotes =
-        piece?.role === "pawn" && (dest[1] === "8" || dest[1] === "1") ? "queen" : undefined;
+        piece?.role === "pawn" && (dest[1] === "8" || dest[1] === "1")
+            ? (promotion ?? "queen")
+            : undefined;
     const move = normalizeMove(pos, { from, to, promotion: promotes });
     if (!pos.isLegal(move)) return null;
     return makeSan(pos, move);

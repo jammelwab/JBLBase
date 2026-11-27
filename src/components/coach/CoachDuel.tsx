@@ -1,12 +1,11 @@
 import { Badge, Box, Button, Card, Group, Modal, Progress, Stack, Text } from "@mantine/core";
 import type { Key } from "@lichess-org/chessground/types";
 import { IconSwords } from "@tabler/icons-react";
-import { parseSquare } from "chessops";
+import type { Role } from "chessops";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Chessground } from "@/chessground/Chessground";
 import { cloudFirestoreLive } from "@/utils/cloud/auth";
 import { createDuel, listenDuels, updateDuel } from "@/utils/cloud/duelCloud";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
@@ -28,6 +27,7 @@ import {
 } from "./coachDuelState";
 import { coachProfileAtom } from "./coachProfile";
 import { coachXpAtom, levelProgress } from "./coachState";
+import CoachBoard, { PROMOTION_LETTER } from "./CoachBoard";
 
 // Zweiter Balken mit dem Level des Rivalen, nur für die beiden sichtbar.
 export function RivalBar({ size = "xs" }: { size?: "xs" | "sm" }) {
@@ -209,11 +209,8 @@ function DuelBoard({ duel, me }: { duel: Duel; me: string }) {
     }
   };
 
-  const move = (orig: string, dest: string) => {
-    const from = parseSquare(orig);
-    const pos = duelPosition(duel.moves).pos;
-    const piece = from !== undefined ? pos.board.get(from) : undefined;
-    const promo = piece?.role === "pawn" && (dest[1] === "8" || dest[1] === "1") ? "q" : "";
+  const move = (orig: string, dest: string, promotion?: Role) => {
+    const promo = promotion ? PROMOTION_LETTER[promotion] : "";
     const next = playDuelMove(duel.moves, `${orig}${dest}${promo}`);
     if (next) void send(next);
   };
@@ -230,7 +227,7 @@ function DuelBoard({ duel, me }: { duel: Duel; me: string }) {
         </Badge>
       </Group>
       <Box w={360} h={360}>
-        <Chessground
+        <CoachBoard
           coordinates={false}
           fen={fen}
           orientation={myColor}
@@ -242,8 +239,8 @@ function DuelBoard({ duel, me }: { duel: Duel; me: string }) {
             color: myTurn ? myColor : undefined,
             dests: dests as never,
             showDests: true,
-            events: { after: (o, d) => move(o, d) },
           }}
+          onMove={(o, d, promotion) => move(o, d, promotion)}
         />
       </Box>
       <Text size="xs" c="dimmed" maw={360} ta="center">

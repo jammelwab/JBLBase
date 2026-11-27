@@ -4,11 +4,11 @@ import { IconTargetArrow } from "@tabler/icons-react";
 import { useSetAtom } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, sanToSquares, squaresToSan } from "@/utils/gamesTree";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import { lineSteps, solutionMotif } from "./coachDeep";
 import { type CoachMistake, coachMistakeDoneAtom, XP } from "./coachProgress";
+import CoachBoard from "./CoachBoard";
 
 // Erste Aufgabe nach einer Niederlage: der schlimmste eigene Zug der Partie.
 // Zwei Versuche, danach zeigt JBL die Lösung.
@@ -65,7 +65,7 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
     >
       <Group align="flex-start" wrap="wrap" gap="lg">
         <Box w={240} h={240} style={{ flexShrink: 0 }}>
-          <Chessground
+          <CoachBoard
             key={resetKey}
             coordinates={false}
             viewOnly={state !== "open"}
@@ -78,12 +78,10 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
               color: state === "open" ? turn : undefined,
               dests: dests as never,
               showDests: true,
-              events: {
-                after: (orig, dest) => {
-                  const san = squaresToSan(mistake.fen, orig, dest);
-                  if (san) play(san);
-                },
-              },
+            }}
+            onMove={(orig, dest, promotion) => {
+              const san = squaresToSan(mistake.fen, orig, dest, promotion);
+              if (san) play(san);
             }}
             drawable={{
               enabled: false,
