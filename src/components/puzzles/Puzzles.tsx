@@ -28,6 +28,7 @@ import {
   IconEyeOff,
   IconFlag,
   IconFlame,
+  IconTrophy,
   IconListCheck,
   IconPlus,
   IconSettings,
@@ -750,6 +751,20 @@ function Puzzles({ id }: { id: string }) {
               </Group>
             </Paper>
 
+            {streakMode && (
+              <Paper withBorder p="xs">
+                <Text size="xs" c="dimmed">
+                  {t("Puzzle.Streak.Record")}
+                </Text>
+                <Group gap={2}>
+                  <Text fw={700} size="lg">
+                    {stats.bestStreak}
+                  </Text>
+                  <IconTrophy size={20} color="var(--mantine-color-yellow-6)" />
+                </Group>
+              </Paper>
+            )}
+
             {trackTime && avgTimeSeconds > 0 && (
               <Paper withBorder p="xs">
                 <Text size="xs" c="dimmed">
@@ -768,9 +783,17 @@ function Puzzles({ id }: { id: string }) {
               color={streakOver ? "red" : "orange"}
               icon={<IconFlame />}
               title={
-                streakOver
-                  ? t("Puzzle.Streak.Over", { count: current?.endedStreak ?? 0 })
-                  : t("Puzzle.Streak.Running", { count: stats.run.length })
+                <Group gap="xs">
+                  {streakOver
+                    ? t("Puzzle.Streak.Over", { count: current?.endedStreak ?? 0 })
+                    : t("Puzzle.Streak.Running", { count: stats.run.length })}
+                  {/* Die laufende Serie ist gerade der Rekord */}
+                  {!streakOver && stats.run.length > 0 && stats.run.length >= stats.bestStreak && (
+                    <Badge color="yellow" leftSection={<IconTrophy size={12} />}>
+                      {t("Puzzle.Streak.NewRecord")}
+                    </Badge>
+                  )}
+                </Group>
               }
             >
               <Stack gap="xs" align="flex-start">
