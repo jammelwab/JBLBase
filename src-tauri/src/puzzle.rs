@@ -37,8 +37,7 @@ const BATCH_SIZE: usize = 20;
 const MULTI_MOVE_SHARE: usize = 15;
 /// The stored line starts with the opponent's move, so four moves or more
 /// (three spaces) mean at least two moves to find.
-const MULTI_MOVE_FILTER: &str =
-    " AND length(p.moves) - length(replace(p.moves, ' ', '')) >= 3";
+const MULTI_MOVE_FILTER: &str = " AND length(p.moves) - length(replace(p.moves, ' ', '')) >= 3";
 
 fn query_puzzles(
     db: &Connection,
@@ -264,6 +263,13 @@ pub fn get_themes_for_puzzle(file: String, puzzle_id: i32) -> Result<Vec<String>
 /// Where Lichess publishes its puzzle database (CC0), updated monthly.
 const LICHESS_PUZZLE_URL: &str = "https://database.lichess.org/lichess_db_puzzle.csv.zst";
 
+/// A small selection of the Lichess puzzles, kept in this repository as
+/// `puzzles/puzzle-auswahl.csv.zst`: well-liked, often played puzzles with a
+/// settled rating, spread over all levels, three in four with two or more
+/// moves of your own. Lichess puzzles are CC0, so they may be passed on.
+const PUZZLE_SELECTION_URL: &str =
+    "https://raw.githubusercontent.com/jammelwab/JBLBase/main/puzzles/puzzle-auswahl.csv.zst";
+
 /// Counts the bytes read from the underlying file, to report import progress.
 struct CountingReader<R> {
     inner: R,
@@ -420,6 +426,30 @@ pub async fn import_lichess_puzzles(
     app: tauri::AppHandle,
     state: tauri::State<'_, crate::AppState>,
 ) -> Result<i32, Error> {
+    import_puzzles(id, source, LICHESS_PUZZLE_URL, dest, app, state).await
+}
+
+/// Downloads the small puzzle selection (about 32 000 Lichess puzzles, 1.3 MB)
+/// and builds its database at `dest`. Progress goes to the progress bar `id`.
+#[tauri::command]
+#[specta::specta]
+pub async fn import_puzzle_selection(
+    id: String,
+    dest: PathBuf,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::AppState>,
+) -> Result<i32, Error> {
+    import_puzzles(id, None, PUZZLE_SELECTION_URL, dest, app, state).await
+}
+
+async fn import_puzzles(
+    id: String,
+    source: Option<PathBuf>,
+    url: &str,
+    dest: PathBuf,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::AppState>,
+) -> Result<i32, Error> {
     use crate::progress::update_progress;
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
@@ -435,11 +465,7 @@ pub async fn import_lichess_puzzles(
                 let client = reqwest::Client::builder()
                     .user_agent(concat!("JBLBase/", env!("CARGO_PKG_VERSION")))
                     .build()?;
-                let res = client
-                    .get(LICHESS_PUZZLE_URL)
-                    .send()
-                    .await?
-                    .error_for_status()?;
+                let res = client.get(url).send().await?.error_for_status()?;
                 let total = res.content_length();
                 let mut out = tokio::fs::File::create(&download).await?;
                 let mut stream = res.bytes_stream();
@@ -517,34 +543,6 @@ pub async fn import_lichess_puzzles(
     Ok(count as i32)
 }
 
-/// The starter puzzles that ship with the app (1.2.14): 100 puzzles in the
-/// Lichess CSV layout, so a fresh install can train before any download.
-const STARTER_PUZZLES_CSV: &str = include_str!("../resources/starter_puzzles.csv");
-
-/// Builds the starter puzzle database at `dest` unless it is already there.
-/// Returns whether it was created.
-#[tauri::command]
-#[specta::specta]
-pub async fn install_starter_puzzles(dest: PathBuf) -> Result<bool, Error> {
-    if dest.exists() {
-        return Ok(false);
-    }
-    if let Some(dir) = dest.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let csv = dest.with_extension("csv.part");
-    let part = dest.with_extension("part");
-    std::fs::write(&csv, STARTER_PUZZLES_CSV)?;
-    let result = tokio::task::block_in_place(|| import_lichess_csv(&csv, &part, |_| {}));
-    let _ = remove_file(&csv);
-    if let Err(error) = result {
-        let _ = remove_file(&part);
-        return Err(error);
-    }
-    std::fs::rename(&part, &dest)?;
-    Ok(true)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -609,7 +607,6 @@ mod tests {
         assert_eq!(puzzle.rating, 1296);
         assert_eq!(puzzle.moves, "e7f7 f5e5 e2f1 e5e6");
         assert!(cache.get_next_puzzle().is_none());
-
     }
 
     /// Puzzles with two or more own moves fill most of a batch, one-movers
@@ -620,7 +617,11 @@ mod tests {
             "PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags\n",
         );
         for i in 0..40 {
-            let moves = if i < 20 { "e7f7 f5e5" } else { "e7f7 f5e5 e2f1 e5e6" };
+            let moves = if i < 20 {
+                "e7f7 f5e5"
+            } else {
+                "e7f7 f5e5 e2f1 e5e6"
+            };
             csv.push_str(&format!(
                 "{i:05X},8/4R3/1p2P3/p4r2/P6p/1P3Pk1/4K3/8 w - - 1 64,{moves},1300,75,91,632,endgame,https://lichess.org/x,\n"
             ));
@@ -644,7 +645,10 @@ mod tests {
             }
         }
         assert_eq!(total, BATCH_SIZE);
-        assert!(multi >= MULTI_MOVE_SHARE, "only {multi} of {total} with several moves");
+        assert!(
+            multi >= MULTI_MOVE_SHARE,
+            "only {multi} of {total} with several moves"
+        );
     }
 
     #[test]
@@ -699,16 +703,26 @@ mod tests {
         assert!(!dest.exists());
     }
 
+    /// The puzzle selection in `puzzles/` imports and has puzzles for every
+    /// level, most of them with several own moves.
     #[test]
-    fn starter_puzzles_cover_all_levels() {
+    fn puzzle_selection_covers_all_levels() {
+        const SELECTION: &[u8] = include_bytes!("../../puzzles/puzzle-auswahl.csv.zst");
         let dir = tempfile::tempdir().unwrap();
-        let source = dir.path().join("starter.csv");
-        std::fs::write(&source, STARTER_PUZZLES_CSV).unwrap();
-        let dest = dir.path().join("starter.duckdb");
-        assert_eq!(import_lichess_csv(&source, &dest, |_| {}).unwrap(), 100);
+        let source = dir.path().join("puzzle-auswahl.csv.zst");
+        std::fs::write(&source, SELECTION).unwrap();
+        let dest = dir.path().join("auswahl.duckdb");
+        let count = import_lichess_csv(&source, &dest, |_| {}).unwrap();
+        assert!(count > 30_000, "{count}");
         let file = dest.to_string_lossy().into_owned();
-        // Für Anfänger wie für Fortgeschrittene ist etwas dabei
-        for (min, max) in [(400, 1000), (1000, 1500), (1500, 2600)] {
+        for (min, max) in [
+            (500, 800),
+            (800, 1200),
+            (1200, 1600),
+            (1600, 2000),
+            (2000, 2400),
+            (2400, 2800),
+        ] {
             let mut cache = PuzzleCache::new();
             cache.get_puzzles(&file, min, max, &None).unwrap();
             assert!(cache.get_next_puzzle().is_some(), "{min}-{max}");

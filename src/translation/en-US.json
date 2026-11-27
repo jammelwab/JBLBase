@@ -1604,6 +1604,8 @@
     "Puzzle.Reports.Why.otherMove": "Stockfish finds another first move as the only winning one.",
     "Puzzle.Reports.Why.shorter": "The puzzle goes too far: at the end there is no clearly winning move any more.",
     "Puzzle.SelectDatabase": "Select database",
+    "Puzzle.Selection.Desc": "About 32,000 well-liked, often played Lichess puzzles for every level, three in four with several moves of your own. Only 1.3 MB, can be downloaded again at any time.",
+    "Puzzle.Selection.Title": "Puzzle selection (small)",
     "Puzzle.Stats.Attempts": "Puzzles played",
     "Puzzle.Stats.BestStreak": "Best streak",
     "Puzzle.Stats.CurrentStreak": "Current streak",

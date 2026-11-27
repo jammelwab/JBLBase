@@ -206,6 +206,12 @@ function PuzzleBoard({
         mainline: true,
         changeHeaders: false,
       });
+      // Blind: after the opponent's reply the new position shows again, so
+      // an unexpected defence does not leave you solving a position you
+      // never saw
+      if (blind && phase !== "off" && currentMove + 2 < puzzle.moves.length) {
+        setPhase("preview");
+      }
     } else {
       makeMove({
         payload: move,
