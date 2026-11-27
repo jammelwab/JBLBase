@@ -4,7 +4,13 @@ import type { Config } from "@lichess-org/chessground/config";
 import { Box } from "@mantine/core";
 import { useAtomValue } from "jotai";
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { boardImageAtom, is3dAtom, moveMethodAtom, pieceAnimationAtom } from "@/state/atoms";
+import {
+  boardImageAtom,
+  is3dAtom,
+  moveMethodAtom,
+  pieceAnimationAtom,
+  rightClickClearsDrawingsAtom,
+} from "@/state/atoms";
 import { syncBoardBounds } from "./syncBoardBounds";
 
 const BOARD_COORDINATE_COLORS: Record<string, { white: string; black: string }> = {
@@ -92,6 +98,28 @@ export function Chessground({ ref, ...props }: ChessgroundProps) {
     if (!api || !boardRef.current) return;
     return syncBoardBounds(boardRef.current, api);
   }, [api]);
+
+  // Rechtsklick ohne Ziehen: alle gezeichneten Pfeile und Kreise weg, auf jedem Brett.
+  // Chessground beendet das Zeichnen beim mouseup am document und würde aus dem Klick
+  // einen Kreis machen. Dieser Listener läuft vorher (capture am window), bricht das
+  // Zeichnen ab und leert die Formen. Mit Umschalt/Alt/Strg/Cmd bleibt es beim Kreis.
+  const rightClickClears = useAtomValue(rightClickClearsDrawingsAtom);
+
+  useEffect(() => {
+    if (!api || !rightClickClears) return;
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button !== 2 || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+      const cur = api.state.drawable.current;
+      // dest ist gesetzt, sobald die Maus auf ein anderes Feld gezogen wurde: das ist ein Pfeil
+      if (!cur || cur.dest) return;
+      api.state.drawable.current = undefined;
+      api.setShapes([]);
+      // onChange aus der Konfiguration des Bretts, Chessground hält immer die aktuelle
+      api.state.drawable.onChange?.([]);
+    };
+    window.addEventListener("mouseup", onMouseUp, true);
+    return () => window.removeEventListener("mouseup", onMouseUp, true);
+  }, [api, rightClickClears]);
 
   useEffect(() => {
     if (boardRef?.current == null) return;

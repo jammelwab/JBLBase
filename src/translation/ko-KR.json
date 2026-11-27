@@ -1510,6 +1510,8 @@
     "Settings.Repertoire.Trash.Days_other": "",
     "Settings.Repertoire.Trash.Desc": "",
     "Settings.Repertoire.Trash.Forever": "",
+    "Settings.RightClickClearsDrawings": "",
+    "Settings.RightClickClearsDrawings.Desc": "",
     "Settings.ScrollThroughMoves": "스크롤로 수 이동",
     "Settings.ScrollThroughMoves.Desc": "체스판에서 스크롤하여 수를 이동합니다",
     "Settings.Section.App": "",

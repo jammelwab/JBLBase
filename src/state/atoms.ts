@@ -230,6 +230,13 @@ export const eraseDrawablesOnClickAtom = atomWithStorage<boolean>(
     "erase-drawables-on-click",
     false,
 );
+// Ein Rechtsklick ohne Ziehen entfernt alle gezeichneten Pfeile und Kreise (wie das
+// Linksklick-Löschen bei Lichess, nur mit der rechten Taste). Kreise malt man dann mit
+// Umschalt + Klick oder Rechtsklick mit Umschalt/Alt/Strg.
+export const rightClickClearsDrawingsAtom = atomWithStorage<boolean>(
+    "right-click-clears-drawings",
+    true,
+);
 export const autoPromoteAtom = atomWithStorage<boolean>("auto-promote", true);
 export const autoSaveAtom = atomWithStorage<boolean>("auto-save", true);
 export const previewBoardOnHoverAtom = atomWithStorage<boolean>("preview-board-on-hover", true);

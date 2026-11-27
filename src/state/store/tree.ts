@@ -494,6 +494,13 @@ export const createTreeStore = (id?: string, initialTree?: TreeState) => {
         setShapes: (shapes) =>
             set(
                 produce((state) => {
+                    // Leeren ohne gezeichnete Formen ändert nichts und macht die Datei nicht ungespeichert
+                    if (
+                        shapes.length === 0 &&
+                        !getNodeAtPath(state.root, state.position)?.shapes.length
+                    ) {
+                        return;
+                    }
                     state.dirty = true;
                     setShapes(state, shapes);
                 }),

@@ -1633,6 +1633,8 @@
     "Settings.Repertoire.Trash.Days_other": "",
     "Settings.Repertoire.Trash.Desc": "",
     "Settings.Repertoire.Trash.Forever": "",
+    "Settings.RightClickClearsDrawings": "",
+    "Settings.RightClickClearsDrawings.Desc": "",
     "Settings.ScrollThroughMoves": "Desplazarse por los movimientos",
     "Settings.ScrollThroughMoves.Desc": "Habilitar o deshabilitar el desplazamiento por los movimientos con el ratón en el tablero",
     "Settings.Section.App": "",

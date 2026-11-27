@@ -1577,6 +1577,8 @@
     "Settings.Repertoire.Trash.Days_other": "",
     "Settings.Repertoire.Trash.Desc": "",
     "Settings.Repertoire.Trash.Forever": "",
+    "Settings.RightClickClearsDrawings": "",
+    "Settings.RightClickClearsDrawings.Desc": "",
     "Settings.ScrollThroughMoves": "Scroll Through Moves",
     "Settings.ScrollThroughMoves.Desc": "Enable or disable scrolling through moves on the chessboard",
     "Settings.Section.App": "",
