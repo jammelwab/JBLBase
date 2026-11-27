@@ -528,6 +528,8 @@ Seit 1.2.25 folgen auf die Endspiel-Muster zwei Reihen **Stellungsspiel**, also 
 
 Seit 1.2.26 zeigt `CoachLevel` für Admins (`useIsAdmin`) neben dem Level die Knöpfe − und +. Sie setzen die XP auf den Anfang des Ziel-Levels (`adminLevelXp` in `coachState.ts`, höchstens Level `ADMIN_MAX_LEVEL` = 60). Die XP anderer Rechner bleiben stehen, darum geht es nicht unter deren Summe. Level-up, Freischaltungen und Lektionen reagieren wie bei echten XP.
 
+In 1.2.28 sind alle 90 Lektionsaufgaben mit Stockfish (Tiefe 20) nachgeprüft: Die Lösung muss der beste Zug sein oder höchstens 0,3 dahinter, bei Matt-Lektionen muss es ein Matt geben. Ersetzt wurden die Rochade-Aufgaben (jetzt Stellungen aus echten Eröffnungen mit Schwarz am Zug, Rochade klar am besten), eine Gabel- und zwei Fesselungsaufgaben, in denen der Gewinn nichts brachte, und eine Vorposten-Aufgabe. Beim Anastasia-Beispiel zeigt der Springer e7 jetzt beide Felder (g8 und g6).
+
 Fix in 1.2.16: Puzzles und Partie gegen JBL teilen sich den Baum des Tabs. `startGame` in `BoardGame.tsx` startet Coach-Partien deshalb immer ohne `initialFen` und `initialMoves`, und vor dem Start setzt ein Effekt den Baum auf die Grundstellung zurück. Kommt eine Coach-Partie trotzdem nicht aus der Grundstellung, zählt `CoachGamePanel` sie nicht (keine XP, keine Sperre, Hinweis `Coach.Game.NotCounted`).
 
 Seit 1.2.17 öffnet der Coach Repertoires mit `coach: true` am Tab (`openFile`-Option `coach`, `useOpenRecentFile(file, { coach })`). Hat das Training alles geübt, zeigt `PracticePanel` dann „Zum Coach“: Das wechselt zum offenen Coach-Tab oder legt einen neuen an. Außerdem gibt es freies Spiel gegen JBL: Unter der großen Karte steht `FreePlay` (Stärke und „Gegen JBL spielen“), auf der Startkarte ein eigener Knopf, solange der große Knopf nicht schon die Partie ist (`mainIsPlay`). Gesperrt ist es nur, solange `coachLockAtom` > 0 ist (nach einer Niederlage).
@@ -646,7 +648,7 @@ Der Code: `coachExplain.ts`, `CoachWhy.tsx`, `coachSound.ts` und `firebase/funct
 
 Der Code liegt in `src/components/coach/`: `CoachFigure.tsx` (SVG und Animationen), `CoachCard.tsx` (Karte), `CoachPage.tsx` (Coach-Seite), `useCoach.ts` (Aufgaben und Aktionen) und `coachState.ts` (Stärkestufen, XP-Kurve, Titel, Tagesaufgaben).
 
-## Pfeile und Kreise löschen (ab 1.2.27)
+## Pfeile und Kreise löschen (ab 1.2.30)
 
 Ein einfacher Rechtsklick aufs Brett, ohne zu ziehen, entfernt alle gezeichneten Pfeile und Kreise. Das gilt für jedes Brett der App, weil es zentral in `src/chessground/Chessground.tsx` sitzt: ein `mouseup`-Listener im Capture am `window` läuft vor dem von Chessground, bricht das Zeichnen ab, leert die Formen (`api.setShapes([])`) und ruft `drawable.onChange([])`, damit Bretter mit eigener Speicherung (Analyse, Puzzles) die Formen am Zug ebenfalls leeren. Ein Rechtsklick mit Ziehen malt weiter einen Pfeil. Kreise gibt es mit Umschalt + Klick (grün) oder Rechtsklick mit Umschalt, Alt oder Strg (andere Farben). Abschalten lässt es sich unter Einstellungen > Brett > Pfeile („Rechtsklick löscht Zeichnungen“, `rightClickClearsDrawingsAtom`), dann malt ein Rechtsklick wieder einen Kreis.
 
