@@ -116,7 +116,7 @@ function Puzzles({ id }: { id: string }) {
   const [blindTextInput, setBlindTextInput] = useAtom(puzzleBlindTextInputAtom);
 
   useEffect(() => {
-    // Ohne Datenbank lädt die kleine Puzzle-Auswahl (1.2.29); die Lichess-Puzzles
+    // Ohne Datenbank lädt die kleine Puzzle-Auswahl (1.2.31); die Lichess-Puzzles
     // werden ausgewählt, sobald sie da sind
     getPuzzleDatabases()
       .then(ensurePuzzleDatabase)
