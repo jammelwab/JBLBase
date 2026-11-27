@@ -167,10 +167,10 @@ describe("Lektionen", () => {
 
     it("bewertet Züge; Rochade auch als Königszug", () => {
         const castle = LESSONS.find((l) => l.id === "castle")!;
-        expect(judgeTask(castle, castle.tasks[0], "e1g1")).toBe("right");
-        expect(judgeTask(castle, castle.tasks[0], "e1h1")).toBe("right");
-        expect(judgeTask(castle, castle.tasks[0], "d2d3")).toBe("wrong");
-        expect(judgeTask(castle, castle.tasks[0], "e1e3")).toBe("illegal");
+        expect(judgeTask(castle, castle.tasks[0], "e8g8")).toBe("right");
+        expect(judgeTask(castle, castle.tasks[0], "e8h8")).toBe("right");
+        expect(judgeTask(castle, castle.tasks[0], "a7a6")).toBe("wrong");
+        expect(judgeTask(castle, castle.tasks[0], "e8e6")).toBe("illegal");
         const mate = LESSONS[0];
         expect(judgeTask(mate, mate.tasks[1], "a1a8")).toBe("right");
         expect(judgeTask(mate, mate.tasks[1], "a1a7")).toBe("wrong");

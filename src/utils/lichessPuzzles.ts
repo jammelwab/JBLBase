@@ -48,7 +48,7 @@ export async function findReferenceDatabase(): Promise<PuzzleDatabaseInfo | null
     return pickReferenceDatabase(await getPuzzleDatabases());
 }
 
-// Die kleine Puzzle-Auswahl (1.2.27): rund 32 000 beliebte Lichess-Puzzles
+// Die kleine Puzzle-Auswahl (1.2.29): rund 32 000 beliebte Lichess-Puzzles
 // über alle Stufen, 1,3 MB zum Herunterladen statt der ganzen Lichess-Datenbank.
 // Sie ersetzt die selbst gebauten JBL-Starter-Puzzles.
 export const PUZZLE_SELECTION_FILE = "Puzzle-Auswahl.duckdb";

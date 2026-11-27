@@ -149,8 +149,10 @@ export const LESSONS: Lesson[] = [
         id: "castle",
         path: "principles",
         check: "castle",
+        // Stellungen aus echten Eröffnungen; die Rochade ist laut Stockfish
+        // (Tiefe 22) klar der beste Zug (1.2.27)
         example: {
-            fen: "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+            fen: "r1b1kbnr/ppqp1ppp/2n1p3/8/2B1P3/2N2N2/PP3PPP/R1BQK2R w KQkq - 2 7",
             arrows: [
                 ["e1", "g1"],
                 ["h1", "f1"],
@@ -158,15 +160,15 @@ export const LESSONS: Lesson[] = [
         },
         tasks: [
             {
-                fen: "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+                fen: "rnbqk2r/ppp1ppbp/5np1/4N3/2BP4/2N5/PPP3PP/R1BQK2R b KQkq - 3 7",
                 solutions: ["O-O"],
             },
             {
-                fen: "r3kbnr/ppp1pppp/2nq4/3p1b2/3P1B2/2NQ4/PPP1PPPP/R3KBNR w KQkq - 6 5",
-                solutions: ["O-O-O"],
+                fen: "r1bqk2r/pnppbppp/2p5/4P3/3N4/8/PPP1QPPP/RNB2RK1 b kq - 2 9",
+                solutions: ["O-O"],
             },
             {
-                fen: "rnbqk2r/ppp2ppp/3p1n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 0 5",
+                fen: "rnbqk2r/ppp1bppp/4p3/3pP3/3P2Q1/2N5/PPP2PPP/R3KBNR b KQkq - 2 7",
                 solutions: ["O-O"],
             },
         ],
@@ -187,7 +189,7 @@ export const LESSONS: Lesson[] = [
         tasks: [
             { fen: "6k1/8/8/3q4/6N1/8/8/4K3 w - - 0 1", solutions: ["Nf6+"] },
             { fen: "4k3/1q6/8/8/4N3/8/8/4K3 w - - 0 1", solutions: ["Nd6+"] },
-            { fen: "2r3k1/8/8/3N4/8/8/8/6K1 w - - 0 1", solutions: ["Ne7+"] },
+            { fen: "2r3k1/8/8/3N4/8/8/5P2/6K1 w - - 0 1", solutions: ["Ne7+"] },
         ],
     },
     {
@@ -202,8 +204,8 @@ export const LESSONS: Lesson[] = [
             ],
         },
         tasks: [
-            { fen: "4k3/8/2n5/8/8/8/8/4KB2 w - - 0 1", solutions: ["Bb5"] },
-            { fen: "4k3/4n3/8/8/8/8/8/K6R w - - 0 1", solutions: ["Re1"] },
+            { fen: "4k3/8/2n5/8/3P4/8/8/4KB2 w - - 0 1", solutions: ["Bb5"] },
+            { fen: "4kb2/8/8/3p4/8/2N5/8/4K3 b - - 0 1", solutions: ["Bb4"] },
             { fen: "3k4/8/8/3n4/8/8/4K3/7R w - - 0 1", solutions: ["Rd1"] },
         ],
     },
@@ -291,6 +293,7 @@ export const LESSONS: Lesson[] = [
             arrows: [
                 ["e3", "h3"],
                 ["e7", "g8"],
+                ["e7", "g6"],
             ],
         },
         tasks: [
@@ -486,10 +489,10 @@ export const LESSONS: Lesson[] = [
         path: "position",
         check: "outpost",
         example: {
-            fen: "2b3k1/pp3pp1/4p2p/4P3/2N5/7P/PP3PP1/6K1 w - - 0 1",
+            fen: "2b3k1/pp3ppp/3p4/3Np3/4P3/8/PP3PPP/6K1 w - - 0 1",
             arrows: [
-                ["c4", "d6"],
-                ["e5", "d6"],
+                ["e4", "d5"],
+                ["d5", "f6"],
             ],
         },
         tasks: [
@@ -498,7 +501,7 @@ export const LESSONS: Lesson[] = [
                 fen: "r5k1/1p3ppp/p1n5/2p1p3/4P3/2NP4/PP3PPP/R5K1 w - - 0 1",
                 solutions: ["Nd5"],
             },
-            { fen: "6k1/pp2bppp/3p4/4p3/4P3/2N5/PP3PPP/6K1 w - - 0 1", solutions: ["Nd5"] },
+            { fen: "2b3k1/pp3pp1/4p2p/4P3/2N5/7P/PP3PP1/6K1 w - - 0 1", solutions: ["Nd6"] },
         ],
     },
     {

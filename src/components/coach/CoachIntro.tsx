@@ -55,7 +55,7 @@ export default function CoachIntro() {
   const setPuzzleDb = useSetAtom(selectedPuzzleDbAtom);
 
   // Bei der ersten Einführung lädt die kleine Puzzle-Auswahl im Hintergrund
-  // und ist danach ausgewählt (1.2.27)
+  // und ist danach ausgewählt (1.2.29)
   useEffect(() => {
     if (!opened || state.done) return;
     void downloadPuzzlesOnce((path) => setPuzzleDb(path));
