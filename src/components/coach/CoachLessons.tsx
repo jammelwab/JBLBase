@@ -19,6 +19,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Chessground } from "@/chessground/Chessground";
 import { boardMoves, sanToSquares } from "@/utils/gamesTree";
+import type { Role } from "chessops";
+import CoachBoard, { PROMOTION_LETTER } from "./CoachBoard";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
 import CoachStage from "./CoachStage";
 import { coachIntroAtom } from "./coachIntroState";
@@ -294,8 +296,9 @@ function LessonTaskView({
     return () => clearTimeout(timer);
   }, [state, onSolved]);
 
-  const play = (orig: string, dest: string) => {
-    const verdict = judgeTask(lesson, task, `${orig}${dest}`);
+  const play = (orig: string, dest: string, promotion?: Role) => {
+    const promo = promotion ? PROMOTION_LETTER[promotion] : "";
+    const verdict = judgeTask(lesson, task, `${orig}${dest}${promo}`);
     if (verdict === "right") return setState("right");
     setState((s) => (s === "shown" ? s : "wrong"));
     setResetKey((k) => k + 1);
@@ -346,7 +349,7 @@ function LessonTaskView({
         )
       }
     >
-      <Chessground
+      <CoachBoard
         key={resetKey}
         coordinates={false}
         viewOnly={state === "right"}
@@ -358,8 +361,8 @@ function LessonTaskView({
           color: state === "right" ? undefined : turn,
           dests: dests as never,
           showDests: true,
-          events: { after: (o, d) => play(o, d) },
         }}
+        onMove={(o, d, promo) => play(o, d, promo)}
         drawable={{
           enabled: false,
           visible: true,

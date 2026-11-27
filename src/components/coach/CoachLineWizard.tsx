@@ -22,7 +22,6 @@ import { useLoaderData } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Chessground } from "@/chessground/Chessground";
 import type { FileMetadata } from "@/components/files/file";
 import { boardMoves, sanToSquares, squaresToSan } from "@/utils/gamesTree";
 import {
@@ -56,6 +55,7 @@ import {
   suggestionStart,
 } from "./coachLines";
 import { coachPathEventAtom } from "./coachPath";
+import CoachBoard from "./CoachBoard";
 
 type Target = { file: FileMetadata; name: string; color: LineColor; root: TreeNode };
 
@@ -354,7 +354,7 @@ export function TryStep({
       <Group align="flex-start" wrap="wrap" gap="lg">
         <Stack gap="xs" style={{ flexShrink: 0 }}>
           <Box w={360} h={360}>
-            <Chessground
+            <CoachBoard
               key={moves.join(" ")}
               coordinates
               orientation={target.color}
@@ -366,12 +366,10 @@ export function TryStep({
                 color: turn,
                 dests: dests as never,
                 showDests: true,
-                events: {
-                  after: (orig, dest) => {
-                    const san = squaresToSan(fen, orig, dest);
-                    if (san) play(san);
-                  },
-                },
+              }}
+              onMove={(orig, dest, promotion) => {
+                const san = squaresToSan(fen, orig, dest, promotion);
+                if (san) play(san);
               }}
             />
           </Box>
