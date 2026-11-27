@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 import {
     coachLessonsDoneAtom,
     completeLessonAtom,
+    exampleLine,
+    playLine,
+    taskLine,
     judgeTask,
     type Lesson,
     type LessonTask,
@@ -129,6 +132,32 @@ function motif(lesson: Lesson, task: LessonTask, san: string): boolean {
             );
             return piece.role === "pawn" && !stopper;
         }
+        // 1.2.33: nach jeder Antwort gibt es ein Matt in eins
+        case "mateIn2": {
+            if (after.isCheckmate()) return false;
+            for (const [from, dests] of after.allDests())
+                for (const to of dests) {
+                    const reply = after.clone();
+                    reply.play({ from, to });
+                    let mates = false;
+                    for (const [f2, d2] of reply.allDests())
+                        for (const t2 of d2) {
+                            const last = reply.clone();
+                            last.play({ from: f2, to: t2 });
+                            if (last.isCheckmate()) mates = true;
+                        }
+                    if (!mates) return false;
+                }
+            return true;
+        }
+        case "queenFork":
+        case "rookFork":
+        case "pawnFork": {
+            const role = { queenFork: "queen", rookFork: "rook", pawnFork: "pawn" }[lesson.check];
+            const targets = after.board[them].diff(after.board.pawn);
+            const hit = attacks(piece, move.to, after.board.occupied).intersect(targets);
+            return piece.role === role && !captured && hit.size() >= 2 && (role === "pawn" || safe);
+        }
         case "umbrella": {
             // Der König stellt sich direkt vor einen gegnerischen Bauern
             const ahead = move.to + (pos.turn === "white" ? 8 : -8);
@@ -139,15 +168,15 @@ function motif(lesson: Lesson, task: LessonTask, san: string): boolean {
 }
 
 describe("Lektionen", () => {
-    it("zehn Pfade mit je drei Lektionen und drei Aufgaben", () => {
-        expect(LESSONS).toHaveLength(30);
+    it("zwölf Pfade mit je drei Lektionen und drei Aufgaben", () => {
+        expect(LESSONS).toHaveLength(36);
         for (const path of LESSON_PATHS)
             expect(LESSONS.filter((l) => l.path === path)).toHaveLength(3);
         // Die Pfade liegen in Reihenfolge hintereinander
         expect(LESSONS.map((l) => LESSON_PATHS.indexOf(l.path))).toEqual(
             [...LESSONS.map((l) => LESSON_PATHS.indexOf(l.path))].sort((a, b) => a - b),
         );
-        expect(new Set(LESSONS.map((l) => l.id)).size).toBe(30);
+        expect(new Set(LESSONS.map((l) => l.id)).size).toBe(36);
         for (const l of LESSONS) {
             expect(l.tasks).toHaveLength(3);
             taskPosition(l.example.fen);
@@ -177,6 +206,28 @@ describe("Lektionen", () => {
     });
 });
 
+describe("Folgezüge", () => {
+    it("alle Folgen sind gültige Züge, Aufgaben-Folgen beginnen nach der Lösung", () => {
+        for (const lesson of LESSONS) {
+            const ex = exampleLine(lesson);
+            expect(playLine(lesson.example.fen, ex)).toHaveLength(ex.length);
+            for (const [i, task] of lesson.tasks.entries()) {
+                const line = taskLine(lesson, i, task.solutions[0]);
+                expect(playLine(task.fen, line)).toHaveLength(line.length);
+            }
+        }
+        // Nur bei der Hauptlösung, sonst passt die Folge nicht
+        const fork = LESSONS.find((l) => l.id === "fork")!;
+        expect(taskLine(fork, 0, fork.tasks[0].solutions[0]).length).toBeGreaterThan(1);
+        expect(taskLine(fork, 0, "Kd2")).toEqual([]);
+    });
+    it("spielt Züge mit Stellung und letztem Zug", () => {
+        const steps = playLine("4k3/8/8/8/8/8/8/R3K3 w - - 0 1", ["Ra8+", "Kd7", "Xx9"]);
+        expect(steps.map((s) => s.san)).toEqual(["Ra8+", "Kd7"]);
+        expect(steps[0].lastMove).toEqual(["a1", "a8"]);
+    });
+});
+
 describe("Lernpfad", () => {
     it("Einstieg und Freischalten je Level", () => {
         expect(unlockedLessons(1, "rules")).toBe(1);
@@ -195,9 +246,10 @@ describe("Lernpfad", () => {
         expect(visibleLessons(ids(0, 15))).toBe(18);
         expect(visibleLessons(ids(0, 24))).toBe(27);
         expect(visibleLessons(ids(0, 27))).toBe(30);
-        expect(visibleLessons(ids(0, 30))).toBe(30);
+        expect(visibleLessons(ids(0, 30))).toBe(33);
+        expect(visibleLessons(ids(0, 36))).toBe(36);
         // Stellungsspiel kommt erst nach allen Taktik- und Endspiel-Reihen
-        expect(LESSONS.slice(24).map((l) => l.path)).toEqual([
+        expect(LESSONS.slice(24, 30).map((l) => l.path)).toEqual([
             "position",
             "position",
             "position",
