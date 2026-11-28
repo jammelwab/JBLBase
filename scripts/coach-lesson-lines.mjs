@@ -114,9 +114,18 @@ const NO_LINE = new Set(["castle", "outpost", "openFile", "seventhRank", "blocka
 // Bauern- und Königsendspiele: die ruhigen Züge sind der Inhalt
 const KEEP_QUIET = new Set(["opposition", "breakthrough", "square", "passedPawn", "umbrella"]);
 
+// Bauernrennen: bis zur eigenen Umwandlung weiterspielen, damit man den Bauern laufen sieht
+const TO_PROMOTION = new Set(["breakthrough", "square", "passedPawn"]);
+const PROMOTION_PLIES = 16;
+
 // Taktik: hinten ruhige Züge abschneiden, die Folge endet mit dem Gewinn
-function trim(sans, id) {
-  if (KEEP_QUIET.has(id)) return sans;
+function trim(sans, id, plies) {
+  if (TO_PROMOTION.has(id)) {
+    const promo = sans.findIndex((san, i) => i % 2 === 0 && san.includes("="));
+    return promo >= 0 ? sans.slice(0, promo + 1) : sans.slice(0, plies);
+  }
+  if (KEEP_QUIET.has(id)) return sans.slice(0, plies);
+  sans = sans.slice(0, plies);
   let end = 0;
   // Nur eigene Züge (gerade Indizes) zählen als Gewinn
   sans.forEach((san, i) => {
@@ -135,7 +144,7 @@ for (const lesson of readLessons()) {
       ? lesson.example.arrow
       : "";
   const exPv = await e.pv(lesson.example.fen, first);
-  const exLine = trim(toSans(lesson.example.fen, exPv, EXAMPLE_PLIES), lesson.id);
+  const exLine = trim(toSans(lesson.example.fen, exPv, PROMOTION_PLIES), lesson.id, EXAMPLE_PLIES);
   if (exLine.length) examples[lesson.id] = exLine;
   tasks[lesson.id] = [];
   for (const task of lesson.tasks) {
@@ -143,7 +152,9 @@ for (const lesson of readLessons()) {
     const pv = uci ? await e.pv(task.fen, uci) : [];
     // Ohne den ersten Zug (das ist die Lösung)
     // Ohne den ersten Zug (das ist die Lösung); getrimmt wird mit ihm
-    const sans = trim(toSans(task.fen, pv, TASK_PLIES + 1), lesson.id).slice(1);
+    const sans = trim(toSans(task.fen, pv, PROMOTION_PLIES + 1), lesson.id, TASK_PLIES + 1).slice(
+      1,
+    );
     tasks[lesson.id].push(sans);
   }
   console.error(
