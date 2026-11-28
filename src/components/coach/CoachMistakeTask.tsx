@@ -1,12 +1,12 @@
-import { Badge, Box, Button, Card, Group, Paper, Stack, Text } from "@mantine/core";
+import { ActionIcon, Badge, Box, Button, Card, Group, Paper, Stack, Text } from "@mantine/core";
 import type { Key } from "@lichess-org/chessground/types";
-import { IconTargetArrow } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconTargetArrow } from "@tabler/icons-react";
 import { useSetAtom } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { boardMoves, sanToSquares, squaresToSan } from "@/utils/gamesTree";
 import CoachFigure, { type CoachFigureHandle } from "./CoachFigure";
-import { lineSteps, solutionMotif } from "./coachDeep";
+import { linePoint, lineSteps, moveNumber, solutionMotif } from "./coachDeep";
 import { type CoachMistake, coachMistakeDoneAtom, XP } from "./coachProgress";
 import CoachBoard from "./CoachBoard";
 
@@ -44,13 +44,38 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
   };
 
   const solution = mistake.solutions[0];
-  const arrow = state === "shown" ? sanToSquares(mistake.fen, solution) : null;
   const firstTry = state === "solved" && tries === 0;
-  const fen = found ? (lineSteps(mistake.fen, [found], 1)[0]?.fen ?? mistake.fen) : mistake.fen;
-  // Steckt ein Taktikmotiv in der Lösung, erklärt JBL es
+  // Nach der Lösung (gefunden oder gezeigt) spielt JBL die Folge des besten
+  // Zugs vor, so weit, bis man sieht, was er bringt (1.2.34)
+  const shownMove = state === "solved" ? found : state === "shown" ? solution : null;
+  const follow = useMemo(() => {
+    const line = mistake.line ?? [];
+    if (!shownMove || line[0] !== shownMove) return [];
+    const point = linePoint(mistake.fen, line);
+    return lineSteps(mistake.fen, line, Math.max(1, point.plies));
+  }, [mistake.fen, mistake.line, shownMove]);
+  const followPoint = useMemo(() => linePoint(mistake.fen, mistake.line ?? []), [mistake]);
+  const [step, setStep] = useState(1);
+  const current = follow.length > 0 ? follow[Math.min(step, follow.length) - 1] : null;
+  const arrow =
+    current !== null
+      ? [current.from, current.to]
+      : state === "shown"
+        ? sanToSquares(mistake.fen, solution)
+        : null;
+  const fen = current
+    ? current.fen
+    : found
+      ? (lineSteps(mistake.fen, [found], 1)[0]?.fen ?? mistake.fen)
+      : mistake.fen;
+  // Ply der Ausgangsstellung, für die Zugnummern der Folge
+  const basePly =
+    (Number(mistake.fen.split(" ")[5]) || 1) * 2 - (mistake.fen.split(" ")[1] === "w" ? 1 : 0);
+  // Steckt ein Taktikmotiv in der Lösung, erklärt JBL es, auch wenn er sie
+  // zeigen musste
   const motif = useMemo(
-    () => (found ? solutionMotif(mistake.fen, found, mistake.before, solution) : null),
-    [found, mistake.fen, mistake.before, solution],
+    () => (shownMove ? solutionMotif(mistake.fen, shownMove, mistake.before, solution) : null),
+    [shownMove, mistake.fen, mistake.before, solution],
   );
   useEffect(() => {
     if (motif) figure.current?.play("good");
@@ -72,7 +97,7 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
             turnColor={turn}
             orientation={turn}
             fen={fen}
-            lastMove={lastMove}
+            lastMove={current ? ([current.from, current.to] as Key[]) : lastMove}
             movable={{
               free: false,
               color: state === "open" ? turn : undefined,
@@ -87,7 +112,14 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
               enabled: false,
               visible: true,
               autoShapes: arrow
-                ? [{ orig: arrow[0] as Key, dest: arrow[1] as Key, brush: "green" }]
+                ? [
+                    {
+                      orig: arrow[0] as Key,
+                      dest: arrow[1] as Key,
+                      // Deine Züge grün, die des Gegners rot
+                      brush: current && step % 2 === 0 ? "red" : "green",
+                    },
+                  ]
                 : [],
             }}
           />
@@ -138,6 +170,46 @@ export default function CoachMistakeTask({ mistake }: { mistake: CoachMistake })
           )}
           {state === "shown" && (
             <Text size="sm">{t("Coach.Mistake.Shown", { move: solution })}</Text>
+          )}
+          {follow.length > 1 && current && (
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed">
+                {t(step % 2 === 1 ? "Coach.Mistake.StepYou" : "Coach.Mistake.StepThem", {
+                  move: `${moveNumber(basePly + step - 1)}${current.san}`,
+                })}
+                {step === follow.length && followPoint.kind !== "quiet" && (
+                  <Text span fw={600} c="var(--mantine-color-text)">
+                    {" "}
+                    {followPoint.kind === "mate"
+                      ? t("Coach.Deep.EndMate")
+                      : t("Coach.Deep.EndGain", { count: followPoint.gain })}
+                  </Text>
+                )}
+              </Text>
+              <Group gap={6}>
+                <ActionIcon
+                  variant="light"
+                  color="gray"
+                  disabled={step <= 1}
+                  onClick={() => setStep(step - 1)}
+                  aria-label={t("Coach.Deep.Prev")}
+                >
+                  <IconChevronLeft size={18} />
+                </ActionIcon>
+                <Text size="sm" fw={600}>
+                  {t("Coach.Deep.StepOf", { n: step, total: follow.length })}
+                </Text>
+                <ActionIcon
+                  variant="light"
+                  color="gray"
+                  disabled={step >= follow.length}
+                  onClick={() => setStep(step + 1)}
+                  aria-label={t("Coach.Deep.Next")}
+                >
+                  <IconChevronRight size={18} />
+                </ActionIcon>
+              </Group>
+            </Stack>
           )}
           {state !== "open" ? (
             <Button color="orange" radius="md" onClick={() => done(state === "solved", firstTry)}>

@@ -41,8 +41,15 @@ function attackersOf(pos: Chess, square: Square, by: Color): number {
 
 // Motive in der Antwort des Gegners. fen: Stellung nach deinem Zug,
 // line: die Engine-Linie ab dort (der Gegner zieht zuerst), mateIn: falls der
-// Gegner nach deinem Zug Matt setzen kann (Züge bis Matt).
-export function detectMotifs(fen: string, line: string[], mateIn: number | null): Motif[] {
+// Gegner nach deinem Zug Matt setzen kann (Züge bis Matt). trade: Feld und
+// Wert dessen, was dein Zug dort geschlagen hat; wird die Figur dort
+// zurückgeschlagen, ist das ein Abtausch und keine ungedeckte Figur (1.2.34).
+export function detectMotifs(
+    fen: string,
+    line: string[],
+    mateIn: number | null,
+    trade: { square: string; value: number } | null = null,
+): Motif[] {
     const setup = parseFen(fen);
     if (setup.isErr) return [];
     const pos = Chess.fromSetup(setup.value);
@@ -63,7 +70,8 @@ export function detectMotifs(fen: string, line: string[], mateIn: number | null)
     const victim = before.board.get(move.to);
     if (victim && victim.color === you && victim.role !== "pawn") {
         const defended = attackersOf(before, move.to, you) > 0;
-        if (!defended) {
+        const traded = trade?.square === makeSquare(move.to) && trade.value >= VALUE[victim.role];
+        if (!defended && !traded) {
             out.push({
                 id: "hanging",
                 text: `undefended ${NAME[victim.role]} on ${makeSquare(move.to)} is lost`,
@@ -90,7 +98,10 @@ export function detectMotifs(fen: string, line: string[], mateIn: number | null)
             attackersOf(after, sq, you) === 0;
         if (worthIt) hits.push(sq);
     }
-    if (hits.length >= 2) {
+    // Kannst du die gabelnde Figur einfach schlagen, ist es keine Gabel (1.2.34)
+    const forkerFree =
+        attackersOf(after, move.to, you) > 0 && attackersOf(after, move.to, them) === 0;
+    if (hits.length >= 2 && !forkerFree) {
         const names = hits.map((sq) => NAME[after.board.get(sq)!.role]).join(" and ");
         out.push({
             id: "fork",
@@ -108,6 +119,13 @@ export function detectMotifs(fen: string, line: string[], mateIn: number | null)
         for (const front of attacks(piece, move.to, occ)) {
             const a = after.board.get(front);
             if (!a || a.color !== you) continue;
+            // Kann die vordere Figur den Angreifer einfach schlagen (ungedeckt
+            // oder nicht weniger wert), ist da weder Fesselung noch Spieß (1.2.34)
+            if (
+                attacks(a, front, occ).has(move.to) &&
+                (attackersOf(after, move.to, them) === 0 || VALUE[a.role] <= VALUE[piece.role])
+            )
+                continue;
             // Was steht hinter der ersten Figur auf derselben Linie?
             const behind = attacks(piece, move.to, occ.without(front)).diff(
                 attacks(piece, move.to, occ),
@@ -116,14 +134,35 @@ export function detectMotifs(fen: string, line: string[], mateIn: number | null)
                 const b = after.board.get(back);
                 if (!b || b.color !== you) continue;
                 if (!between(move.to, back).has(front)) continue;
-                if (VALUE[b.role] > VALUE[a.role] && b.role !== "pawn") {
+                // 1.2.34: Ein Bauer vorne ist keine Fesselung, die man erklären
+                // müsste, und dahinter muss mehr stehen als der Angreifer wert ist
+                // (oder der König), sonst gewinnt die Linie nichts.
+                const backCounts = b.role === "king" || VALUE[b.role] > VALUE[piece.role];
+                // Spieß: vorne steht der König oder eine Figur, die mehr wert ist
+                // als der Angreifer, dahinter kein Bauer (Stichproben 1.2.34:
+                // „Spieß Dame und Bauer“ war fast immer falsch).
+                const frontMustMove =
+                    a.role === "king" ||
+                    VALUE[a.role] > VALUE[piece.role] ||
+                    attackersOf(after, front, you) === 0;
+                if (
+                    VALUE[b.role] > VALUE[a.role] &&
+                    a.role !== "pawn" &&
+                    b.role !== "pawn" &&
+                    backCounts
+                ) {
                     out.push({
                         id: "pin",
                         text: `pin ${NAME[a.role]} ${makeSquare(front)} to ${NAME[b.role]}`,
                         from: makeSquare(move.to),
                         targets: [makeSquare(front), makeSquare(back)],
                     });
-                } else if (VALUE[a.role] > VALUE[b.role] && a.role !== "pawn") {
+                } else if (
+                    VALUE[a.role] > VALUE[b.role] &&
+                    a.role !== "pawn" &&
+                    b.role !== "pawn" &&
+                    frontMustMove
+                ) {
                     out.push({
                         id: "skewer",
                         text: `skewer ${NAME[a.role]} ${makeSquare(front)} and ${NAME[b.role]}`,

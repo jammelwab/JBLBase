@@ -73,6 +73,28 @@ test("prompt carries only the facts", () => {
     assert.match(p, /Matt auf f7/);
 });
 
+test("deep: better line with move numbers, opponent line after the move", () => {
+    const r = parseExplainRequest({
+        ...good,
+        mode: "deep",
+        fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+        move: "f6",
+        best: "Nc6",
+        line: ["Nxe5", "fxe5", "Qh5+"],
+        bestLine: ["Nc6", "Bb5"],
+    })!;
+    assert.deepEqual(r.bestLine, ["Nc6", "Bb5"]);
+    const p = explainPrompt(r);
+    assert.match(p, /opponent moves first\): 3\.Nxe5 fxe5 4\.Qh5\+/);
+    assert.match(p, /player moves first\): 2\.\.\.Nc6 3\.Bb5/);
+    // Ohne besseren Zug keine bessere Folge, und zu lange Folgen sind ungültig
+    assert.deepEqual(
+        parseExplainRequest({ ...good, mode: "deep", bestLine: ["e4"] })?.bestLine,
+        [],
+    );
+    assert.equal(parseExplainRequest({ ...good, bestLine: new Array(9).fill("e4") }), null);
+});
+
 test("daily limit per player", () => {
     assert.deepEqual(nextUsage(undefined, "2026-11-21"), {
         allowed: true,
