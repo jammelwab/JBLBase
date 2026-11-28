@@ -741,6 +741,41 @@ Kostenbremse und Rollen. Beschreibung in `firebase/README.md`, die Schritte
 in der Konsole in `firebase/SETUP.md`. Ohne Anmeldung ändert sich an der App
 nichts.
 
+### Rollen und Einzelrechte (ab 1.2.35)
+
+Drei Stufen: **Nutzer**, **Nutzer mit Rechten** und **Admin**. Admins vergeben
+die Rechte in der App unter Einstellungen → Admin → **Konten und Rechte**: Die
+Liste zeigt alle Konten der Cloud (Name, E-Mail oder Lichess, Freigabe,
+zuletzt aktiv) mit einem Schalter je Recht und einem für die Admin-Rolle.
+
+| Recht          | Was es erlaubt                                                                          |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `deepEvals`    | Bewertungen ohne Tiefengrenze 28 speichern (lokal und in der Cloud)                     |
+| `sharedEvals`  | In den gemeinsamen Positionsspeicher `evals` schreiben (bis 28, mit `deepEvals` tiefer) |
+| `noLimits`     | Cloud-Sync pausiert nicht an den Tageslimits                                            |
+| `coachTest`    | Coach-Level mit − und + setzen, Partien lösen keinen Boss aus                           |
+| `motifTrainer` | Motiv-Trainer (Reversing Mate)                                                          |
+
+Admins haben jedes Recht. Die eigene Admin-Rolle kann man sich nicht nehmen.
+
+- Gespeichert als Custom Claims im Firebase-Konto (`admin: true`,
+  `perms: { deepEvals: true, … }`). Setzen darf sie nur die Function
+  `adminSetPermissions`, und die nur für Aufrufer mit `admin: true`. Die Liste
+  kommt von `adminListUsers` (ebenfalls nur für Admins). Code:
+  `firebase/functions/src/roles.ts`.
+- Die Sicherheitsregeln prüfen die Rechte im Token (`hasPerm` in
+  `firebase/firestore.rules`), ein Konto kann sie sich also nicht selbst geben.
+- `adminSetPermissions` schreibt zusätzlich `roles/{uid}` (nur lesbar, für die
+  App gesperrt). Die App des Kontos hört darauf (`src/utils/cloud/rolesWatch.ts`)
+  und erneuert ihr Token, sobald das Dokument neuer ist. Neue Rechte gelten so
+  sofort, ohne Ab- und Anmelden.
+- Im Code: `can(account, "deepEvals")` aus `src/utils/cloud/permissions.ts`
+  oder der Hook `useCan("coachTest")` (`tutorialState.ts`). Ein neues Recht
+  kommt in `PERMISSIONS` in `permissions.ts` und `roles.ts` und bekommt die
+  Texte `Settings.Cloud.Perm.<name>` und `Settings.Cloud.Perm.<name>.Desc`.
+- Im Profil (Einstellungen → JBLBase-Konto) zeigt das Abzeichen die Stufe, bei
+  „Nutzer mit Rechten“ darunter die Rechte.
+
 ### Ein Profil pro Konto (ab 1.2.13)
 
 Jedes Konto hat sein eigenes Profil auf dem Gerät. Zum Profil gehört alles, was dem Spieler gehört: die Einstellungen und Stände der App (localStorage, darunter Coach, zuletzt geöffnete Dateien, Ordner-Einstellungen), der Dateien-Ordner mit Repertoires, der Datenbanken-Ordner, Training, Statistik, Puzzle-Bewertung und Sicherungen. Gemeinsam für alle Konten bleiben die Engines, die Puzzle-Datenbanken, der Analyse-Speicher und Geräte-Einstellungen wie Fenstergröße.

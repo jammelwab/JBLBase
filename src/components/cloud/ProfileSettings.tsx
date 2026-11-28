@@ -19,6 +19,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import LichessLogo from "@/components/home/LichessLogo";
+import { accountLevel, PERMISSIONS } from "@/utils/cloud/permissions";
 import { activeTabAtom, tabsAtom } from "@/state/atoms";
 import type { LegalDocument } from "@/legal/legal";
 import {
@@ -109,6 +110,14 @@ function SignedOut() {
   );
 }
 
+// Drei Stufen (1.2.35): Nutzer, Nutzer mit Einzelrechten, Admin
+const LEVEL_LABEL = {
+  admin: "Settings.Cloud.RoleAdmin",
+  extended: "Settings.Cloud.RoleExtended",
+  user: "Settings.Cloud.RoleUser",
+} as const;
+const LEVEL_COLOR = { admin: "orange", extended: "grape", user: "blue" } as const;
+
 function initials(name: string): string {
   const parts = name
     .replace(/@.*/, "")
@@ -142,6 +151,7 @@ function SignedIn({ account, busy, run }: { account: CloudAccount; busy: boolean
   }, [account.uid]);
 
   const name = (account.method === "lichess" ? account.displayName : account.email) ?? "";
+  const level = accountLevel(account);
 
   return (
     <Stack gap="lg">
@@ -154,10 +164,8 @@ function SignedIn({ account, busy, run }: { account: CloudAccount; busy: boolean
             <Stack gap={2}>
               <Group gap="xs">
                 <Text fw={600}>{name}</Text>
-                <Badge variant="light" color={account.role === "admin" ? "orange" : "blue"}>
-                  {account.role === "admin"
-                    ? t("Settings.Cloud.RoleAdmin")
-                    : t("Settings.Cloud.RoleUser")}
+                <Badge variant="light" color={LEVEL_COLOR[level]}>
+                  {t(LEVEL_LABEL[level])}
                 </Badge>
               </Group>
               <Text size="xs" c="dimmed">
@@ -178,10 +186,17 @@ function SignedIn({ account, busy, run }: { account: CloudAccount; busy: boolean
           </Button>
         </Group>
         <Text size="xs" c="dimmed" mt="sm">
-          {account.role === "admin"
-            ? t("Settings.Cloud.RoleAdmin.Desc")
-            : t("Settings.Cloud.RoleUser.Desc")}
+          {t(`${LEVEL_LABEL[level]}.Desc`)}
         </Text>
+        {level === "extended" && (
+          <Group gap={4} mt={6}>
+            {PERMISSIONS.filter((p) => account.perms[p]).map((p) => (
+              <Badge key={p} size="sm" variant="outline" color="grape">
+                {t(`Settings.Cloud.Perm.${p}`)}
+              </Badge>
+            ))}
+          </Group>
+        )}
         {account.method === "email" && !account.emailVerified && (
           <Alert color="yellow" mt="sm">
             <Group justify="space-between">

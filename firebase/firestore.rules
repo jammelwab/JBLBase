@@ -3,8 +3,12 @@ rules_version = '2';
 // JBLBase security rules.
 //
 // - Every user reads and writes only below users/{uid}.
-// - The role "admin" is a custom claim on the Firebase account. It is set
-//   only by scripts/set-role.mjs (Admin SDK), never by the app.
+// - The role "admin" is a custom claim on the Firebase account. Single
+//   permissions for normal users (1.2.35) are the custom claim
+//   perms: { <name>: true }. Both are set only by the Admin SDK: the
+//   function adminSetPermissions (callable by admins only) or
+//   scripts/set-role.mjs, never by the app itself. roles/{uid} mirrors
+//   them read-only for the account.
 // - Users store their own evaluations up to depth 28. Proven mates are
 //   always allowed, because engines report them with an artificial depth.
 //   Admins have no limit.
@@ -30,6 +34,14 @@ service cloud.firestore {
 
     function isAdmin() {
       return signedIn() && request.auth.token.get('admin', false) == true;
+    }
+
+    // A single permission (1.2.35): admins have all of them. Keep the names
+    // in sync with PERMISSIONS in functions/src/roles.ts and
+    // src/utils/cloud/permissions.ts.
+    function hasPerm(name) {
+      return signedIn()
+        && (isAdmin() || request.auth.token.get('perms', {}).get(name, false) == true);
     }
 
     // The cloud is private: only accounts on the allowlist config/access
@@ -159,9 +171,10 @@ service cloud.firestore {
         && d.acceptedAt == request.time;
     }
 
-    // Depth limit for normal users; admins and mates are exempt.
+    // Depth limit for normal users; admins, the permission deepEvals and
+    // mates are exempt.
     function withinUserLimit(d) {
-      return isAdmin()
+      return hasPerm('deepEvals')
         || isMate(d)
         || (d.depth <= userMaxDepth() && d.lines[0].depth <= userMaxDepth());
     }
@@ -379,11 +392,22 @@ service cloud.firestore {
         && (resource.data.ownerUid == request.auth.uid || isShareRecipient(resource.data));
     }
 
-    // Shared position store: every member reads, only admins write.
+    // Shared position store: every member reads, admins write. Members with
+    // the permission sharedEvals write too, within their depth limit.
     match /evals/{evalId} {
       allow read: if member();
-      allow create, update: if isAdmin() && validEval(request.resource.data);
+      allow create, update: if validEval(request.resource.data)
+        && (isAdmin()
+          || (member() && hasPerm('sharedEvals') && withinUserLimit(request.resource.data)));
       allow delete: if isAdmin();
+    }
+
+    // Role and permissions of an account (1.2.35), written only by the
+    // function adminSetPermissions. The account reads its own to notice a
+    // change and refresh its token; admins read all.
+    match /roles/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow write: if false;
     }
 
     // Usage limits per account and day (#114). Edited in the Firebase

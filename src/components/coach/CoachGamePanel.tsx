@@ -56,7 +56,7 @@ import {
 } from "./coachEggs";
 import { BunnyBlast, CoachDog, LambruscoCart, PenaltyTicket } from "./CoachEggArt";
 import { coachProfileAtom } from "./coachProfile";
-import { useIsAdmin } from "@/components/tutorial/tutorialState";
+import { useCan } from "@/components/tutorial/tutorialState";
 
 const SIGN_COLOR: Record<string, string> = {
   "!!": "#1baca6",
@@ -173,7 +173,8 @@ export default function CoachGamePanel({
   } | null>(null);
 
   const profile = useAtomValue(coachProfileAtom);
-  const isAdmin = useIsAdmin();
+  // Testkonten (Admins, Recht coachTest) lösen keinen Boss aus
+  const isAdmin = useCan("coachTest");
   const line = (lineKey: string, extra = "") => {
     const key = pickLine(lineKey, recent.current);
     recent.current = [key, ...recent.current].slice(0, 20);

@@ -24,6 +24,7 @@ import { TreeStateContext } from "@/components/common/TreeStateContext";
 import { enginesAtom, referenceDbAtom } from "@/state/atoms";
 import { parseSanOrUci, positionFromFen } from "@/utils/chessops";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
+import { can } from "@/utils/cloud/permissions";
 import type { LocalEngine } from "@/utils/engines";
 import { engineFamily, trackUsage } from "@/utils/usageStats";
 
@@ -143,7 +144,7 @@ function ReportModal({
   const positions = moves.length + 1;
   const depthCapped =
     !!account &&
-    account.role !== "admin" &&
+    !can(account, "deepEvals") &&
     goMode.t === "Depth" &&
     goMode.c > USER_MAX_STORE_DEPTH;
 
