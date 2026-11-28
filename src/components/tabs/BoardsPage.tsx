@@ -20,6 +20,7 @@ import { BoardTab } from "./BoardTab";
 import ConfirmChangesModal from "./ConfirmChangesModal";
 import NewTabHome from "./NewTabHome";
 import CoachPage from "@/components/coach/CoachPage";
+import MotifTrainerPage from "@/components/motifs/MotifTrainerPage";
 
 import "react-mosaic-component/react-mosaic-component.css";
 
@@ -358,6 +359,7 @@ function TabSwitch({
       {match(tab.type)
         .with("new", () => <NewTabHome id={tab.value} />)
         .with("coach", () => <CoachPage id={tab.value} />)
+        .with("motifs", () => <MotifTrainerPage />)
         .with("play", () => (
           <TreeStateProvider id={tab.value}>
             <Mosaic<ViewId>

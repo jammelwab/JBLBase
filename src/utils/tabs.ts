@@ -61,7 +61,7 @@ const gameOriginSchema = z.discriminatedUnion("kind", [
 export const tabSchema = z.object({
     name: z.string(),
     value: z.string(),
-    type: z.enum(["new", "play", "analysis", "puzzles", "coach"]),
+    type: z.enum(["new", "play", "analysis", "puzzles", "coach", "motifs"]),
     gameOrigin: gameOriginSchema,
     // Partie gegen JBL (Coach)
     coach: z.boolean().optional(),

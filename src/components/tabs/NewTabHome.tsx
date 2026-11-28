@@ -11,7 +11,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
-import { useAtom, useSetAtom, useStore } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useState } from "react";
 import {
   activeTabAtom,
@@ -24,6 +24,8 @@ import {
 import type { Tab } from "@/utils/tabs";
 import { isInTempDir } from "@/utils/tabs";
 import CoachCard from "@/components/coach/CoachCard";
+import { canUseMotifTrainer } from "@/components/motifs/motifStore";
+import { cloudAccountAtom } from "@/utils/cloud/sync";
 import CreateRepertoireModal from "./CreateRepertoireModal";
 import ImportModal from "./ImportModal";
 import { useOpenRecentFile } from "./useOpenRecentFile";
@@ -33,6 +35,7 @@ import {
   IconClock,
   IconFileImport,
   IconPuzzle,
+  IconCrown,
   IconTarget,
   IconTargetArrow,
 } from "@tabler/icons-react";
@@ -154,6 +157,8 @@ export default function NewTabHome({ id }: { id: string }) {
     });
   };
 
+  const motifsAllowed = canUseMotifTrainer(useAtomValue(cloudAccountAtom));
+
   const cards = [
     {
       icon: <IconChess size={60} />,
@@ -202,6 +207,26 @@ export default function NewTabHome({ id }: { id: string }) {
         });
       },
     },
+    // Motiv-Trainer (1.2.32): nur mit dem Recht "motifTrainer"
+    ...(motifsAllowed
+      ? [
+          {
+            icon: <IconCrown size={60} />,
+            title: t("Motifs.Card.Title"),
+            description: t("Motifs.Card.Desc"),
+            label: t("Motifs.Card.Button"),
+            onClick: () => {
+              setTabs((prev) => {
+                const tab = prev.find((t) => t.value === id);
+                if (!tab) return prev;
+                tab.name = t("Motifs.Title");
+                tab.type = "motifs";
+                return [...prev];
+              });
+            },
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -214,7 +239,7 @@ export default function NewTabHome({ id }: { id: string }) {
       />
       <CreateRepertoireModal opened={openRepertoireModal} setOpened={setOpenRepertoireModal} />
       <Stack gap="lg" pt="sm">
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} data-tour="home-cards">
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: motifsAllowed ? 6 : 5 }} data-tour="home-cards">
           {cards.flatMap((card, i) => [
             i === 3 && <CoachCard key="coach" id={id} />,
             <Card
