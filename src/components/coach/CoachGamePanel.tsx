@@ -157,7 +157,15 @@ export default function CoachGamePanel({
   const finishGame = useSetAtom(finishCoachGameAtom);
   const pathEvent = useSetAtom(coachPathEventAtom);
   const stats = useRef({ brilliants: 0, goods: 0, blunders: 0 });
-  const worst = useRef<{ severity: number; mistake: CoachMistake } | null>(null);
+  // Eigene Fehler je Halbzug (1.2.34: nach dem Zurücknehmen ersetzt der neue
+  // Zug den alten, statt dass ein zurückgenommener Fehler stehen bleibt)
+  const mistakes = useRef(new Map<number, { severity: number; mistake: CoachMistake }>());
+  const worstMistake = (upToPly: number) => {
+    let worst: { severity: number; mistake: CoachMistake } | null = null;
+    for (const [ply, m] of [...mistakes.current].sort((a, b) => a[0] - b[0]))
+      if (ply <= upToPly && (!worst || m.severity > worst.severity)) worst = m;
+    return worst;
+  };
   const bonusTrack = useAtomValue(coachBonusTrackAtom);
   const [receipt, setReceipt] = useState<{
     lines: ReceiptLine[];
@@ -274,6 +282,9 @@ export default function CoachGamePanel({
         subtitle: t("Coach.Celebrate.ComboSub"),
       });
     if (comment.opening) opening.current = comment.opening;
+    // Ein neuer Zug auf diesem Halbzug (nach dem Zurücknehmen) ersetzt den alten
+    delete marks.current[comment.ply];
+    mistakes.current.delete(comment.ply);
     const motif = (SEVERITY[comment.reaction] ?? 0) > 0 ? (motifsFor(comment)[0] ?? null) : null;
     history.current = [
       ...history.current.filter((m) => m.ply !== comment.ply),
@@ -326,20 +337,17 @@ export default function CoachGamePanel({
     if (comment.reaction === "blunder" || comment.reaction === "missedMate")
       stats.current.blunders++;
     const severity = SEVERITY[comment.reaction] ?? 0;
-    if (
-      severity > 0 &&
-      comment.solutions.length > 0 &&
-      (!worst.current || severity > worst.current.severity)
-    )
-      worst.current = {
+    if (severity > 0 && comment.solutions.length > 0)
+      mistakes.current.set(comment.ply, {
         severity,
         mistake: {
           fen: comment.fen,
           played: comment.san,
           solutions: comment.solutions,
           before: comment.before,
+          line: comment.best && comment.solutions[0] === comment.best ? comment.bestLine : [],
         },
-      };
+      });
     const sign = REACTION_SIGN[comment.reaction];
     const better =
       comment.best && ["dubious", "mistake", "blunder"].includes(comment.reaction)
@@ -425,7 +433,7 @@ export default function CoachGamePanel({
     if (gameState === "playing") {
       stats.current = { brilliants: 0, goods: 0, blunders: 0 };
       combo.current = 0;
-      worst.current = null;
+      mistakes.current.clear();
       marks.current = {};
       reported.current = { own: false, end: false };
       setDeparture(null);
@@ -475,6 +483,7 @@ export default function CoachGamePanel({
       playCoachTone(outcome);
       setDiary((d) => addToDiary(d, diaryGame(root, humanColor, outcome, marks.current, today())));
       if (plan?.index) setDeparture(repertoireDeparture(root, humanColor, plan.index));
+      const worst = worstMistake(lastNode.halfMoves);
       // Zählt für den weiteren Pfad, bevor die Partie den Tag verändert
       pathEvent("game");
       const done = finishGame({
@@ -482,7 +491,7 @@ export default function CoachGamePanel({
         strength,
         takebacks,
         ...stats.current,
-        mistake: worst.current?.mistake ?? null,
+        mistake: worst?.mistake ?? null,
         lambrusco: lambrusco.current,
         boss,
         isAdmin,
@@ -537,7 +546,7 @@ export default function CoachGamePanel({
         brilliants: stats.current.brilliants,
         blunders: stats.current.blunders,
         takebacks,
-        missedMate: worst.current?.severity === SEVERITY.missedMate,
+        missedMate: worst?.severity === SEVERITY.missedMate,
         kingMate: humanKingMate(root, humanColor),
         knightPromotion: humanKnightPromotion(root, humanColor),
         repertoireMate: !!plan?.index && repertoireToMate(root, humanColor, plan.index),

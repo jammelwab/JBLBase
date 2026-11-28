@@ -22,7 +22,7 @@ export function useIsAdmin(): boolean {
     return useAtomValue(cloudAccountAtom)?.role === "admin";
 }
 
-/** Hat das angemeldete Konto dieses Recht? Admins haben alle (1.2.34). */
+/** Hat das angemeldete Konto dieses Recht? Admins haben alle (1.2.35). */
 export function useCan(perm: Permission): boolean {
     return can(useAtomValue(cloudAccountAtom), perm);
 }

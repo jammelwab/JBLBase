@@ -29,7 +29,7 @@ Alles andere ist gesperrt. Jedes synchronisierte Dokument trägt `syncedAt`
 
 ### Rollen
 
-Es gibt **Nutzer**, **Nutzer mit Rechten** und **Admins** (ab 1.2.34). Die
+Es gibt **Nutzer**, **Nutzer mit Rechten** und **Admins** (ab 1.2.35). Die
 Rolle ist der Custom Claim `admin: true`, die Einzelrechte der Claim
 `perms: { <recht>: true }` (Rechte: `deepEvals`, `sharedEvals`, `noLimits`,
 `coachTest`, `motifTrainer`). Die Regeln prüfen sie mit `hasPerm()`; Admins

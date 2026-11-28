@@ -4,7 +4,7 @@ rules_version = '2';
 //
 // - Every user reads and writes only below users/{uid}.
 // - The role "admin" is a custom claim on the Firebase account. Single
-//   permissions for normal users (1.2.34) are the custom claim
+//   permissions for normal users (1.2.35) are the custom claim
 //   perms: { <name>: true }. Both are set only by the Admin SDK: the
 //   function adminSetPermissions (callable by admins only) or
 //   scripts/set-role.mjs, never by the app itself. roles/{uid} mirrors
@@ -36,7 +36,7 @@ service cloud.firestore {
       return signedIn() && request.auth.token.get('admin', false) == true;
     }
 
-    // A single permission (1.2.34): admins have all of them. Keep the names
+    // A single permission (1.2.35): admins have all of them. Keep the names
     // in sync with PERMISSIONS in functions/src/roles.ts and
     // src/utils/cloud/permissions.ts.
     function hasPerm(name) {
@@ -402,7 +402,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Role and permissions of an account (1.2.34), written only by the
+    // Role and permissions of an account (1.2.35), written only by the
     // function adminSetPermissions. The account reads its own to notice a
     // change and refresh its token; admins read all.
     match /roles/{uid} {

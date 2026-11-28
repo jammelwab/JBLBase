@@ -191,6 +191,24 @@ export function notationSign(o: {
     return "";
 }
 
+// Lässt der Zug ein Matt in 1 zu, das vorher nicht schon unvermeidlich war?
+// (1.2.34) Stand der Spieler schon im erzwungenen Matt, ist jeder Zug
+// „Matt in 1 zugelassen“; dafür gibt es kein ?? und keine Strafe.
+// before: beste Bewertung vor dem Zug, after: nach dem Zug, beide aus Sicht
+// von Weiß; sign: +1 für Weiß, -1 für Schwarz.
+export function allowsNewMateInOne(
+    before: { type: string; value: number } | null | undefined,
+    after: { type: string; value: number },
+    mover: "white" | "black",
+): boolean {
+    const sign = mover === "white" ? 1 : -1;
+    const lostAfter =
+        after.type === "mate" && Math.abs(after.value) === 1 && after.value * sign < 0;
+    if (!lostAfter) return false;
+    const lostBefore = before?.type === "mate" && before.value * sign < 0;
+    return !lostBefore;
+}
+
 // So viel schlechter muss der zweitbeste Zug sein, damit der beste „einzig“ ist
 export const ONLY_MOVE_MARGIN_CP = 150;
 

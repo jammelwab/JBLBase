@@ -238,6 +238,9 @@ export type CoachMistake = {
     // Bewertung vor dem Zug aus Sicht des Spielers ("+M3", "+1.2"), für das
     // Taktikmotiv der Lösung (1.2.14); fehlt bei älteren Aufgaben
     before?: string;
+    // Die Folge der Engine mit dem besten Zug (solutions[0]) ab fen (1.2.34):
+    // nach der Lösung spielt JBL sie vor; fehlt bei älteren Aufgaben
+    line?: string[];
 };
 
 export const coachMistakeAtom = atomWithStorage<CoachMistake | null>("jbl-coach-mistake", null);

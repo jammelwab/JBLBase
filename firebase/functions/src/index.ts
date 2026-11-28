@@ -373,7 +373,7 @@ export const coachExplain = onCall(
     },
 );
 
-// ---------- Rollen und Einzelrechte (1.2.34) ----------
+// ---------- Rollen und Einzelrechte (1.2.35) ----------
 //
 // Das Admin-Fenster der App listet alle Konten und setzt ihnen einzelne
 // Rechte oder die Admin-Rolle. Beides sind Custom Claims; nur diese

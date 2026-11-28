@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import de from "@/translation/de-DE.json";
 import en from "@/translation/en-US.json";
 import {
+    allowsNewMateInOne,
     checkEngineOptions,
     playedScore,
     jblEngineSettings,
@@ -119,5 +120,25 @@ describe("Zugbewertung (1.2.19)", () => {
                 { name: "MultiPV", value: "1" },
             ]),
         ).toEqual([{ name: "Threads", value: "4" }]);
+    });
+});
+
+describe("Matt in 1 zugelassen (1.2.34)", () => {
+    const m = (value: number) => ({ type: "mate", value });
+    const cp = (value: number) => ({ type: "cp", value });
+    it("zählt, wenn vorher noch kein Matt drohte", () => {
+        expect(allowsNewMateInOne(cp(50), m(-1), "white")).toBe(true);
+        expect(allowsNewMateInOne(cp(-50), m(1), "black")).toBe(true);
+        // Eigenes Matt verpasst, aber noch kein Matt gegen dich
+        expect(allowsNewMateInOne(m(3), m(-1), "white")).toBe(true);
+    });
+    it("zählt nicht, wenn das Matt schon unvermeidlich war", () => {
+        // Stichprobe: 41...Kd8, jeder Zug erlaubt Th8#
+        expect(allowsNewMateInOne(m(1), m(1), "black")).toBe(false);
+        expect(allowsNewMateInOne(m(-3), m(-1), "white")).toBe(false);
+    });
+    it("zählt nicht ohne Matt für den Gegner", () => {
+        expect(allowsNewMateInOne(cp(0), m(1), "white")).toBe(false);
+        expect(allowsNewMateInOne(cp(0), cp(-900), "white")).toBe(false);
     });
 });
