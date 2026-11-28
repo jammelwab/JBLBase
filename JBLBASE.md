@@ -532,6 +532,8 @@ In 1.2.28 sind alle 90 Lektionsaufgaben mit Stockfish (Tiefe 20) nachgeprüft: D
 
 Seit 1.2.30 laufen die Coach-Bretter über `CoachBoard` (`src/components/coach/CoachBoard.tsx`): Zieht ein Bauer auf die letzte Reihe (`isPromotion`), erscheint die Figurenauswahl aus `PromotionModal` wie bei den Puzzles. Der Zug geht mit der gewählten Figur an `onMove`. Genutzt in Lektionen, eigenen Fehlern, Linien-Assistent und Duell; `squaresToSan` nimmt die Figur als vierten Wert (ohne Angabe weiter Dame).
 
+Seit 1.2.33 zeigen die Lektionen, wie es nach dem Motiv weitergeht. Im Beispiel spielt „Zeig, wie es weitergeht“ die Folge Zug für Zug ab (`LessonExample`, `useLinePlayer` in `CoachLessons.tsx`), nach einer gelösten Aufgabe läuft die Fortsetzung, dann geht es mit „Weiter“ zur nächsten. Die Züge stehen in `coachLessonLines.ts` und werden mit `node scripts/coach-lesson-lines.mjs` aus Stockfish (Tiefe 20) erzeugt: beim Beispiel ab dem ersten Pfeil bis 6 Halbzüge, bei Aufgaben bis 4 Halbzüge nach der Lösung; bei Taktik endet die Folge mit dem letzten eigenen Schlag, Schach oder der Umwandlung, Endspiel-Lektionen behalten die ruhigen Züge, Rochade und Stellungsspiel haben keine Folge. `playLine` und `taskLine` in `coachLessonsData.ts`; die Folge kommt nur, wenn genau die Hauptlösung gespielt wurde. Dazu zwei neue Reihen: „11. Matt in zwei“ (stiller Zug, Damenopfer, Matt in zwei; der Test prüft, dass nach jeder Antwort ein Matt folgt) und „12. Gabeln“ (Dame, Turm, Bauer greifen zwei Figuren an). Die 24 Stellungen hat ein Suchlauf mit Stockfish gefunden: der erste Zug ist der einzige Matt in zwei bzw. gewinnt klar vor dem zweitbesten.
+
 Fix in 1.2.16: Puzzles und Partie gegen JBL teilen sich den Baum des Tabs. `startGame` in `BoardGame.tsx` startet Coach-Partien deshalb immer ohne `initialFen` und `initialMoves`, und vor dem Start setzt ein Effekt den Baum auf die Grundstellung zurück. Kommt eine Coach-Partie trotzdem nicht aus der Grundstellung, zählt `CoachGamePanel` sie nicht (keine XP, keine Sperre, Hinweis `Coach.Game.NotCounted`).
 
 Seit 1.2.17 öffnet der Coach Repertoires mit `coach: true` am Tab (`openFile`-Option `coach`, `useOpenRecentFile(file, { coach })`). Hat das Training alles geübt, zeigt `PracticePanel` dann „Zum Coach“: Das wechselt zum offenen Coach-Tab oder legt einen neuen an. Außerdem gibt es freies Spiel gegen JBL: Unter der großen Karte steht `FreePlay` (Stärke und „Gegen JBL spielen“), auf der Startkarte ein eigener Knopf, solange der große Knopf nicht schon die Partie ist (`mainIsPlay`). Gesperrt ist es nur, solange `coachLockAtom` > 0 ist (nach einer Niederlage).
@@ -729,7 +731,7 @@ Kostenbremse und Rollen. Beschreibung in `firebase/README.md`, die Schritte
 in der Konsole in `firebase/SETUP.md`. Ohne Anmeldung ändert sich an der App
 nichts.
 
-### Rollen und Einzelrechte (ab 1.2.31)
+### Rollen und Einzelrechte (ab 1.2.34)
 
 Drei Stufen: **Nutzer**, **Nutzer mit Rechten** und **Admin**. Admins vergeben
 die Rechte in der App unter Einstellungen → Admin → **Konten und Rechte**: Die

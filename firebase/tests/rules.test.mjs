@@ -54,7 +54,7 @@ const user = (uid = "alice") =>
   env.authenticatedContext(uid, { email: `${uid}@Example.org`, email_verified: true }).firestore();
 const admin = (uid = "boss") => env.authenticatedContext(uid, { admin: true }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
-// A normal user with single permissions (1.2.31), e.g. { deepEvals: true }.
+// A normal user with single permissions (1.2.34), e.g. { deepEvals: true }.
 const withPerms = (perms, uid = "alice") =>
   env
     .authenticatedContext(uid, { email: `${uid}@example.org`, email_verified: true, perms })
@@ -313,7 +313,7 @@ describe("shared position store", () => {
   });
 });
 
-describe("roles and permissions (1.2.31)", () => {
+describe("roles and permissions (1.2.34)", () => {
   test("deepEvals lifts the depth limit, other permissions do not", async () => {
     await assertSucceeds(
       setDoc(doc(withPerms({ deepEvals: true }), "users/alice/evals/e1"), evalDoc({ depth: 45 })),

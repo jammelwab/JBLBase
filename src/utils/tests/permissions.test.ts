@@ -8,7 +8,7 @@ import {
     rolesNewerThanToken,
 } from "../cloud/permissions";
 
-describe("permissions (1.2.31)", () => {
+describe("permissions (1.2.34)", () => {
     test("only known permissions set to true count", () => {
         expect(parsePerms({ deepEvals: true, coachTest: false, root: true })).toEqual({
             deepEvals: true,

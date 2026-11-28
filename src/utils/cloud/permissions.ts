@@ -1,4 +1,4 @@
-// Rollen und Einzelrechte (1.2.31).
+// Rollen und Einzelrechte (1.2.34).
 //
 // Nutzer, Nutzer mit einzelnen Rechten und Admins. Admins haben jedes Recht.
 // Die Rechte stehen als Custom Claim `perms` im Firebase-Konto; gesetzt

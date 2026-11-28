@@ -1,4 +1,4 @@
-// Rollen und Einzelrechte (1.2.31).
+// Rollen und Einzelrechte (1.2.34).
 //
 // Drei Stufen: Nutzer, Nutzer mit einzelnen Rechten und Admin. Beides steht
 // als Custom Claim im Firebase-Konto (`admin: true`, `perms: { <recht>: true }`)

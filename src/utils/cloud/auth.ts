@@ -33,7 +33,7 @@ export type CloudAccount = {
     method: "email" | "lichess";
     displayName: string | null;
     role: CloudRole;
-    /** Einzelrechte (1.2.31); Admins haben ohnehin alle, siehe can(). */
+    /** Einzelrechte (1.2.34); Admins haben ohnehin alle, siehe can(). */
     perms: Perms;
 };
 

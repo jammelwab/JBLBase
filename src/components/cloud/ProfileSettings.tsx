@@ -110,7 +110,7 @@ function SignedOut() {
   );
 }
 
-// Drei Stufen (1.2.31): Nutzer, Nutzer mit Einzelrechten, Admin
+// Drei Stufen (1.2.34): Nutzer, Nutzer mit Einzelrechten, Admin
 const LEVEL_LABEL = {
   admin: "Settings.Cloud.RoleAdmin",
   extended: "Settings.Cloud.RoleExtended",

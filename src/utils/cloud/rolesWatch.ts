@@ -1,4 +1,4 @@
-// Rollen und Rechte live (1.2.31): Setzt ein Admin einem Konto neue Rechte,
+// Rollen und Rechte live (1.2.34): Setzt ein Admin einem Konto neue Rechte,
 // schreibt die Function adminSetPermissions roles/{uid}. Die App des Kontos
 // hört auf dieses Dokument und erneuert ihr Token, sobald es neuer ist als
 // das Token. So gelten neue Rechte sofort, ohne Ab- und Anmelden.

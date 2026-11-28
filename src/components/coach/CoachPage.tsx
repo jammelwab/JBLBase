@@ -165,7 +165,7 @@ export function CoachLevel({ size = "sm", streak = 0 }: { size?: "xs" | "sm"; st
   const xp = useAtomValue(coachXpAtom);
   const { level, intoLevel, needed } = levelProgress(xp);
   const left = needed - intoLevel;
-  // Admins und das Recht coachTest (1.2.31)
+  // Admins und das Recht coachTest (1.2.34)
   const canTest = useCan("coachTest");
   const setXp = useSetAtom(coachXpAtom);
   const othersXp = useAtomValue(coachXpOthersAtom);

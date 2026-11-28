@@ -38,7 +38,7 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-// Admin-Fenster (1.2.31): alle Konten der Cloud, ihre Stufe und einzelne
+// Admin-Fenster (1.2.34): alle Konten der Cloud, ihre Stufe und einzelne
 // Rechte zum Umschalten. Die Liste und das Setzen laufen über die Functions
 // adminListUsers und adminSetPermissions, die nur Admins aufrufen dürfen;
 // die Sicherheitsregeln prüfen die Rechte im Token jedes Kontos.
