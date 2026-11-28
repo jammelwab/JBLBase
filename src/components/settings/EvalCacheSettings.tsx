@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands, type EvalCacheStats } from "@/bindings";
 import { evalCloudSyncAtom } from "@/state/atoms";
+import { can } from "@/utils/cloud/permissions";
 import { cloudAccountAtom, cloudSyncStatusAtom, syncNow } from "@/utils/cloud/sync";
 import { formatBytes } from "@/utils/format";
 
@@ -37,7 +38,8 @@ function CloudEvalSync() {
   const account = useAtomValue(cloudAccountAtom);
   const status = useAtomValue(cloudSyncStatusAtom);
   const evals = status.evals;
-  const admin = account?.role === "admin";
+  // Admins und das Recht sharedEvals laden in den gemeinsamen Speicher hoch
+  const admin = can(account, "sharedEvals");
 
   return (
     <Stack gap="xs">

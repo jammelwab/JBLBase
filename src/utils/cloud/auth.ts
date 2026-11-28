@@ -16,6 +16,7 @@ import type { Auth, User } from "firebase/auth";
 import i18n from "i18next";
 import { trackUsage } from "../usageStats";
 import { FIREBASE_REGION, firebaseConfig } from "./firebaseConfig";
+import { type AdminUser, type Perms, parseAdminUsers, parsePerms } from "./permissions";
 
 export type CloudRole = "admin" | "user";
 
@@ -32,6 +33,8 @@ export type CloudAccount = {
     method: "email" | "lichess";
     displayName: string | null;
     role: CloudRole;
+    /** Einzelrechte (1.2.31); Admins haben ohnehin alle, siehe can(). */
+    perms: Perms;
 };
 
 let appPromise: Promise<FirebaseApp> | null = null;
@@ -79,6 +82,7 @@ export async function toCloudAccount(user: User): Promise<CloudAccount> {
         method: isLichessUid(user.uid) ? "lichess" : "email",
         displayName: user.displayName,
         role: token.claims.admin === true ? "admin" : "user",
+        perms: parsePerms(token.claims.perms),
     };
 }
 
@@ -228,6 +232,40 @@ export async function deleteCloudAccount() {
         timeout: 120_000,
     })();
     await signOut(auth);
+}
+
+/** Admin-Fenster: alle Konten mit Rolle und Rechten (Function adminListUsers). */
+export async function adminListUsers(): Promise<AdminUser[]> {
+    const app = await firebaseApp();
+    const { getFunctions, httpsCallable } = await import("firebase/functions");
+    const { data } = await httpsCallable(getFunctions(app, FIREBASE_REGION), "adminListUsers", {
+        timeout: 30_000,
+    })();
+    return parseAdminUsers(data);
+}
+
+/** Admin-Fenster: Admin-Rolle und Einzelrechte eines Kontos setzen. */
+export async function adminSetPermissions(uid: string, admin: boolean, perms: Perms) {
+    const app = await firebaseApp();
+    const { getFunctions, httpsCallable } = await import("firebase/functions");
+    await httpsCallable(getFunctions(app, FIREBASE_REGION), "adminSetPermissions", {
+        timeout: 15_000,
+    })({ uid, admin, perms });
+}
+
+/**
+ * Erneuert das Token, wenn ein Admin Rolle oder Rechte nach dessen
+ * Ausstellung geändert hat (roles/{uid}.updatedAt). onIdTokenChanged meldet
+ * dann das Konto mit den neuen Rechten.
+ */
+export async function refreshTokenIfRolesChanged(uid: string, rolesUpdatedAt: number | null) {
+    const user = (await cloudAuth()).currentUser;
+    if (!user || user.uid !== uid || rolesUpdatedAt === null) return;
+    const { rolesNewerThanToken } = await import("./permissions");
+    const token = await user.getIdTokenResult();
+    if (rolesNewerThanToken(rolesUpdatedAt, Date.parse(token.issuedAtTime))) {
+        await user.getIdToken(true);
+    }
 }
 
 export async function signOutCloud() {

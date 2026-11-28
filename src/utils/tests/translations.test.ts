@@ -9,9 +9,9 @@ test("all texts live inside the translation namespace", () => {
 });
 
 test("English and German texts are filled in", () => {
-    const empty = (texts: Record<string, string | null>) =>
+    const empty = (texts: Record<string, unknown>) =>
         Object.entries(texts)
-            .filter(([, v]) => !v)
+            .filter(([, v]) => typeof v !== "string" || !v)
             .map(([k]) => k);
     expect(empty(en.translation)).toEqual([]);
     expect(empty(de.translation)).toEqual([]);

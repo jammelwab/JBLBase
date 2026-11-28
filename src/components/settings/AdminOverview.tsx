@@ -25,6 +25,7 @@ import {
 } from "@/utils/cloud/adminOverview";
 import { cloudFirestore } from "@/utils/cloud/auth";
 import BossBookAdmin from "@/components/coach/BossBookAdmin";
+import AdminUsers from "./AdminUsers";
 import { parseLimits, usageDay, usageMeter } from "@/utils/cloud/usage";
 
 const CONSOLE = "https://console.firebase.google.com/project/jblbase";
@@ -104,6 +105,8 @@ export default function AdminOverview() {
 
   return (
     <Stack gap="lg">
+      <AdminUsers />
+
       <Group justify="space-between">
         <Text size="sm" c="dimmed">
           {t("Settings.Admin.Period", { days: OVERVIEW_DAYS })}

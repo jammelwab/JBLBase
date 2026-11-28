@@ -5,6 +5,7 @@ import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { settingsTabAtom } from "@/components/cloud/cloudUi";
 import { activeTabAtom, tabsAtom } from "@/state/atoms";
+import { can, type Permission } from "@/utils/cloud/permissions";
 import { cloudAccountAtom } from "@/utils/cloud/sync";
 import { createTab } from "@/utils/tabs";
 import { findTutorial } from "./tutorials";
@@ -19,6 +20,11 @@ export const activeTutorialAtom = atom<{ id: string; step: number } | null>(null
 
 export function useIsAdmin(): boolean {
     return useAtomValue(cloudAccountAtom)?.role === "admin";
+}
+
+/** Hat das angemeldete Konto dieses Recht? Admins haben alle (1.2.31). */
+export function useCan(perm: Permission): boolean {
+    return can(useAtomValue(cloudAccountAtom), perm);
 }
 
 export function useStartTutorial() {

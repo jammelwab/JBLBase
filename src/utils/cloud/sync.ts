@@ -48,6 +48,8 @@ import {
 } from "./firestoreDocs";
 import { type LiveFirestore, listenAfter } from "./liveFirestore";
 import { LiveSync } from "./liveSync";
+import { can } from "./permissions";
+import { watchRoles } from "./rolesWatch";
 import {
     type LocalSharedFile,
     type OwnRepertoire,
@@ -591,13 +593,15 @@ async function runSync(uid: string) {
     store.set(cloudSyncStatusAtom, (s) => ({ ...s, state: "syncing" }));
     const day = usageDay();
     usageMeter.roll(day);
-    const admin = store.get(cloudAccountAtom)?.role === "admin";
+    const account0 = store.get(cloudAccountAtom);
+    // Admins und das Recht noLimits: keine Tageslimits
+    const unlimited = can(account0, "noLimits");
     let others = emptyCounts();
     // Which part of the sync was running when it failed (for the statistics)
     let area = "meta";
     try {
         others = await otherDevicesUsage(uid, day);
-        const allowed = decide(addCounts(others, usageMeter.counts), limits!, admin);
+        const allowed = decide(addCounts(others, usageMeter.counts), limits!, unlimited);
         if (!allowed.sync) {
             trackUsageThrottled("sync_paused", { limit: "total" }, "total", DAY_MS);
             store.set(cloudSyncStatusAtom, (s) => ({
@@ -656,8 +660,8 @@ async function runSync(uid: string) {
             evalSettings.enabled && allowed.evals
                 ? await syncEvals(evalBackend(uid), uid, {
                       minDepth: evalSettings.minDepth,
-                      maxDepth: admin ? null : USER_MAX_EVAL_DEPTH,
-                      target: admin ? "shared" : "own",
+                      maxDepth: can(account0, "deepEvals") ? null : USER_MAX_EVAL_DEPTH,
+                      target: can(account0, "sharedEvals") ? "shared" : "own",
                       pullShared: evalSettings.shared,
                       today: today(),
                   })
@@ -670,7 +674,7 @@ async function runSync(uid: string) {
                     {
                         up: bigBucket(evals.uploaded),
                         down: bigBucket(evals.downloaded),
-                        source: admin ? "shared" : "own",
+                        source: can(account0, "sharedEvals") ? "shared" : "own",
                     },
                     "evals",
                     HOUR_MS,
@@ -831,8 +835,13 @@ export function startCloudSync(force = false): () => void {
             void syncNow();
         }
         // Normal users store analyses up to depth 28 only; deeper results
-        // stay in memory for the session. Admins have no limit.
-        void commands.setEvalCacheUserLimit(account?.role === "user").catch(() => {});
+        // stay in memory for the session. Admins and the permission
+        // deepEvals have no limit.
+        void commands
+            .setEvalCacheUserLimit(!!account && !can(account, "deepEvals"))
+            .catch(() => {});
+        // New permissions from the admin window apply right away (rolesWatch.ts)
+        watchRoles(account?.uid ?? null);
     })
         .then((stop) => {
             if (stopped) stop();

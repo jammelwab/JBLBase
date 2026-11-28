@@ -54,6 +54,11 @@ const user = (uid = "alice") =>
   env.authenticatedContext(uid, { email: `${uid}@Example.org`, email_verified: true }).firestore();
 const admin = (uid = "boss") => env.authenticatedContext(uid, { admin: true }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
+// A normal user with single permissions (1.2.31), e.g. { deepEvals: true }.
+const withPerms = (perms, uid = "alice") =>
+  env
+    .authenticatedContext(uid, { email: `${uid}@example.org`, email_verified: true, perms })
+    .firestore();
 
 function evalDoc({ depth = 20, mate, lines } = {}) {
   const first = { multipv: 1, depth, nodes: 1000, nps: 1000, uci: ["e7e5", "g1f3"] };
@@ -305,6 +310,49 @@ describe("shared position store", () => {
 
   test("admins must still write valid documents", async () => {
     await assertFails(setDoc(doc(admin(), "evals/e1"), { position: FEN }));
+  });
+});
+
+describe("roles and permissions (1.2.31)", () => {
+  test("deepEvals lifts the depth limit, other permissions do not", async () => {
+    await assertSucceeds(
+      setDoc(doc(withPerms({ deepEvals: true }), "users/alice/evals/e1"), evalDoc({ depth: 45 })),
+    );
+    await assertFails(
+      setDoc(doc(withPerms({ coachTest: true }), "users/alice/evals/e2"), evalDoc({ depth: 45 })),
+    );
+    await assertFails(
+      setDoc(doc(withPerms({ deepEvals: "yes" }), "users/alice/evals/e3"), evalDoc({ depth: 45 })),
+    );
+  });
+
+  test("sharedEvals writes to the shared store within the depth limit", async () => {
+    const db = withPerms({ sharedEvals: true });
+    await assertSucceeds(setDoc(doc(db, "evals/e1"), evalDoc({ depth: 28 })));
+    await assertFails(setDoc(doc(db, "evals/e2"), evalDoc({ depth: 40 })));
+    await assertFails(deleteDoc(doc(db, "evals/e1")));
+    const deep = withPerms({ sharedEvals: true, deepEvals: true });
+    await assertSucceeds(setDoc(doc(deep, "evals/e2"), evalDoc({ depth: 40 })));
+    await assertFails(setDoc(doc(deep, "evals/e3"), { position: FEN }));
+  });
+
+  test("permissions need a place on the allowlist", async () => {
+    const db = withPerms({ sharedEvals: true }, "mallory");
+    await assertFails(setDoc(doc(db, "evals/e1"), evalDoc({ depth: 20 })));
+  });
+
+  test("nobody writes roles, owners and admins read them", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "roles/alice"), { admin: false, perms: {} });
+    });
+    await assertSucceeds(getDoc(doc(user("alice"), "roles/alice")));
+    await assertSucceeds(getDoc(doc(admin(), "roles/alice")));
+    await assertFails(getDoc(doc(user("bob"), "roles/alice")));
+    await assertFails(
+      setDoc(doc(user("alice"), "roles/alice"), { admin: true, perms: { deepEvals: true } }),
+    );
+    await assertFails(setDoc(doc(admin(), "roles/bob"), { admin: true, perms: {} }));
+    await assertFails(setDoc(doc(user("alice"), "users/alice"), { perms: { deepEvals: true } }));
   });
 });
 

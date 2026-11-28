@@ -8,29 +8,46 @@ die Cloud schaltet nur den Sync ein.
 | `firebase.json`        | Firestore in `europe-west3` (Frankfurt), Functions                                                           |
 | `firestore.rules`      | Sicherheitsregeln (Bereiche, Rollen, Tiefengrenze)                                                           |
 | `functions/`           | Cloud Functions: Kostenbremse `budgetGuard`, Lichess-Anmeldung `lichessLogin`, Konto löschen `deleteAccount` |
-| `scripts/set-role.mjs` | Admin-Rolle vergeben oder entziehen                                                                          |
+| `scripts/set-role.mjs` | Admin-Rolle vergeben oder entziehen (ohne App, z. B. für das erste Admin-Konto)                              |
 | `tests/rules.test.mjs` | Tests der Sicherheitsregeln gegen den Emulator                                                               |
 
 ## Datenmodell
 
-| Pfad                                                | Wer liest         | Wer schreibt                                                     |
-| --------------------------------------------------- | ----------------- | ---------------------------------------------------------------- |
-| `users/{uid}`                                       | Besitzer          | Besitzer (nur `lichess`, `chesscom`, `settings`, `updatedAt`)    |
-| `users/{uid}/repertoires/{repId}` (ganze PGN-Datei) | Besitzer          | Besitzer, feste Felder, PGN bis 900 KB (größer: gzip bis 900 KB) |
-| `users/{uid}/cards/{cardId}`                        | Besitzer          | Besitzer, feste Felder                                           |
-| `users/{uid}/reviews/{id}`                          | Besitzer          | Besitzer, nur anhängen                                           |
-| `users/{uid}/consents/{terms}_{privacy}`            | Besitzer          | Besitzer, nur anlegen (Zustimmung zu AGB/Datenschutz)            |
-| `users/{uid}/evals/{evalId}`                        | Besitzer          | Besitzer, Nutzer bis Tiefe 28, Matts immer                       |
-| `evals/{evalId}` (gemeinsamer Positionsspeicher)    | alle Angemeldeten | nur Admins                                                       |
+| Pfad                                                 | Wer liest         | Wer schreibt                                                      |
+| ---------------------------------------------------- | ----------------- | ----------------------------------------------------------------- |
+| `users/{uid}`                                        | Besitzer          | Besitzer (nur `lichess`, `chesscom`, `settings`, `updatedAt`)     |
+| `users/{uid}/repertoires/{repId}` (ganze PGN-Datei)  | Besitzer          | Besitzer, feste Felder, PGN bis 900 KB (größer: gzip bis 900 KB)  |
+| `users/{uid}/cards/{cardId}`                         | Besitzer          | Besitzer, feste Felder                                            |
+| `users/{uid}/reviews/{id}`                           | Besitzer          | Besitzer, nur anhängen                                            |
+| `users/{uid}/consents/{terms}_{privacy}`             | Besitzer          | Besitzer, nur anlegen (Zustimmung zu AGB/Datenschutz)             |
+| `users/{uid}/evals/{evalId}`                         | Besitzer          | Besitzer, Nutzer bis Tiefe 28, Matts immer                        |
+| `evals/{evalId}` (gemeinsamer Positionsspeicher)     | alle Angemeldeten | Admins; Recht `sharedEvals` bis Tiefe 28 (mit `deepEvals` tiefer) |
+| `roles/{uid}` (Rolle und Rechte, Spiegel der Claims) | Besitzer, Admins  | niemand (nur die Function `adminSetPermissions`)                  |
 
 Alles andere ist gesperrt. Jedes synchronisierte Dokument trägt `syncedAt`
 (Serverzeit, von den Regeln geprüft); danach fragt die App „was ist neu“.
 
 ### Rollen
 
-Es gibt **Nutzer** und **Admins**. Die Rolle ist ein Custom Claim
-(`admin: true`) im Firebase-Konto. Die App kann ihn nicht setzen, nur das
-Skript mit einem Dienstkonto-Schlüssel:
+Es gibt **Nutzer**, **Nutzer mit Rechten** und **Admins** (ab 1.2.31). Die
+Rolle ist der Custom Claim `admin: true`, die Einzelrechte der Claim
+`perms: { <recht>: true }` (Rechte: `deepEvals`, `sharedEvals`, `noLimits`,
+`coachTest`, `motifTrainer`). Die Regeln prüfen sie mit `hasPerm()`; Admins
+haben jedes Recht.
+
+Gesetzt werden beide im Admin-Fenster der App (Einstellungen → Admin →
+Konten und Rechte) über die Functions `adminListUsers` und
+`adminSetPermissions`. Beide lehnen jeden ab, der nicht `admin: true` im
+Token hat; die eigene Admin-Rolle kann man sich dort nicht nehmen.
+`adminSetPermissions` schreibt `roles/{uid}`, damit die App des Kontos ihr
+Token gleich erneuert. Nach dem Merge deployen:
+
+```sh
+npx -y firebase-tools@15 deploy --only firestore,functions:adminListUsers,functions:adminSetPermissions --project jblbase
+```
+
+Das erste Admin-Konto (oder eines ohne App) bekommt die Rolle mit dem Skript
+und einem Dienstkonto-Schlüssel:
 
 ```sh
 cd firebase

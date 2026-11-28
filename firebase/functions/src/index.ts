@@ -35,6 +35,7 @@ import {
     trimAnswer,
 } from "./explain.js";
 import { cacheKey, eventKey, reportKey } from "./explainKey.js";
+import { type AdminUser, nextClaims, parseRoleChange, permsOf, toAdminUser } from "./roles.js";
 
 // All functions run in Frankfurt with at most one instance, so a bug or an
 // attack can never scale up costs.
@@ -371,3 +372,61 @@ export const coachExplain = onCall(
         return { text, cached: false };
     },
 );
+
+// ---------- Rollen und Einzelrechte (1.2.31) ----------
+//
+// Das Admin-Fenster der App listet alle Konten und setzt ihnen einzelne
+// Rechte oder die Admin-Rolle. Beides sind Custom Claims; nur diese
+// Functions setzen sie, und nur für Aufrufer mit admin: true im Token.
+// roles/{uid} spiegelt den Stand, damit die App des Kontos merkt, dass sie
+// ihr Token erneuern muss (die Regeln lassen dort niemanden schreiben).
+
+function requireAdmin(request: { auth?: { uid: string; token: Record<string, unknown> } }) {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Not signed in");
+    if (request.auth.token.admin !== true) throw new HttpsError("permission-denied", "Admins only");
+    return request.auth.uid;
+}
+
+/** Alle Konten mit Rolle, Rechten und Freigabe, neueste Anmeldung zuerst. */
+export const adminListUsers = onCall({ cors: true, timeoutSeconds: 30 }, async (request) => {
+    requireAdmin(request);
+    const access = (await getFirestore().doc("config/access").get()).data();
+    const users: AdminUser[] = [];
+    let pageToken: string | undefined;
+    do {
+        const page = await getAuth().listUsers(1000, pageToken);
+        for (const u of page.users) users.push(toAdminUser(u, access));
+        pageToken = page.pageToken;
+    } while (pageToken && users.length < 10_000);
+    const time = (s: string | null) => (s ? Date.parse(s) || 0 : 0);
+    users.sort((a, b) => time(b.lastSignIn) - time(a.lastSignIn));
+    return { users };
+});
+
+/** Setzt Admin-Rolle und Einzelrechte eines Kontos. */
+export const adminSetPermissions = onCall({ cors: true, timeoutSeconds: 15 }, async (request) => {
+    const caller = requireAdmin(request);
+    const change = parseRoleChange(request.data);
+    if (!change) throw new HttpsError("invalid-argument", "Bad request");
+    // Sich selbst die Admin-Rolle nehmen sperrt das Admin-Fenster aus
+    if (change.uid === caller && !change.admin) {
+        throw new HttpsError("failed-precondition", "Cannot remove your own admin role");
+    }
+    const auth = getAuth();
+    const user = await auth.getUser(change.uid).catch(() => null);
+    if (!user) throw new HttpsError("not-found", "No such account");
+    await auth.setCustomUserClaims(change.uid, nextClaims(user.customClaims, change));
+    await getFirestore().doc(`roles/${change.uid}`).set({
+        admin: change.admin,
+        perms: change.perms,
+        updatedAt: new Date(),
+        by: caller,
+    });
+    logger.info("Role changed", {
+        uid: change.uid,
+        admin: change.admin,
+        perms: Object.keys(change.perms),
+        by: caller,
+    });
+    return { admin: change.admin, perms: permsOf({ perms: change.perms }) };
+});
