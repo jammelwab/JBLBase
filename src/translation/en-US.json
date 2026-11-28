@@ -1514,6 +1514,8 @@
     "Motifs.Import.Done": "Imported {{patterns}} mating patterns",
     "Motifs.Import.Empty": "No puzzles were found in the files",
     "Motifs.Import.Failed": "Import failed",
+    "Motifs.Import.Ignored_one": "Left out {{count}} file without own puzzles (test, games, references)",
+    "Motifs.Import.Ignored_other": "Left out {{count}} files without own puzzles (tests, games, references)",
     "Motifs.Import.Skipped_one": "Skipped {{count}} puzzle: {{list}}",
     "Motifs.Import.Skipped_other": "Skipped {{count}} puzzles: {{list}}",
     "Motifs.Level.challenging": "Challenging",

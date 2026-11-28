@@ -1508,6 +1508,8 @@
     "Motifs.Import.Done": "{{patterns}} Mattbilder importiert",
     "Motifs.Import.Empty": "In den Dateien wurden keine Aufgaben gefunden",
     "Motifs.Import.Failed": "Import fehlgeschlagen",
+    "Motifs.Import.Ignored_one": "{{count}} Datei ohne eigene Aufgaben ausgelassen (Test, Partien, Literatur)",
+    "Motifs.Import.Ignored_other": "{{count}} Dateien ohne eigene Aufgaben ausgelassen (Tests, Partien, Literatur)",
     "Motifs.Import.Skipped_one": "{{count}} Aufgabe übersprungen: {{list}}",
     "Motifs.Import.Skipped_other": "{{count}} Aufgaben übersprungen: {{list}}",
     "Motifs.Level.challenging": "Schwer",

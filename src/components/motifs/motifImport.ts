@@ -11,6 +11,15 @@
 // Zug des Gegners werden zu Weiterführungen ("Forwarding"): dieselbe Stellung,
 // aber der Gegner wehrt sich anders. Kommentare bleiben erhalten.
 // Partien ohne dieses Schema werden je eine eigene Aufgabe.
+//
+// Kurs-Format "nummerierte Mattbilder" (Reversing-Mate-Kurs):
+//   [Event "017A Name vs. Name (2018)"]  Matt in 1
+//   [Event "017B Name vs. Name (2018)"]  dieselbe Stellung von weiter vorn
+//   [Event "9. RMate: Easy 1"] { Name vs. Name (2018)\n\nF } …
+//     direkt nach "nnnA": die längere Fassung mit Weiterführungen (F1, F2)
+//     an den Zügen des Gegners; sie wird Schritt B dieses Mattbilds.
+// Kapitel "Test A/B" (wiederholen nur die Stellungen; die App hat eigene
+// Testmodi), "Games" (ganze Partien) und "References" werden übersprungen.
 
 import { makeFen } from "chessops/fen";
 import {
@@ -74,12 +83,34 @@ export type MotifCollection = {
 const EXAMPLE_RE =
     /^(?:\d+\.\s*)?(.*?)\b(?:example|ejemplo|beispiel|exemple|esempio|exemplo|pattern|muster)\s*(\d+)\s*[-–:]\s*(?:variation|variante|variación|variacion|variazione|var\.?)\s*([a-z])\b/i;
 
-/** "4. Example 1 - Variation A" → { key: "1", step: "A" } */
-export function parseExampleTitle(event: string): { key: string; step: string } | null {
-    const m = EXAMPLE_RE.exec(event.trim());
+const NUMBERED_RE = /^(\d{1,4})([A-Z])\s+(.*)$/;
+
+/**
+ * "4. Example 1 - Variation A" → { key: "1", step: "A" };
+ * "017A Name vs. Name (2018)" → { key: "017", step: "A", title: "017 · Name vs. Name (2018)" }
+ */
+export function parseExampleTitle(
+    event: string,
+): { key: string; step: string; title?: string } | null {
+    const text = event.trim();
+    const n = NUMBERED_RE.exec(text);
+    if (n) return { key: n[1], step: n[2], title: `${n[1]} · ${n[3].trim()}` };
+    const m = EXAMPLE_RE.exec(text);
     if (!m) return null;
     return { key: m[2], step: m[3].toUpperCase() };
 }
+
+/** Kapitel ohne eigene Aufgaben: Testwiederholungen, Partiensammlung, Literatur */
+export function isSkippedChapter(name: string): boolean {
+    return /\btest[\s_]+[ab]\b|\bgames\b|\breferences?\b|\bpartien\b|\bliteratur\b/i.test(
+        name.replace(/_/g, " "),
+    );
+}
+
+/** Erste Zeile eines Kommentars, z. B. die Spielernamen */
+const firstLine = (text?: string) => text?.split("\n")[0].trim() ?? "";
+/** Kennzeichen "F" (Forwarding) am Ende des Einleitungskommentars */
+const FORWARD_MARK = /\n\s*F(?:\s*$|(?=[A-Z]))/;
 
 const LEVEL_WORDS: [MotifLevel, RegExp][] = [
     ["elementary", /element|elemental|grundl|basic|einfach(st)?e?\b|mate[- ]in[- ][12]\b/i],
@@ -121,6 +152,7 @@ export function chapterNameFromFile(file: string): string {
             .replace(/\.pgn$/i, "")
             .replace(/^\d+[_\s-]+/, "")
             .replace(/^\d+\.\s*/, "")
+            .replace(/__/g, ": ")
             .replace(/_/g, " ")
             .trim() || base
     );
@@ -197,6 +229,8 @@ export type ParseReport = {
     collection: MotifCollection;
     /** Partien, die nicht ins Schema passten (z. B. Zug unmöglich) */
     skipped: string[];
+    /** Dateien, die absichtlich nicht übernommen wurden (Tests, Partien, Literatur) */
+    ignoredFiles: string[];
 };
 
 /**
@@ -208,10 +242,15 @@ export function parseMotifCollection(
     files: { name: string; text: string }[],
 ): ParseReport {
     const skipped: string[] = [];
+    const ignoredFiles: string[] = [];
     const chapters: MotifChapter[] = [];
     const collectionId = `${slug(name)}-${Date.now().toString(36)}`;
 
     files.forEach((file, fileIndex) => {
+        if (isSkippedChapter(chapterNameFromFile(file.name))) {
+            ignoredFiles.push(file.name);
+            return;
+        }
         const games = parsePgn(file.text.replace(/^﻿/, ""));
         let title = chapterNameFromFile(file.name);
         let intro: string | undefined;
@@ -226,7 +265,8 @@ export function parseMotifCollection(
             ]);
             if (!fen) {
                 // Ohne FEN: Kapiteltext (eine mitgelieferte ganze Partie wird nicht trainiert)
-                if (event) title = event.replace(/^\d+\.\s*/, "").trim() || title;
+                // Der Dateiname ist meist genauer als "Chapter Introduction"
+                if (event && !title) title = event.replace(/^\d+\.\s*/, "").trim();
                 intro = [intro, gameIntro].filter(Boolean).join("\n\n") || undefined;
                 continue;
             }
@@ -236,12 +276,32 @@ export function parseMotifCollection(
                 continue;
             }
             const parsed = parseExampleTitle(event);
+            const prev = entries[entries.length - 1];
+            let key = parsed?.key ?? null;
+            let step = parsed?.step ?? "A";
+            let entryIntro = gameIntro;
+            // Forwarding-Partie direkt nach "nnnA": gehört zu diesem Mattbild
+            if (
+                !parsed &&
+                prev?.key &&
+                (FORWARD_MARK.test(gameIntro ?? "") ||
+                    (firstLine(gameIntro) !== "" && firstLine(gameIntro) === firstLine(prev.intro)))
+            ) {
+                key = prev.key;
+                const used = new Set(entries.filter((e) => e.key === key).map((e) => e.step));
+                step = "B";
+                while (used.has(step)) step = String.fromCharCode(step.charCodeAt(0) + 1);
+                entryIntro = gameIntro?.replace(FORWARD_MARK, "\n\n").trim() || undefined;
+            }
             entries.push({
-                title: event.replace(/^\d+\.\s*/, "").trim(),
-                key: parsed?.key ?? null,
-                step: parsed?.step ?? "A",
+                title:
+                    key !== null && key === prev?.key && !parsed
+                        ? prev.title
+                        : (parsed?.title ?? event.replace(/^\d+\.\s*/, "").trim()),
+                key,
+                step,
                 fen: makeFen(start.value.toSetup()),
-                intro: gameIntro,
+                intro: entryIntro,
                 raw: readLine(game.moves),
             });
         }
@@ -323,6 +383,7 @@ export function parseMotifCollection(
     return {
         collection: { id: collectionId, name, importedAt: new Date().toISOString(), chapters },
         skipped,
+        ignoredFiles,
     };
 }
 

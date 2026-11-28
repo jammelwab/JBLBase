@@ -726,7 +726,12 @@ Der Fortschritt beim Training (FSRS-Karten und alle Wiederholungen) liegt in
 
 Eigener Tab „Motiv-Trainer“, die Karte auf dem Startbildschirm erscheint nur für Konten mit dem Recht `motifTrainer` (Rechteverwaltung im Admin-Fenster) und für Admins. Geprüft wird mit `canUseMotifTrainer` in `src/components/motifs/motifStore.ts`; die Seite selbst zeigt ohne Recht nur einen Hinweis.
 
-**Format (PGN, eine Datei je Kapitel).** Jede Aufgabe ist eine Partie mit `[FEN]`. Titel nach dem Schema `[Event "4. Example 1 - Variation A"]` gehören zusammen (auch „Ejemplo/Variante“, „Beispiel“): A ist das Matt in 1, B, C … dieselbe Stellung von weiter vorn. Eine Partie ohne FEN ist der Kapiteltext. Nebenvarianten an Zügen des Gegners, die wieder im Matt enden, werden Weiterführungen. Kommentare bleiben, Zeichenbefehle wie `[%cal]` fallen weg. Die Schwierigkeit kommt aus dem Kapitelnamen (elementary/easy/intermediate/challenging, auch deutsch und spanisch), sonst aus der Mattlänge, und lässt sich je Kapitel umstellen.
+**Format (PGN, eine Datei je Kapitel, mehrere Dateien auf einmal).** Jede Aufgabe ist eine Partie mit `[FEN]`; eine Partie ohne FEN ist der Kapiteltext (nur die Kommentare, Varianten darin fallen weg). Der Kapitelname kommt aus dem Dateinamen (`08_9._RMate__Easy_1.pgn` → „RMate: Easy 1“). Zwei Schemata:
+
+- Kurs-Export mit nummerierten Mattbildern: `[Event "017A Name vs. Name (2018)"]` ist das Matt in 1, `017B` dieselbe Stellung von weiter vorn. Eine Partie direkt nach `nnnA`, deren Einleitung mit „F“ endet (oder dieselben Spielernamen trägt), ist die längere Fassung mit Weiterführungen und wird Schritt B dieses Mattbilds.
+- `[Event "4. Example 1 - Variation A"]` (auch „Ejemplo/Variante“, „Beispiel“): A, B, C … sind die Schritte zurück.
+
+Andere Partien mit FEN (z. B. „Example 01: Non-Forcing Sacrifice“) sind je eine eigene Aufgabe. Dateien „Test A/B“ (wiederholen nur die Stellungen, die App hat eigene Testmodi), „Games“ und „References“ werden ausgelassen, die Meldung nach dem Import nennt ihre Zahl. Nebenvarianten an Zügen des Gegners, die wieder im Matt enden, werden Weiterführungen. Kommentare bleiben, Zeichenbefehle wie `[%cal]` fallen weg. Die Schwierigkeit kommt aus dem Kapitelnamen (elementary/easy/intermediate/challenging, auch deutsch und spanisch), sonst aus der Mattlänge, und lässt sich je Kapitel umstellen. Mit dem kompletten Reversing-Mate-Kurs (29 Dateien) ergibt das 13 Kapitel, 517 Mattbilder (500 nummerierte mit A und B, 15 Lernbeispiele, 2 aus der Einführung) und 75 Weiterführungen.
 
 **Speicher.** Die importierten Sammlungen liegen nur lokal in `motif_trainer.json` im App-Datenordner (gekaufte Kursinhalte gehören nicht in die Cloud), der Fortschritt je Aufgabe in `jbl-motif-progress`.
 

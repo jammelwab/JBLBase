@@ -151,7 +151,7 @@ function MotifSetup({ onStart }: { onStart: (tasks: MotifTask[], mode: MotifMode
       const files = await pickPgnFiles();
       if (files.length === 0) return;
       const name = into?.name ?? files[0].name.split(/[\\/]/).slice(-2, -1)[0] ?? "Motive";
-      const { collection: parsed, skipped } = parseMotifCollection(name, files);
+      const { collection: parsed, skipped, ignoredFiles } = parseMotifCollection(name, files);
       const counts = countLines(parsed);
       if (counts.patterns === 0) {
         notifications.show({ color: "red", title: t("Motifs.Import.Empty"), message: "" });
@@ -170,7 +170,12 @@ function MotifSetup({ onStart }: { onStart: (tasks: MotifTask[], mode: MotifMode
               count: skipped.length,
               list: skipped.slice(0, 5).join(", "),
             })
-          : t("Motifs.Import.Counts", counts),
+          : [
+              t("Motifs.Import.Counts", counts),
+              ignoredFiles.length ? t("Motifs.Import.Ignored", { count: ignoredFiles.length }) : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
       });
     } catch (e) {
       notifications.show({

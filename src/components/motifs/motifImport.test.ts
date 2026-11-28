@@ -58,7 +58,7 @@ describe("motif import", () => {
         ]);
         expect(skipped).toEqual(["Example 2 - Variation A"]);
         const [chapter] = collection.chapters;
-        expect(chapter.title).toBe("Treppenmatt");
+        expect(chapter.title).toBe("Treppe");
         expect(chapter.intro).toBe("Zwei Türme schieben den König an den Rand.");
         expect(chapter.patterns).toHaveLength(2);
         const [p1, solo] = chapter.patterns;
@@ -117,5 +117,68 @@ describe("motif import", () => {
             { [bId]: { ok: 0, bad: 1, last: "bad", at: "" } },
         );
         expect(mistakes.map((t) => t.line.id)).toEqual([bId]);
+    });
+});
+
+// Nummerierte Mattbilder wie im Reversing-Mate-Kurs, eigene Stellungen
+const NUMBERED = `[Event " Chapter Introduction"]
+
+{ Kapiteltext } *
+
+[Event "007A Muster, Anna vs. Beispiel, Bert (2020)"]
+[SetUp "1"]
+[FEN "6k1/1R6/R7/8/8/8/8/2K5 w - - 0 1"]
+
+{ Muster, Anna vs. Beispiel, Bert (2020) } 1. Ra8# *
+
+[Event "3. RMate: Easy 1"]
+[SetUp "1"]
+[FEN "8/6k1/R7/8/8/8/8/1RK5 w - - 0 1"]
+
+{ Muster, Anna vs. Beispiel, Bert (2020)
+
+F } 1. Rb7+ Kg8 (1... Kf8 { ausweichen } 2. Ra8#) 2. Ra8# *
+
+[Event "008A Zweite, Zora vs. Dritte, Dora (2021)"]
+[SetUp "1"]
+[FEN "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1"]
+
+{ Zweite, Zora vs. Dritte, Dora (2021) } 1. Re8# *
+
+[Event "008B Zweite, Zora vs. Dritte, Dora (2021)"]
+[SetUp "1"]
+[FEN "6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1"]
+
+1. Rd8# *
+`;
+
+describe("numbered course format", () => {
+    it("reads nnnA titles and attaches the F game as step B", () => {
+        expect(parseExampleTitle("017A Name, A vs. Name, B (2018)")).toEqual({
+            key: "017",
+            step: "A",
+            title: "017 · Name, A vs. Name, B (2018)",
+        });
+        const { collection, ignoredFiles } = parseMotifCollection("Kurs", [
+            { name: "08_9._RMate__Easy_1.pgn", text: NUMBERED },
+            { name: "10_11._Test_A__Easy.pgn", text: NUMBERED },
+            { name: "24_7._Games__001-100.pgn", text: "" },
+        ]);
+        expect(ignoredFiles).toEqual(["10_11._Test_A__Easy.pgn", "24_7._Games__001-100.pgn"]);
+        expect(collection.chapters).toHaveLength(1);
+        const [chapter] = collection.chapters;
+        expect(chapter.title).toBe("RMate: Easy 1");
+        expect(chapter.level).toBe("easy");
+        expect(chapter.intro).toBe("Kapiteltext");
+        const [first, second] = chapter.patterns;
+        expect(first.title).toBe("007 · Muster, Anna vs. Beispiel, Bert (2020)");
+        expect(first.steps.map((s) => [s.step, s.mateIn])).toEqual([
+            ["A", 1],
+            ["B", 2],
+        ]);
+        expect(first.steps[1].intro).toBe("Muster, Anna vs. Beispiel, Bert (2020)");
+        expect(first.forwarding).toHaveLength(1);
+        expect(first.forwarding[0].moves.map((m) => m.san)).toEqual(["Rb7+", "Kf8", "Ra8#"]);
+        expect(second.steps.map((s) => s.step)).toEqual(["A", "B"]);
     });
 });
