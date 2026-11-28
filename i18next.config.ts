@@ -84,6 +84,8 @@ export default defineConfig({
             "Coach.Hint.*",
             "Coach.Egg.*",
             "Coach.Diary.*",
+            // Motiv-Trainer: Modi, Stufen und Ansagen nach id gewählt
+            "Motifs.*",
         ],
         sort: true,
     },

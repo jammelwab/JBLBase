@@ -722,6 +722,16 @@ Der Fortschritt beim Training (FSRS-Karten und alle Wiederholungen) liegt in
   Browser-Speicher übernommen. Eine Kopie bleibt dort unter
   `deck-backup-…` liegen.
 
+## Motiv-Trainer: Reversing Mate (ab 1.2.32)
+
+Eigener Tab „Motiv-Trainer“, die Karte auf dem Startbildschirm erscheint nur für Konten mit dem Recht `motifTrainer` (Rechteverwaltung im Admin-Fenster) und für Admins. Geprüft wird mit `canUseMotifTrainer` in `src/components/motifs/motifStore.ts`; die Seite selbst zeigt ohne Recht nur einen Hinweis.
+
+**Format (PGN, eine Datei je Kapitel).** Jede Aufgabe ist eine Partie mit `[FEN]`. Titel nach dem Schema `[Event "4. Example 1 - Variation A"]` gehören zusammen (auch „Ejemplo/Variante“, „Beispiel“): A ist das Matt in 1, B, C … dieselbe Stellung von weiter vorn. Eine Partie ohne FEN ist der Kapiteltext. Nebenvarianten an Zügen des Gegners, die wieder im Matt enden, werden Weiterführungen. Kommentare bleiben, Zeichenbefehle wie `[%cal]` fallen weg. Die Schwierigkeit kommt aus dem Kapitelnamen (elementary/easy/intermediate/challenging, auch deutsch und spanisch), sonst aus der Mattlänge, und lässt sich je Kapitel umstellen.
+
+**Speicher.** Die importierten Sammlungen liegen nur lokal in `motif_trainer.json` im App-Datenordner (gekaufte Kursinhalte gehören nicht in die Cloud), der Fortschritt je Aufgabe in `jbl-motif-progress`.
+
+**Modi.** Reversing (Lernen): je Mattbild A, dann B … mit der Matt-in-1-Stellung als zuschaltbarer Hilfe, danach die Weiterführungen. Test Matt in 1 und Test Matt in 2+: gemischt, ohne Titel und Hilfe. „Nur Fehler wiederholen“ nimmt die Aufgaben, deren letzter Versuch falsch war (Fehler, Tipp oder Lösung gezeigt). Beim letzten Zug zählt jedes Matt, sonst der Zug der Hauptlinie; der Gegner zieht von selbst.
+
 ## Cloud (im Aufbau)
 
 Der Sync über Firebase liegt im Ordner `firebase/`: Sicherheitsregeln,
