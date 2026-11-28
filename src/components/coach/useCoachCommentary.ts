@@ -8,6 +8,7 @@ import { normalizeScore, getAnnotation } from "@/utils/score";
 import type { TreeNode } from "@/utils/treeReducer";
 import { evalText, explainMotifs } from "./coachExplain";
 import {
+    allowsNewMateInOne,
     checkEngineOptions,
     type CoachReaction,
     findStockfish,
@@ -44,6 +45,9 @@ export type CoachComment = {
     before: string;
     after: string;
     line: string[];
+    // Die Linie der Engine mit dem besseren Zug, ab der Stellung vor dem Zug
+    // (1.2.34): zeigt, was richtig gewesen wäre
+    bestLine: string[];
     motifs: string[];
     // Name der Eröffnung, wenn der Zug Theorie ist
     opening: string | null;
@@ -105,6 +109,15 @@ export function useCoachCommentary(
         }
         return nodes;
     }, [root]);
+    // Aktuelle Hauptlinie für Prüfungen, die erst später fertig werden
+    const currentLine = useRef(line);
+    useEffect(() => {
+        currentLine.current = line;
+    }, [line]);
+    const onMainLine = (fen: string, halfMoves: number) =>
+        currentLine.current.some((n) => n.halfMoves === halfMoves && n.fen === fen);
+    // Der neueste eigene Zug, zu dem es schon einen Kommentar gibt
+    const latestHuman = useRef<{ ply: number; fen: string } | null>(null);
 
     useEffect(() => {
         if (!active || !engine || !humanColor || line.length < 2) return;
@@ -171,10 +184,7 @@ export function useCoachCommentary(
                 post.is_sacrifice,
                 last.san ?? "",
             );
-            const allowsMate =
-                postBest.score.value.type === "mate" &&
-                Math.abs(postBest.score.value.value) === 1 &&
-                normalizeScore(postBest.score.value, mover) < 0;
+            const allowsMate = allowsNewMateInOne(preBest.score.value, postBest.score.value, mover);
             const sign = notationSign({
                 annotation,
                 allowsMateInOne: allowsMate,
@@ -192,15 +202,18 @@ export function useCoachCommentary(
             if (sign) setSigns((m) => ({ ...m, [last.fen]: sign }));
             if (!isHuman) return;
             const after = postBest.score.value;
-            const allowsMateInOne =
-                after.type === "mate" &&
-                Math.abs(after.value) === 1 &&
-                normalizeScore(after, humanColor) < 0;
+            const allowsMateInOne = allowsNewMateInOne(preBest.score.value, after, humanColor);
             const reaction = reactionFor(annotation, allowsMateInOne, opening !== null);
             const engineMove0 = preBest.sanMoves[0] ?? null;
             const beforeText = evalText(preBest.score.value, humanColor);
             const afterText = evalText(afterScore, humanColor);
-            const followLine = postBest.sanMoves.slice(0, 6);
+            // 1.2.34: 8 statt 6 Halbzüge, die Erklärung zeigt so viele, wie der
+            // Punkt braucht (linePoint)
+            const followLine = postBest.sanMoves.slice(0, 8);
+            const bestLine =
+                preBest.sanMoves[0] && preBest.sanMoves[0] !== last.san
+                    ? preBest.sanMoves.slice(0, 8)
+                    : [];
             const motifs = explainMotifs({ allowsMateInOne, sacrifice: post.is_sacrifice });
             // Claude formuliert den Satz zum Zug; die Partie wartet darauf
             let text: string | null = null;
@@ -230,6 +243,13 @@ export function useCoachCommentary(
                 );
             }
             if (cancelled()) return;
+            // Inzwischen zurückgenommen? Dann gehört das Ergebnis zu keinem Zug
+            // der Partie mehr (1.2.34)
+            if (!onMainLine(last.fen, last.halfMoves)) return;
+            // Ein älteres Ergebnis, das nach einem neueren fertig wird, soll den
+            // Kommentar zum neueren Zug nicht überschreiben (1.2.34)
+            const newest = latestHuman.current;
+            if (newest && newest.ply > last.halfMoves && onMainLine(newest.fen, newest.ply)) return;
             const engineMove = preBest.sanMoves[0] ?? null;
             const bestScore = normalizeScore(preBest.score.value, humanColor);
             const solutions = pre.best
@@ -240,6 +260,7 @@ export function useCoachCommentary(
                 )
                 .map((b) => b.sanMoves[0])
                 .filter((m): m is string => !!m && m !== last.san);
+            latestHuman.current = { ply: last.halfMoves, fen: last.fen };
             setComment((prev) => ({
                 id: (prev?.id ?? 0) + 1,
                 reaction,
@@ -251,6 +272,7 @@ export function useCoachCommentary(
                 before: beforeText,
                 after: afterText,
                 line: followLine,
+                bestLine,
                 motifs,
                 opening,
                 fenAfter: last.fen,
@@ -269,6 +291,7 @@ export function useCoachCommentary(
     };
     useEffect(() => {
         if (line.length <= 1) {
+            latestHuman.current = null;
             checked.current.clear();
             setSigns({});
             stopAll();

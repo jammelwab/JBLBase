@@ -25,6 +25,10 @@ export type ExplainRequest = {
     move: string;
     best: string | null;
     line: string[];
+    // Die Folge der Engine mit dem besseren Zug, ab der Stellung vor dem Zug
+    // (1.2.34, nur deep): damit Claude sagen kann, was der bessere Zug bringt,
+    // ohne sich etwas auszudenken
+    bestLine: string[];
     before: string;
     after: string;
     mark: (typeof SAY_MARKS)[number];
@@ -75,6 +79,10 @@ export function parseExplainRequest(data: unknown): ExplainRequest | null {
     if (!Array.isArray(d.line) || d.line.length > 8) return null;
     const line = d.line.map(str);
     if (!line.every((s) => SAN.test(s))) return null;
+    const rawBest = d.bestLine == null ? [] : d.bestLine;
+    if (!Array.isArray(rawBest) || rawBest.length > 8) return null;
+    const bestLine = rawBest.map(str);
+    if (!bestLine.every((s) => SAN.test(s))) return null;
     const motifs = Array.isArray(d.motifs) ? d.motifs.map(str).slice(0, 4) : [];
     if (!motifs.every((m) => MOTIF.test(m))) return null;
     const mode = d.mode === "say" ? "say" : d.mode === "deep" || d.deep === true ? "deep" : "why";
@@ -104,6 +112,7 @@ export function parseExplainRequest(data: unknown): ExplainRequest | null {
         move,
         best,
         line,
+        bestLine: best !== null && best !== move && mode === "deep" ? bestLine : [],
         before,
         after,
         mark,
@@ -184,7 +193,7 @@ export function reportPrompt(r: ReportRequest): string {
         `The player is ${STAGE_TEXT[r.stage]}.`,
         `Result for the player: ${r.result}.`,
         r.opening ? `Opening: ${r.opening}.` : "",
-        `The player's moves: ${c.book} theory, ${c.solid} solid, ${c.good} good (! or !!), ${c.dubious} inaccuracies (?!), ${c.mistake} mistakes (?), ${c.blunder} blunders (??).`,
+        `The player's moves: ${c.book} theory, ${c.solid} solid, ${c.good} good (!, !! or !?), ${c.dubious} inaccuracies (?!), ${c.mistake} mistakes (?), ${c.blunder} blunders (??).`,
         ...r.moments.map(
             (m) =>
                 `Key moment: ${m.move} rated ${m.mark}${m.best ? `, better was ${m.best}` : ""}${m.motif ? `, motif ${m.motif}` : ""}.`,
@@ -252,6 +261,23 @@ function phase(ply: number): string {
     return "the late phase of the game";
 }
 
+// Halbzüge mit Zugnummern (1.2.34), damit klar ist, wer was zieht:
+// ab der Stellung fen, playerFirst: die Linie beginnt mit dem Spieler am Zug
+// in fen, sonst mit dem Gegner (nach dem Zug des Spielers).
+export function numbered(fen: string, line: string[], playerFirst: boolean): string {
+    const [, turn, , , , full] = fen.split(" ");
+    // Ply des ersten Zugs der Linie (1 = erster Zug von Weiß)
+    let ply = (Number(full) || 1) * 2 - (turn === "w" ? 1 : 0) + (playerFirst ? 0 : 1);
+    return line
+        .map((san, i) => {
+            const n = Math.ceil(ply / 2);
+            const white = ply % 2 === 1;
+            ply++;
+            return white ? `${n}.${san}` : i === 0 ? `${n}...${san}` : san;
+        })
+        .join(" ");
+}
+
 // Die Fakten als Nachricht an Claude
 export function explainPrompt(r: ExplainRequest): string {
     const lines = [
@@ -262,7 +288,12 @@ export function explainPrompt(r: ExplainRequest): string {
         r.best && r.best !== r.move
             ? `Engine's best move: ${r.best}.`
             : "The engine also likes this move.",
-        r.line.length > 0 ? `Engine line after the player's move: ${r.line.join(" ")}.` : "",
+        r.line.length > 0
+            ? `Engine line after the player's move (the opponent moves first): ${numbered(r.fen, r.line, false)}.`
+            : "",
+        r.bestLine.length > 0
+            ? `Engine line with the better move instead (the player moves first): ${numbered(r.fen, r.bestLine, true)}.`
+            : "",
         `Evaluation from the player's side: before ${r.before}, after ${r.after} (pawns; M means mate in so many moves).`,
         r.motifs.length > 0 ? `Detected motifs: ${r.motifs.join("; ")}.` : "",
         r.opening ? `The move is known opening theory: ${r.opening}.` : "",
@@ -278,7 +309,7 @@ export function explainPrompt(r: ExplainRequest): string {
         r.mode === "say"
             ? `Write exactly one short sentence (at most 12 words) reacting to this move right after it was played. ${r.mark === "book" ? "Say it is theory and name the opening if given." : r.mark === "solid" ? "It is a sound, ordinary move; keep it light." : `Match the rating "${r.mark}"; if a better move is given and the rating is ?!, ? or ??, name it.`}`
             : r.mode === "deep"
-              ? `Explain this mistake in 3 or 4 short, simple sentences: what the opponent can do now (name up to the first 4 half-moves of the engine line if the point only shows later), the tactical motif in one plain sentence if one was detected, and what the better move does instead. No filler.`
+              ? `Explain this mistake in 3 or 4 short, simple sentences: what the opponent can do now (the board shows exactly the moves of the engine line, so name those moves when the point only shows later), the tactical motif in one plain sentence if one was detected, and what the better move does instead, using only the moves of the better line. If the engine line after the move shows no loss, the mistake is a missed chance: say what the better move would have won. No filler.`
               : `Explain why the move deserves "${r.mark}". If the problem only shows after a few moves, follow the engine line for up to its first 4 half-moves (2 full moves) and name those moves.`,
     ];
     return lines.filter(Boolean).join("\n");
