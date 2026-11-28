@@ -32,10 +32,15 @@ import {
   completeLessonAtom,
   BASE_LESSONS,
   extraLessonLevel,
+  exampleLine,
   judgeTask,
   LESSON_PATHS,
   LESSONS,
   type Lesson,
+  type LineStep,
+  playedSan,
+  playLine,
+  taskLine,
   unlockedLessons,
   visibleLessons,
 } from "./coachLessonsData";
@@ -43,6 +48,30 @@ import { coachXpAtom, levelProgress } from "./coachState";
 
 const arrowShapes = (arrows: [string, string][], brush = "green") =>
   arrows.map(([a, b]) => ({ orig: a as Key, dest: b as Key, brush }));
+
+// Spielt eine Zugfolge Schritt für Schritt ab (1.2.33). -1: noch nicht
+// gestartet; danach der Index des gezeigten Zugs.
+const LINE_MS = 1100;
+function useLinePlayer(steps: LineStep[]) {
+  const [k, setK] = useState(-1);
+  const [started, setStarted] = useState(false);
+  const playing = started && k < steps.length - 1;
+  useEffect(() => {
+    if (!playing) return;
+    const timer = setTimeout(() => setK((i) => i + 1), k < 0 ? 300 : LINE_MS);
+    return () => clearTimeout(timer);
+  }, [playing, k]);
+  return {
+    k,
+    step: k >= 0 ? (steps[k] ?? null) : null,
+    playing,
+    done: started && !playing,
+    start: () => {
+      setK(-1);
+      setStarted(true);
+    },
+  };
+}
 
 // Der Lernpfad auf der Coach-Seite: vier Pfade, jede Lektion als Kachel.
 export default function CoachLessons() {
@@ -221,29 +250,7 @@ function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }
     setStep(step + 1);
   };
 
-  if (step === -1) {
-    const ex = lesson.example;
-    const turn = ex.fen.split(" ")[1] === "b" ? "black" : "white";
-    return (
-      <CoachStage
-        figure={figure}
-        say={t(`Coach.Lesson.${lesson.id}.Text`)}
-        actions={
-          <Button color="orange" radius="md" size="md" onClick={() => setStep(0)}>
-            {t("Coach.Lessons.Start")}
-          </Button>
-        }
-      >
-        <Chessground
-          coordinates={false}
-          viewOnly
-          fen={ex.fen}
-          orientation={turn}
-          drawable={{ enabled: false, visible: true, autoShapes: arrowShapes(ex.arrows) }}
-        />
-      </CoachStage>
-    );
-  }
+  if (step === -1) return <LessonExample lesson={lesson} onStart={() => setStep(0)} />;
 
   if (finished)
     return (
@@ -267,6 +274,59 @@ function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () => void }
   return <LessonTaskView key={step} lesson={lesson} index={step} onSolved={solved} />;
 }
 
+// Einführung: Beispiel mit Pfeilen; „Zeig, wie es weitergeht“ spielt die
+// Folge vor (1.2.33)
+function LessonExample({ lesson, onStart }: { lesson: Lesson; onStart: () => void }) {
+  const { t } = useTranslation();
+  const figure = useRef<CoachFigureHandle>(null);
+  const ex = lesson.example;
+  const turn = ex.fen.split(" ")[1] === "b" ? "black" : "white";
+  const steps = useMemo(() => playLine(ex.fen, exampleLine(lesson)), [ex.fen, lesson]);
+  const line = useLinePlayer(steps);
+  return (
+    <CoachStage
+      figure={figure}
+      say={
+        line.step
+          ? `${t("Coach.Lessons.LineMove", { n: line.k + 1, total: steps.length })} ${line.step.san}`
+          : t(`Coach.Lesson.${lesson.id}.Text`)
+      }
+      actions={
+        <Group gap="xs">
+          {steps.length > 0 && (
+            <Button
+              variant="light"
+              color="orange"
+              radius="md"
+              size="md"
+              disabled={line.playing}
+              onClick={line.start}
+            >
+              {line.done ? t("Coach.Lessons.LineAgain") : t("Coach.Lessons.LineShow")}
+            </Button>
+          )}
+          <Button color="orange" radius="md" size="md" onClick={onStart}>
+            {t("Coach.Lessons.Start")}
+          </Button>
+        </Group>
+      }
+    >
+      <Chessground
+        coordinates={false}
+        viewOnly
+        fen={line.step?.fen ?? ex.fen}
+        orientation={turn}
+        lastMove={line.step ? (line.step.lastMove as Key[]) : undefined}
+        drawable={{
+          enabled: false,
+          visible: true,
+          autoShapes: line.step ? [] : arrowShapes(ex.arrows),
+        }}
+      />
+    </CoachStage>
+  );
+}
+
 function LessonTaskView({
   lesson,
   index,
@@ -280,6 +340,9 @@ function LessonTaskView({
   const task = lesson.tasks[index];
   const { turn, dests } = useMemo(() => boardMoves(task.fen), [task.fen]);
   const [state, setState] = useState<"open" | "wrong" | "right" | "shown">("open");
+  // Nach der richtigen Lösung: die Folge, die das Motiv zeigt
+  const [line, setLine] = useState<LineStep[]>([]);
+  const player = useLinePlayer(line);
   const [resetKey, setResetKey] = useState(0);
   const arrow = state === "shown" ? sanToSquares(task.fen, task.solutions[0]) : null;
   const figure = useRef<CoachFigureHandle>(null);
@@ -290,23 +353,38 @@ function LessonTaskView({
     else if (state === "wrong") figure.current?.play("dub");
   }, [state, resetKey]);
 
+  // Ohne Folge geht es wie bisher gleich weiter, mit Folge erst nach „Weiter“
   useEffect(() => {
-    if (state !== "right") return;
+    if (state !== "right" || line.length > 0) return;
     const timer = setTimeout(onSolved, 900);
     return () => clearTimeout(timer);
-  }, [state, onSolved]);
+  }, [state, onSolved, line.length]);
 
   const play = (orig: string, dest: string, promotion?: Role) => {
     const promo = promotion ? PROMOTION_LETTER[promotion] : "";
-    const verdict = judgeTask(lesson, task, `${orig}${dest}${promo}`);
-    if (verdict === "right") return setState("right");
+    const uci = `${orig}${dest}${promo}`;
+    const verdict = judgeTask(lesson, task, uci);
+    if (verdict === "right") {
+      const san = playedSan(task, uci) ?? "";
+      const steps = playLine(task.fen, taskLine(lesson, index, san));
+      // Nur zeigen, wenn nach der Lösung wirklich noch etwas kommt
+      if (steps.length > 1) {
+        setLine(steps);
+        player.start();
+      }
+      return setState("right");
+    }
     setState((s) => (s === "shown" ? s : "wrong"));
     setResetKey((k) => k + 1);
   };
 
   const say =
     state === "right"
-      ? t("Coach.Lessons.Right")
+      ? line.length > 1
+        ? player.done
+          ? t("Coach.Lessons.LineDone")
+          : t("Coach.Lessons.RightLine")
+        : t("Coach.Lessons.Right")
       : state === "wrong"
         ? t("Coach.Lessons.Wrong")
         : state === "shown"
@@ -342,33 +420,58 @@ function LessonTaskView({
         </Group>
       }
       actions={
-        state === "wrong" && (
+        state === "wrong" ? (
           <Button variant="light" color="gray" radius="md" onClick={() => setState("shown")}>
             {t("Coach.Lessons.Show")}
           </Button>
-        )
+        ) : state === "right" && line.length > 1 ? (
+          <Group gap="xs">
+            <Button
+              variant="light"
+              color="orange"
+              radius="md"
+              disabled={player.playing}
+              onClick={player.start}
+            >
+              {t("Coach.Lessons.LineAgain")}
+            </Button>
+            <Button color="orange" radius="md" disabled={player.playing} onClick={onSolved}>
+              {t("Coach.Lessons.Next")}
+            </Button>
+          </Group>
+        ) : null
       }
     >
-      <CoachBoard
-        key={resetKey}
-        coordinates={false}
-        viewOnly={state === "right"}
-        fen={task.fen}
-        orientation={turn}
-        turnColor={turn}
-        movable={{
-          free: false,
-          color: state === "right" ? undefined : turn,
-          dests: dests as never,
-          showDests: true,
-        }}
-        onMove={(o, d, promo) => play(o, d, promo)}
-        drawable={{
-          enabled: false,
-          visible: true,
-          autoShapes: arrow ? arrowShapes([arrow]) : [],
-        }}
-      />
+      {line.length > 1 ? (
+        <Chessground
+          coordinates={false}
+          viewOnly
+          fen={(player.step ?? line[0]).fen}
+          orientation={turn}
+          lastMove={(player.step ?? line[0]).lastMove as Key[]}
+        />
+      ) : (
+        <CoachBoard
+          key={resetKey}
+          coordinates={false}
+          viewOnly={state === "right"}
+          fen={task.fen}
+          orientation={turn}
+          turnColor={turn}
+          movable={{
+            free: false,
+            color: state === "right" ? undefined : turn,
+            dests: dests as never,
+            showDests: true,
+          }}
+          onMove={(o, d, promo) => play(o, d, promo)}
+          drawable={{
+            enabled: false,
+            visible: true,
+            autoShapes: arrow ? arrowShapes([arrow]) : [],
+          }}
+        />
+      )}
     </CoachStage>
   );
 }

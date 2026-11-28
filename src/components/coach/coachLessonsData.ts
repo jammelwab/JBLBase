@@ -1,10 +1,11 @@
-import { parseUci } from "chessops";
+import { makeSquare, parseUci } from "chessops";
 import { Chess, normalizeMove } from "chessops/chess";
-import { parseFen } from "chessops/fen";
-import { makeSan } from "chessops/san";
+import { makeFen, parseFen } from "chessops/fen";
+import { makeSan, parseSan } from "chessops/san";
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import type { CoachStrengthId } from "./coachState";
+import { EXAMPLE_LINES, TASK_LINES } from "./coachLessonLines";
 import { coachXpAtom } from "./coachState";
 
 // Lernpfad (1.2.8, ab 1.2.25 zehn Reihen): vier Pfade mit je drei Lektionen. Eine Lektion hat ein
@@ -23,7 +24,10 @@ export type LessonPath =
     | "endgame"
     // Ab 1.2.25: Stellungsspiel nach der Taktik
     | "position"
-    | "structure";
+    | "structure"
+    // Ab 1.2.33: Matt in zwei und Gabeln
+    | "mate2"
+    | "forks";
 export const LESSON_PATHS: LessonPath[] = [
     "game",
     "principles",
@@ -35,6 +39,8 @@ export const LESSON_PATHS: LessonPath[] = [
     "endgame",
     "position",
     "structure",
+    "mate2",
+    "forks",
 ];
 
 // Was eine richtige Lösung ausmacht. Bei "mate" zählt jedes Matt, sonst die
@@ -64,7 +70,12 @@ export type LessonCheck =
     | "seventhRank"
     | "blockade"
     | "passedPawn"
-    | "umbrella";
+    | "umbrella"
+    // Ab 1.2.33
+    | "mateIn2"
+    | "queenFork"
+    | "rookFork"
+    | "pawnFork";
 
 export type LessonTask = { fen: string; solutions: string[] };
 
@@ -509,7 +520,7 @@ export const LESSONS: Lesson[] = [
         path: "position",
         check: "openFile",
         example: {
-            fen: "6k1/pp3ppp/4p3/8/8/4P3/PP3PPP/2R3K1 w - - 0 1",
+            fen: "6k1/pp3pp1/4p2p/8/8/4P2P/PP3PP1/2R3K1 w - - 0 1",
             arrows: [["c1", "c8"]],
         },
         tasks: [
@@ -586,6 +597,107 @@ export const LESSONS: Lesson[] = [
             { fen: "8/2P5/8/3q2Kp/4k3/8/8/5Q2 w - - 0 1", solutions: ["Kh4"] },
             { fen: "8/2P3k1/3p4/4p3/3K4/7Q/8/6q1 w - - 0 1", solutions: ["Ke4"] },
             { fen: "8/1P3Q2/8/4k3/8/q3Kp2/8/8 w - - 0 1", solutions: ["Kf2"] },
+        ],
+    },
+    // ---------- 11. Matt in zwei (1.2.33) ----------
+    // Stellungen mit Stockfish gesucht: der erste Zug ist der einzige, der in
+    // zwei Zügen matt setzt.
+    {
+        id: "quietMove",
+        path: "mate2",
+        check: "mateIn2",
+        example: {
+            fen: "2k5/1p1p1Q2/2p5/8/8/4B3/2P1PR1P/6K1 w - - 0 1",
+            arrows: [["e3", "b6"]],
+        },
+        tasks: [
+            { fen: "3k3r/2p5/1Q6/2N5/8/2P2P2/3K2P1/8 w - - 0 1", solutions: ["Qe6"] },
+            { fen: "2B2k2/2Q1p3/4Bp2/8/8/2P4P/6P1/1K6 w - - 0 1", solutions: ["Qg3"] },
+            { fen: "3k4/4p3/Q2p4/8/8/P7/P2B1K1P/8 w - - 0 1", solutions: ["Qc6"] },
+        ],
+    },
+    {
+        id: "queenSac",
+        path: "mate2",
+        check: "mateIn2",
+        example: {
+            fen: "1k6/ppp3qQ/6R1/8/8/1P1P4/P1K5/8 w - - 0 1",
+            arrows: [["h7", "g8"]],
+        },
+        tasks: [
+            { fen: "5k1n/3Rp1p1/3Q1p2/8/8/5PP1/5K1P/8 w - - 0 1", solutions: ["Qxe7+"] },
+            { fen: "1k6/p1p5/1p2N3/Q4r2/R7/P2P2P1/6K1/8 w - - 0 1", solutions: ["Qxa7+"] },
+            { fen: "6k1/5p2/4N2p/8/8/Q2P4/1P2P3/5K2 w - - 0 1", solutions: ["Qf8+"] },
+        ],
+    },
+    {
+        id: "mateInTwo",
+        path: "mate2",
+        check: "mateIn2",
+        example: {
+            fen: "2k3b1/2pp4/7Q/8/8/5P2/3P3P/R5K1 w - - 0 1",
+            arrows: [["a1", "a8"]],
+        },
+        tasks: [
+            { fen: "5k2/4ppn1/5Qp1/8/3R4/8/P1P2P2/N6K w - - 0 1", solutions: ["Rd8+"] },
+            { fen: "2kb4/1p1p4/8/8/1R6/2P4P/2RK1P1Q/8 w - - 0 1", solutions: ["Rc4+"] },
+            { fen: "B5k1/5ppp/8/1b1Q4/7N/1P1P4/2P5/4K3 w - - 0 1", solutions: ["Qd8+"] },
+        ],
+    },
+    // ---------- 12. Gabeln (1.2.33) ----------
+    // Stockfish: die Gabel gewinnt klar, der zweitbeste Zug liegt weit dahinter.
+    {
+        id: "queenFork",
+        path: "forks",
+        check: "queenFork",
+        example: {
+            fen: "6k1/2pp4/n6p/4r3/8/6P1/2QPPK2/2b5 w - - 0 1",
+            arrows: [
+                ["c2", "g6"],
+                ["g6", "g8"],
+                ["g6", "e8"],
+            ],
+        },
+        tasks: [
+            { fen: "br6/4k1p1/3p1p2/8/8/1P6/1PQP2n1/6K1 w - - 0 1", solutions: ["Qc7+"] },
+            { fen: "8/2k2pp1/7p/3b4/8/P4PP1/5K2/1Qnr4 w - - 0 1", solutions: ["Qc2+"] },
+            { fen: "4k3/3pp3/2p5/5Q2/8/6n1/P1PP3r/1b1K4 w - - 0 1", solutions: ["Qg6+"] },
+        ],
+    },
+    {
+        id: "rookFork",
+        path: "forks",
+        check: "rookFork",
+        example: {
+            fen: "2k5/p3p3/5pn1/8/3R4/P4P1P/2n5/7K w - - 0 1",
+            arrows: [
+                ["d4", "c4"],
+                ["c4", "c8"],
+                ["c4", "c2"],
+            ],
+        },
+        tasks: [
+            { fen: "8/3k4/p1p4p/8/1R6/3b1P2/5P1P/4K2n w - - 0 1", solutions: ["Rd4+"] },
+            { fen: "1k6/7p/3p2p1/8/8/4P3/2RP3P/1b2K2b w - - 0 1", solutions: ["Rb2+"] },
+            { fen: "8/4pp2/3k3p/8/8/1PP4n/2PK1R2/7b w - - 0 1", solutions: ["Rh2"] },
+        ],
+    },
+    {
+        id: "pawnFork",
+        path: "forks",
+        check: "pawnFork",
+        example: {
+            fen: "8/1pp4p/3r1k2/8/3PP3/2PB4/5P1P/4K3 w - - 0 1",
+            arrows: [
+                ["e4", "e5"],
+                ["e5", "d6"],
+                ["e5", "f6"],
+            ],
+        },
+        tasks: [
+            { fen: "8/2p5/3qpk1p/5P2/R3PP2/7P/KP6/8 w - - 0 1", solutions: ["e5+"] },
+            { fen: "8/p1p4p/2B2r1k/8/6PP/2P5/P6P/3K4 w - - 0 1", solutions: ["g5+"] },
+            { fen: "8/3p4/1p4p1/2n1k3/8/1P1P3P/2NPP3/3K4 w - - 0 1", solutions: ["d4+"] },
         ],
     },
 ];
@@ -686,6 +798,12 @@ export function lessonMove(pos: Chess, uci: string) {
 
 export type TaskVerdict = "right" | "wrong" | "illegal";
 
+export function playedSan(task: LessonTask, uci: string): string | null {
+    const pos = taskPosition(task.fen);
+    const move = lessonMove(pos, uci);
+    return move ? makeSan(pos, move) : null;
+}
+
 export function judgeTask(lesson: Lesson, task: LessonTask, uci: string): TaskVerdict {
     const pos = taskPosition(task.fen);
     const move = lessonMove(pos, uci);
@@ -697,6 +815,42 @@ export function judgeTask(lesson: Lesson, task: LessonTask, uci: string): TaskVe
         return after.isCheckmate() ? "right" : "wrong";
     }
     return task.solutions.some((s) => bare(s) === bare(san)) ? "right" : "wrong";
+}
+
+// ---------- Folgezüge (1.2.33) ----------
+// Beispiel und gelöste Aufgabe spielen ein paar Züge weiter, damit man sieht,
+// was das Motiv bringt. Die Züge hat Stockfish ausgesucht (coachLessonLines.ts).
+
+export type LineStep = { fen: string; lastMove: [string, string]; san: string };
+
+// Die Stellungen nach jedem Zug; bricht beim ersten ungültigen Zug ab
+export function playLine(fen: string, sans: readonly string[]): LineStep[] {
+    const pos = taskPosition(fen);
+    const steps: LineStep[] = [];
+    for (const san of sans) {
+        const move = parseSan(pos, san);
+        if (!move || !("from" in move)) break;
+        const shown = makeSan(pos, move);
+        pos.play(move);
+        steps.push({
+            fen: makeFen(pos.toSetup()),
+            lastMove: [makeSquare(move.from), makeSquare(move.to)],
+            san: shown,
+        });
+    }
+    return steps;
+}
+
+export function exampleLine(lesson: Lesson): string[] {
+    return EXAMPLE_LINES[lesson.id] ?? [];
+}
+
+// Die Folge nach der Lösung, nur wenn genau die Hauptlösung gespielt wurde
+export function taskLine(lesson: Lesson, index: number, playedSan: string): string[] {
+    const task = lesson.tasks[index];
+    const rest = TASK_LINES[lesson.id]?.[index];
+    if (!task || !rest || bare(playedSan) !== bare(task.solutions[0])) return [];
+    return [task.solutions[0], ...rest];
 }
 
 // ---------- Fortschritt ----------
